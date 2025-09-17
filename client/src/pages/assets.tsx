@@ -234,9 +234,10 @@ export default function Assets() {
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Asset</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Type</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Status</th>
+                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Vendor</th>
+                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Company</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Location</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Assigned To</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Purchase Cost</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Actions</th>
                   </tr>
                 </thead>
@@ -277,6 +278,25 @@ export default function Assets() {
                           </Badge>
                         </td>
                         <td className="py-4 px-6 text-muted-foreground">
+                          <div>
+                            <p className="font-medium text-foreground">{asset.vendorName || "Not specified"}</p>
+                            {asset.vendorEmail && (
+                              <p className="text-xs text-muted-foreground">{asset.vendorEmail}</p>
+                            )}
+                            {asset.vendorPhone && (
+                              <p className="text-xs text-muted-foreground">{asset.vendorPhone}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 text-muted-foreground">
+                          <div>
+                            <p className="font-medium text-foreground">{asset.companyName || "Not specified"}</p>
+                            {asset.companyGstNumber && (
+                              <p className="text-xs text-muted-foreground">GST: {asset.companyGstNumber}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 text-muted-foreground">
                           {asset.location || "Not specified"}
                         </td>
                         <td className="py-4 px-6 text-muted-foreground">
@@ -311,7 +331,7 @@ export default function Assets() {
                   
                   {filteredAssets.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <td colSpan={8} className="py-12 text-center text-muted-foreground">
                         <div className="flex flex-col items-center space-y-2">
                           <Monitor className="h-12 w-12 text-muted-foreground/50" />
                           <p>No assets found</p>
