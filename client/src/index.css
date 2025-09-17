@@ -104,6 +104,6 @@
   }
   
   .sidebar-link.active {
-    @apply text-primary bg-primary/10;
+    @apply text-primary bg-blue-50;
   }
 }
