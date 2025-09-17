@@ -41,6 +41,13 @@ export const assets = pgTable("assets", {
   warrantyExpiry: timestamp("warranty_expiry"),
   specifications: jsonb("specifications"), // CPU, RAM, Storage, etc.
   notes: text("notes"),
+  // Vendor information
+  vendorName: text("vendor_name"),
+  vendorEmail: text("vendor_email"),
+  vendorPhone: text("vendor_phone"),
+  // Company information
+  companyName: text("company_name"),
+  companyGstNumber: text("company_gst_number"),
   tenantId: varchar("tenant_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
