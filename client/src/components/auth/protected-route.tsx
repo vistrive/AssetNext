@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
-import { Navigate } from "wouter";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,6 +11,14 @@ const roleHierarchy = ["read-only", "it-manager", "admin"];
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setLocation("/login");
+    }
+  }, [isAuthenticated, isLoading, setLocation]);
 
   if (isLoading) {
     return (
@@ -20,7 +29,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return null; // Will redirect via useEffect
   }
 
   if (requiredRole && user) {

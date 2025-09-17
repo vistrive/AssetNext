@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   // Verify token on app load
-  const { isLoading: isVerifying } = useQuery({
+  const { data: verifyData, isLoading: isVerifying } = useQuery({
     queryKey: ["/api/auth/verify"],
     queryFn: async () => {
       const token = localStorage.getItem("token");
@@ -48,13 +48,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return response.json();
     },
     retry: false,
-    onSuccess: (data) => {
-      if (data) {
-        setUser(data.user);
-        setTenant(data.tenant);
-      }
-    },
   });
+
+  // Handle verify data with useEffect
+  useEffect(() => {
+    if (verifyData) {
+      setUser(verifyData.user);
+      setTenant(verifyData.tenant);
+    }
+  }, [verifyData]);
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginRequest) => {

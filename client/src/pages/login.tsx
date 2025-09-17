@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Navigate } from "wouter";
+import { useLocation } from "wouter";
 import { Server } from "lucide-react";
 import { loginSchema, registerSchema } from "@shared/schema";
 import type { LoginRequest, RegisterRequest } from "@shared/schema";
@@ -17,6 +17,7 @@ export default function Login() {
   const [isRegistering, setIsRegistering] = useState(false);
   const { login, register: registerUser, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const loginForm = useForm<LoginRequest>({
     resolver: zodResolver(loginSchema),
@@ -26,9 +27,12 @@ export default function Login() {
     resolver: zodResolver(registerSchema),
   });
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setLocation("/dashboard");
+    }
+  }, [isAuthenticated, setLocation]);
 
   const handleLogin = async (data: LoginRequest) => {
     try {
