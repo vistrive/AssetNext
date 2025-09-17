@@ -15,6 +15,7 @@ import {
   registerSchema, 
   insertAssetSchema,
   insertSoftwareLicenseSchema,
+  insertMasterDataSchema,
   type LoginRequest,
   type RegisterRequest
 } from "@shared/schema";
@@ -328,6 +329,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(recommendation);
     } catch (error) {
       res.status(500).json({ message: "Failed to update recommendation" });
+    }
+  });
+
+  // Master Data routes
+  app.get("/api/master", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { type, query } = req.query;
+      if (!type || typeof type !== 'string') {
+        return res.status(400).json({ message: "Master data type is required" });
+      }
+
+      const masterData = await storage.getMasterData(
+        req.user!.tenantId,
+        type,
+        query as string | undefined
+      );
+      res.json(masterData);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch master data" });
+    }
+  });
+
+  app.post("/api/master", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+    try {
+      const masterDataInput = insertMasterDataSchema.parse({
+        ...req.body,
+        tenantId: req.user!.tenantId,
+      });
+
+      const masterData = await storage.addMasterData(masterDataInput);
+      res.status(201).json(masterData);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid master data" });
+    }
+  });
+
+  app.get("/api/master/distinct", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { field } = req.query;
+      if (!field || typeof field !== 'string') {
+        return res.status(400).json({ message: "Field parameter is required" });
+      }
+
+      const distinctValues = await storage.getDistinctFromAssets(
+        req.user!.tenantId,
+        field
+      );
+      res.json(distinctValues);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch distinct values" });
     }
   });
 
