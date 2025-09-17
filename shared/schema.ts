@@ -94,6 +94,14 @@ export const recommendations = pgTable("recommendations", {
   tenantId: varchar("tenant_id").notNull(),
 });
 
+export const masterData = pgTable("master_data", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(), // manufacturer, model, category, location, vendor, company
+  value: text("value").notNull(),
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -129,6 +137,11 @@ export const insertRecommendationSchema = createInsertSchema(recommendations).om
   generatedAt: true,
 });
 
+export const insertMasterDataSchema = createInsertSchema(masterData).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Authentication schemas
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -156,5 +169,7 @@ export type AssetUtilization = typeof assetUtilization.$inferSelect;
 export type InsertAssetUtilization = z.infer<typeof insertAssetUtilizationSchema>;
 export type Recommendation = typeof recommendations.$inferSelect;
 export type InsertRecommendation = z.infer<typeof insertRecommendationSchema>;
+export type MasterData = typeof masterData.$inferSelect;
+export type InsertMasterData = z.infer<typeof insertMasterDataSchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type RegisterRequest = z.infer<typeof registerSchema>;
