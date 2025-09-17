@@ -10,7 +10,9 @@ import {
   type AssetUtilization,
   type InsertAssetUtilization,
   type Recommendation,
-  type InsertRecommendation
+  type InsertRecommendation,
+  type MasterData,
+  type InsertMasterData
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
@@ -57,6 +59,11 @@ export interface IStorage {
     costSavings: number;
     assetStatusBreakdown: { status: string; count: number }[];
   }>;
+
+  // Master Data
+  getMasterData(tenantId: string, type: string, query?: string): Promise<MasterData[]>;
+  addMasterData(masterData: InsertMasterData): Promise<MasterData>;
+  getDistinctFromAssets(tenantId: string, field: string): Promise<string[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -66,6 +73,7 @@ export class MemStorage implements IStorage {
   private softwareLicenses: Map<string, SoftwareLicense> = new Map();
   private assetUtilization: Map<string, AssetUtilization> = new Map();
   private recommendations: Map<string, Recommendation> = new Map();
+  private masterData: Map<string, MasterData> = new Map();
 
   constructor() {
     this.seedData().catch(console.error);
@@ -235,6 +243,51 @@ export class MemStorage implements IStorage {
     ];
 
     sampleRecommendations.forEach(rec => this.recommendations.set(rec.id, rec));
+
+    // Seed sample master data
+    const sampleMasterData: MasterData[] = [
+      // Manufacturers
+      { id: "master-1", type: "manufacturer", value: "Apple", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-2", type: "manufacturer", value: "Dell", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-3", type: "manufacturer", value: "HP", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-4", type: "manufacturer", value: "Lenovo", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-5", type: "manufacturer", value: "Microsoft", tenantId: tenant.id, createdAt: new Date() },
+      
+      // Models
+      { id: "master-6", type: "model", value: "MacBook Pro", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-7", type: "model", value: "MacBook Air", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-8", type: "model", value: "OptiPlex 7090", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-9", type: "model", value: "EliteBook 850", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-10", type: "model", value: "ThinkPad X1 Carbon", tenantId: tenant.id, createdAt: new Date() },
+      
+      // Categories
+      { id: "master-11", type: "category", value: "laptop", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-12", type: "category", value: "desktop", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-13", type: "category", value: "server", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-14", type: "category", value: "monitor", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-15", type: "category", value: "printer", tenantId: tenant.id, createdAt: new Date() },
+      
+      // Locations
+      { id: "master-16", type: "location", value: "Office Floor 1", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-17", type: "location", value: "Office Floor 2", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-18", type: "location", value: "Storage Room A", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-19", type: "location", value: "Storage Room B", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-20", type: "location", value: "Warehouse", tenantId: tenant.id, createdAt: new Date() },
+      
+      // Vendor Names
+      { id: "master-21", type: "vendor", value: "Apple Inc.", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-22", type: "vendor", value: "Dell Technologies", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-23", type: "vendor", value: "HP Inc.", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-24", type: "vendor", value: "Lenovo Group", tenantId: tenant.id, createdAt: new Date() },
+      
+      // Company Names
+      { id: "master-25", type: "company", value: "Apple Inc.", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-26", type: "company", value: "Dell Technologies Inc.", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-27", type: "company", value: "HP Inc.", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-28", type: "company", value: "Lenovo Group Ltd.", tenantId: tenant.id, createdAt: new Date() },
+    ];
+
+    sampleMasterData.forEach(data => this.masterData.set(data.id, data));
   }
 
   // Users
@@ -471,6 +524,45 @@ export class MemStorage implements IStorage {
       costSavings,
       assetStatusBreakdown: statusBreakdown,
     };
+  }
+
+  // Master Data
+  async getMasterData(tenantId: string, type: string, query?: string): Promise<MasterData[]> {
+    let masterData = Array.from(this.masterData.values())
+      .filter(data => data.tenantId === tenantId && data.type === type);
+    
+    if (query) {
+      masterData = masterData.filter(data => 
+        data.value.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+    
+    return masterData.sort((a, b) => a.value.localeCompare(b.value));
+  }
+
+  async addMasterData(insertMasterData: InsertMasterData): Promise<MasterData> {
+    const id = randomUUID();
+    const masterData: MasterData = {
+      ...insertMasterData,
+      id,
+      createdAt: new Date(),
+    };
+    this.masterData.set(id, masterData);
+    return masterData;
+  }
+
+  async getDistinctFromAssets(tenantId: string, field: string): Promise<string[]> {
+    const assets = await this.getAssets(tenantId);
+    const values = new Set<string>();
+    
+    assets.forEach(asset => {
+      const value = (asset as any)[field];
+      if (value && typeof value === 'string') {
+        values.add(value);
+      }
+    });
+    
+    return Array.from(values).sort();
   }
 }
 
