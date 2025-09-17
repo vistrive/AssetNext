@@ -112,7 +112,9 @@ export class MemStorage implements IStorage {
         assignedUserName: "John Smith",
         purchaseDate: new Date("2024-01-15"),
         purchaseCost: "2499.00",
+        warrantyExpiry: new Date("2027-01-15"),
         specifications: { cpu: "M3 Pro", ram: "32GB", storage: "1TB SSD" },
+        notes: "Primary development machine",
         tenantId: tenant.id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -127,9 +129,13 @@ export class MemStorage implements IStorage {
         serialNumber: "B9876543210",
         status: "in-stock",
         location: "Storage Room A",
+        assignedUserId: null,
+        assignedUserName: null,
         purchaseDate: new Date("2024-02-20"),
         purchaseCost: "899.00",
+        warrantyExpiry: new Date("2027-02-20"),
         specifications: { cpu: "Intel i7", ram: "16GB", storage: "512GB SSD" },
+        notes: "Backup desktop system",
         tenantId: tenant.id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -151,6 +157,7 @@ export class MemStorage implements IStorage {
         usedLicenses: 27,
         costPerLicense: "52.99",
         renewalDate: new Date("2024-12-31"),
+        notes: "Creative team subscription",
         tenantId: tenant.id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -163,8 +170,10 @@ export class MemStorage implements IStorage {
         licenseType: "subscription",
         totalLicenses: 100,
         usedLicenses: 87,
+        licenseKey: "M365-CORP-LICENSE",
         costPerLicense: "12.50",
         renewalDate: new Date("2024-11-30"),
+        notes: "Company-wide productivity suite",
         tenantId: tenant.id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -230,6 +239,7 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
+      role: insertUser.role || "read-only",
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -291,6 +301,7 @@ export class MemStorage implements IStorage {
     const asset: Asset = {
       ...insertAsset,
       id,
+      status: insertAsset.status || "in-stock",
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -331,6 +342,7 @@ export class MemStorage implements IStorage {
     const license: SoftwareLicense = {
       ...insertLicense,
       id,
+      version: insertLicense.version || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -366,6 +378,10 @@ export class MemStorage implements IStorage {
     const utilization: AssetUtilization = {
       ...insertUtilization,
       id,
+      cpuUsage: insertUtilization.cpuUsage || null,
+      ramUsage: insertUtilization.ramUsage || null,
+      diskUsage: insertUtilization.diskUsage || null,
+      networkUsage: insertUtilization.networkUsage || null,
       recordedAt: new Date(),
     };
     this.assetUtilization.set(id, utilization);
@@ -389,6 +405,8 @@ export class MemStorage implements IStorage {
     const recommendation: Recommendation = {
       ...insertRecommendation,
       id,
+      status: insertRecommendation.status || "pending",
+      priority: insertRecommendation.priority || "medium",
       generatedAt: new Date(),
     };
     this.recommendations.set(id, recommendation);
