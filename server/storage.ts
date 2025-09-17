@@ -13,6 +13,7 @@ import {
   type InsertRecommendation
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { hashPassword } from "./services/auth";
 
 export interface IStorage {
   // Users
@@ -67,10 +68,10 @@ export class MemStorage implements IStorage {
   private recommendations: Map<string, Recommendation> = new Map();
 
   constructor() {
-    this.seedData();
+    this.seedData().catch(console.error);
   }
 
-  private seedData() {
+  private async seedData() {
     // Create default tenant
     const tenant: Tenant = {
       id: "tenant-1",
@@ -82,11 +83,12 @@ export class MemStorage implements IStorage {
     this.tenants.set(tenant.id, tenant);
 
     // Create default admin user
+    const hashedPassword = await hashPassword("admin123");
     const adminUser: User = {
       id: "user-1",
       username: "admin",
       email: "admin@techcorp.com",
-      password: "$2b$10$8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8u", // password: "admin123"
+      password: hashedPassword,
       firstName: "Sarah",
       lastName: "Johnson",
       role: "admin",
