@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useQuery, useMutation, queryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { insertAssetSchema, insertMasterDataSchema } from "@shared/schema";
@@ -41,11 +41,8 @@ function ComboSelect({ value, onValueChange, type, placeholder, label, dataTestI
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newValue, setNewValue] = useState("");
 
-  const { data: masterData = [], isLoading } = useQuery({
+  const { data: masterData = [], isLoading, error } = useQuery({
     queryKey: ['/api/master', type],
-    queryFn: () => fetch(`/api/master?type=${type}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    }).then(res => res.json()) as Promise<MasterData[]>
   });
 
   const addMasterDataMutation = useMutation({
