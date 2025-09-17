@@ -13,6 +13,9 @@ import { z } from "zod";
 const assetFormSchema = insertAssetSchema.extend({
   purchaseDate: z.string().optional(),
   warrantyExpiry: z.string().optional(),
+  vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
+  vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]+$/, "Please enter a valid phone number").optional().or(z.literal("")),
+  companyGstNumber: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Please enter a valid 15-character GST number").optional().or(z.literal("")),
 });
 
 type AssetFormData = z.infer<typeof assetFormSchema>;
@@ -49,6 +52,11 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       purchaseCost: asset.purchaseCost || "",
       warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : "",
       notes: asset.notes || "",
+      vendorName: asset.vendorName || "",
+      vendorEmail: asset.vendorEmail || "",
+      vendorPhone: asset.vendorPhone || "",
+      companyName: asset.companyName || "",
+      companyGstNumber: asset.companyGstNumber || "",
     } : {},
   });
 
@@ -200,6 +208,78 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 placeholder="e.g., John Smith"
                 data-testid="input-assigned-user"
               />
+            </div>
+
+            {/* Vendor Information Section */}
+            <div className="md:col-span-2">
+              <h3 className="text-lg font-semibold text-foreground mb-4 border-b pb-2">Vendor Information</h3>
+            </div>
+            
+            <div className="md:col-span-2">
+              <Label htmlFor="vendorName">Vendor Name</Label>
+              <Input
+                id="vendorName"
+                {...register("vendorName")}
+                placeholder="e.g., Apple Inc."
+                data-testid="input-vendor-name"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="vendorEmail">Vendor Email</Label>
+              <Input
+                id="vendorEmail"
+                type="email"
+                {...register("vendorEmail")}
+                placeholder="e.g., business@vendor.com"
+                data-testid="input-vendor-email"
+              />
+              {errors.vendorEmail && (
+                <p className="text-red-500 text-sm mt-1">{errors.vendorEmail.message}</p>
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="vendorPhone">Vendor Phone</Label>
+              <Input
+                id="vendorPhone"
+                type="tel"
+                {...register("vendorPhone")}
+                placeholder="e.g., +1-800-123-4567"
+                data-testid="input-vendor-phone"
+              />
+              {errors.vendorPhone && (
+                <p className="text-red-500 text-sm mt-1">{errors.vendorPhone.message}</p>
+              )}
+            </div>
+
+            {/* Company Information Section */}
+            <div className="md:col-span-2">
+              <h3 className="text-lg font-semibold text-foreground mb-4 border-b pb-2">Company Information</h3>
+            </div>
+            
+            <div>
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                {...register("companyName")}
+                placeholder="e.g., Apple Inc."
+                data-testid="input-company-name"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="companyGstNumber">GST Number</Label>
+              <Input
+                id="companyGstNumber"
+                {...register("companyGstNumber")}
+                placeholder="e.g., 29AABCA1234D1Z5"
+                maxLength={15}
+                data-testid="input-company-gst"
+              />
+              {errors.companyGstNumber && (
+                <p className="text-red-500 text-sm mt-1">{errors.companyGstNumber.message}</p>
+              )}
             </div>
             
             <div className="md:col-span-2">
