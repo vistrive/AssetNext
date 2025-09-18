@@ -10,6 +10,8 @@ import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Assets from "@/pages/assets";
 import Recommendations from "@/pages/recommendations";
+import Software from "@/pages/software";
+import Settings from "@/pages/settings";
 
 function Router() {
   return (
@@ -33,6 +35,16 @@ function Router() {
       <Route path="/recommendations">
         <ProtectedRoute requiredRole="it-manager">
           <Recommendations />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/software">
+        <ProtectedRoute requiredRole="read-only">
+          <Software />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute requiredRole="read-only">
+          <Settings />
         </ProtectedRoute>
       </Route>
       <Route component={NotFound} />
