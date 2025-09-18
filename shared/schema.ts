@@ -41,6 +41,13 @@ export const assets = pgTable("assets", {
   warrantyExpiry: timestamp("warranty_expiry"),
   specifications: jsonb("specifications"), // CPU, RAM, Storage, etc.
   notes: text("notes"),
+  // Software-specific fields (when type is 'software')
+  softwareName: text("software_name"),
+  version: text("version"),
+  licenseType: text("license_type"), // perpetual, subscription, volume
+  licenseKey: text("license_key"),
+  usedLicenses: integer("used_licenses"),
+  renewalDate: timestamp("renewal_date"),
   // Vendor information
   vendorName: text("vendor_name"),
   vendorEmail: text("vendor_email"),

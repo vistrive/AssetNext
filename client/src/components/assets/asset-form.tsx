@@ -22,9 +22,56 @@ import { useToast } from "@/hooks/use-toast";
 const assetFormSchema = insertAssetSchema.extend({
   purchaseDate: z.string().optional(),
   warrantyExpiry: z.string().optional(),
+  renewalDate: z.string().optional(),
   vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]+$/, "Please enter a valid phone number").optional().or(z.literal("")),
   companyGstNumber: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Please enter a valid 15-character GST number").optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  // Make software-specific fields mandatory when type is 'software'
+  if (data.type === 'software') {
+    if (!data.softwareName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Software name is required for software assets",
+        path: ["softwareName"],
+      });
+    }
+    if (!data.version) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Version is required for software assets",
+        path: ["version"],
+      });
+    }
+    if (!data.licenseType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "License type is required for software assets",
+        path: ["licenseType"],
+      });
+    }
+    if (!data.licenseKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "License key is required for software assets",
+        path: ["licenseKey"],
+      });
+    }
+    if (data.usedLicenses === undefined || data.usedLicenses === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Used licenses is required for software assets",
+        path: ["usedLicenses"],
+      });
+    }
+    if (!data.renewalDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Renewal date is required for software assets",
+        path: ["renewalDate"],
+      });
+    }
+  }
 });
 
 type AssetFormData = z.infer<typeof assetFormSchema>;
@@ -216,6 +263,13 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
       purchaseCost: asset.purchaseCost || "",
       warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : "",
+      // Software-specific fields
+      softwareName: asset.softwareName || "",
+      version: asset.version || "",
+      licenseType: asset.licenseType || "",
+      licenseKey: asset.licenseKey || "",
+      usedLicenses: asset.usedLicenses || 0,
+      renewalDate: asset.renewalDate ? new Date(asset.renewalDate).toISOString().split('T')[0] : "",
       notes: asset.notes || "",
       vendorName: asset.vendorName || "",
       vendorEmail: asset.vendorEmail || "",
@@ -230,6 +284,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       ...data,
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
       warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : undefined,
+      renewalDate: data.renewalDate ? new Date(data.renewalDate) : undefined,
       tenantId: "", // Will be set by the API
     };
     onSubmit(submitData);
@@ -370,6 +425,16 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 data-testid="input-purchase-cost"
               />
             </div>
+
+            <div>
+              <Label htmlFor="warrantyExpiry">Warranty Expiry</Label>
+              <Input
+                id="warrantyExpiry"
+                type="date"
+                {...register("warrantyExpiry")}
+                data-testid="input-warranty-expiry"
+              />
+            </div>
             
             <div className="md:col-span-2">
               <Label htmlFor="location">Location</Label>
@@ -392,6 +457,102 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 data-testid="input-assigned-user"
               />
             </div>
+
+            {/* Software-specific fields - only show when type is 'software' */}
+            {watch("type") === "software" && (
+              <>
+                <div className="md:col-span-2">
+                  <h3 className="text-lg font-semibold text-foreground mb-4 border-b pb-2">Software Details</h3>
+                </div>
+                
+                <div>
+                  <Label htmlFor="softwareName">Software Name *</Label>
+                  <Input
+                    id="softwareName"
+                    {...register("softwareName")}
+                    placeholder="e.g., Microsoft Office 365"
+                    data-testid="input-software-name"
+                  />
+                  {errors.softwareName && (
+                    <p className="text-red-500 text-sm mt-1">{errors.softwareName.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="version">Version *</Label>
+                  <Input
+                    id="version"
+                    {...register("version")}
+                    placeholder="e.g., 2021, v1.5.3"
+                    data-testid="input-version"
+                  />
+                  {errors.version && (
+                    <p className="text-red-500 text-sm mt-1">{errors.version.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="licenseType">License Type *</Label>
+                  <Select 
+                    value={watch("licenseType") || ""} 
+                    onValueChange={(value) => setValue("licenseType", value)}
+                  >
+                    <SelectTrigger data-testid="select-license-type">
+                      <SelectValue placeholder="Select license type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="perpetual">Perpetual</SelectItem>
+                      <SelectItem value="subscription">Subscription</SelectItem>
+                      <SelectItem value="volume">Volume</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.licenseType && (
+                    <p className="text-red-500 text-sm mt-1">{errors.licenseType.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="licenseKey">License Key *</Label>
+                  <Input
+                    id="licenseKey"
+                    {...register("licenseKey")}
+                    placeholder="e.g., ABCD-1234-EFGH-5678"
+                    data-testid="input-license-key"
+                  />
+                  {errors.licenseKey && (
+                    <p className="text-red-500 text-sm mt-1">{errors.licenseKey.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="usedLicenses">Used Licenses *</Label>
+                  <Input
+                    id="usedLicenses"
+                    type="number"
+                    min="0"
+                    {...register("usedLicenses", { valueAsNumber: true })}
+                    placeholder="0"
+                    data-testid="input-used-licenses"
+                  />
+                  {errors.usedLicenses && (
+                    <p className="text-red-500 text-sm mt-1">{errors.usedLicenses.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="renewalDate">Renewal Date *</Label>
+                  <Input
+                    id="renewalDate"
+                    type="date"
+                    {...register("renewalDate")}
+                    data-testid="input-renewal-date"
+                  />
+                  {errors.renewalDate && (
+                    <p className="text-red-500 text-sm mt-1">{errors.renewalDate.message}</p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Vendor Information Section */}
             <div className="md:col-span-2">
