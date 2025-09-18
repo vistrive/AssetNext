@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { insertAssetSchema, insertMasterDataSchema } from "@shared/schema";
 import type { Asset, InsertAsset, MasterData } from "@shared/schema";
 import { z } from "zod";
+import { useToast } from "@/hooks/use-toast";
 
 const assetFormSchema = insertAssetSchema.extend({
   purchaseDate: z.string().optional(),
@@ -40,23 +41,38 @@ function ComboSelect({ value, onValueChange, type, placeholder, label, dataTestI
   const [open, setOpen] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newValue, setNewValue] = useState("");
+  const { toast } = useToast();
 
-  const { data: masterData = [], isLoading, error } = useQuery({
+  const { data: masterData = [], isLoading, error } = useQuery<MasterData[]>({
     queryKey: ['/api/master', type],
   });
 
-  const addMasterDataMutation = useMutation({
-    mutationFn: (data: { type: string; value: string }) =>
-      apiRequest(`/api/master`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+  const addMasterDataMutation = useMutation<MasterData, Error, { type: string; value: string }>({
+    mutationFn: async (data: { type: string; value: string }) => {
+      const response = await apiRequest("POST", `/api/master`, data);
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json?.message || 'Failed to add new item');
+      }
+      return json as MasterData;
+    },
     onSuccess: (newMasterData: MasterData) => {
       queryClient.invalidateQueries({ queryKey: ['/api/master', type] });
       onValueChange(newMasterData.value);
       setShowAddDialog(false);
       setNewValue("");
       setOpen(false);
+      toast({
+        title: "Added successfully",
+        description: `New ${label.toLowerCase()} has been added.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || `Failed to add ${label.toLowerCase()}. You might not have permission to add new items.`,
+        variant: "destructive",
+      });
     },
   });
 
