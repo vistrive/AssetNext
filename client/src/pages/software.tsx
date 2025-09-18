@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { LicenseForm } from "@/components/software/license-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Code, Search, Plus, Key, Users, Calendar } from "lucide-react";
-import type { SoftwareLicense } from "@shared/schema";
+import { Code, Search, Plus, Key, Users, Calendar, Edit, Eye, Trash2 } from "lucide-react";
+import type { SoftwareLicense, InsertSoftwareLicense } from "@shared/schema";
 
 export default function Software() {
+  const [isLicenseFormOpen, setIsLicenseFormOpen] = useState(false);
+  const [editingLicense, setEditingLicense] = useState<SoftwareLicense | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const queryClient = useQueryClient();
@@ -29,6 +32,44 @@ export default function Software() {
       return response.json();
     },
   });
+
+  // Create software license mutation
+  const createLicenseMutation = useMutation({
+    mutationFn: async (licenseData: InsertSoftwareLicense) => {
+      const response = await authenticatedRequest("POST", "/api/licenses", licenseData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/licenses"] });
+      setIsLicenseFormOpen(false);
+      setEditingLicense(undefined);
+      toast({
+        title: "License created",
+        description: "The software license has been created successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create license. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddLicense = () => {
+    setEditingLicense(undefined);
+    setIsLicenseFormOpen(true);
+  };
+
+  const handleEditLicense = (license: SoftwareLicense) => {
+    setEditingLicense(license);
+    setIsLicenseFormOpen(true);
+  };
+
+  const handleLicenseSubmit = (licenseData: InsertSoftwareLicense) => {
+    createLicenseMutation.mutate(licenseData);
+  };
 
   // Filter licenses based on search term
   const filteredLicenses = licenses.filter((license: SoftwareLicense) =>
@@ -66,7 +107,7 @@ export default function Software() {
                   Manage your software licenses and monitor usage
                 </p>
               </div>
-              <Button className="flex items-center gap-2" data-testid="button-add-license">
+              <Button onClick={handleAddLicense} className="flex items-center gap-2" data-testid="button-add-license">
                 <Plus className="h-4 w-4" />
                 Add License
               </Button>
@@ -185,6 +226,17 @@ export default function Software() {
                           <span className="font-medium">${license.costPerLicense}</span>
                         </div>
                       )}
+
+                      <div className="flex justify-end gap-1 mt-4">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => handleEditLicense(license)}
+                          data-testid={`button-edit-${license.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -192,6 +244,14 @@ export default function Software() {
             )}
           </div>
         </main>
+
+        <LicenseForm
+          isOpen={isLicenseFormOpen}
+          onClose={() => setIsLicenseFormOpen(false)}
+          onSubmit={handleLicenseSubmit}
+          license={editingLicense}
+          isLoading={createLicenseMutation.isPending}
+        />
       </div>
     </div>
   );

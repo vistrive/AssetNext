@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { authenticatedRequest } from "@/lib/auth";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { insertAssetSchema, insertMasterDataSchema } from "@shared/schema";
@@ -49,12 +50,8 @@ function ComboSelect({ value, onValueChange, type, placeholder, label, dataTestI
 
   const addMasterDataMutation = useMutation<MasterData, Error, { type: string; value: string }>({
     mutationFn: async (data: { type: string; value: string }) => {
-      const response = await apiRequest("POST", `/api/master`, data);
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error(json?.message || 'Failed to add new item');
-      }
-      return json as MasterData;
+      const response = await authenticatedRequest("POST", `/api/master`, data);
+      return response.json() as Promise<MasterData>;
     },
     onSuccess: (newMasterData: MasterData) => {
       queryClient.invalidateQueries({ queryKey: ['/api/master', type] });
