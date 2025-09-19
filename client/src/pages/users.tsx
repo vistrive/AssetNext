@@ -258,9 +258,9 @@ export default function Users() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 md:ml-64">
+      <div className="flex-1 md:ml-64 overflow-auto">
         <TopBar title="Team Management" description="Manage your organization's team members and invitations" />
         <main className="p-6">
           <div className="max-w-7xl mx-auto space-y-6">

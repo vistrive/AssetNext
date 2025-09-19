@@ -223,9 +223,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 md:ml-64 overflow-auto">
         <TopBar 
           title="Settings" 
           description="Manage your account, organization, and application preferences"

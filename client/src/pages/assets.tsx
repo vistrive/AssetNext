@@ -384,7 +384,7 @@ export default function Assets() {
     <div className="flex h-screen bg-background">
       <Sidebar />
       
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 md:ml-64 overflow-auto">
         <TopBar
           title={getPageTitle()}
           description={getPageDescription()}

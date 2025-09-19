@@ -57,7 +57,7 @@ export default function Dashboard() {
     <div className="flex h-screen bg-background">
       <Sidebar />
       
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 md:ml-64 overflow-auto">
         <TopBar
           title="Dashboard"
           description="IT Asset Overview with Category Breakdowns"

@@ -115,7 +115,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-card border-r border-border flex flex-col">
+    <aside className="fixed top-0 left-0 h-screen w-64 bg-card border-r border-border flex flex-col z-10">
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -128,7 +128,7 @@ export function Sidebar() {
         </div>
       </div>
       
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         {navigation.map((item) => {
           // Hide links based on role hierarchy
           if (item.requiredRole && user) {

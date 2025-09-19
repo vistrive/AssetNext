@@ -186,7 +186,7 @@ export default function Recommendations() {
     <div className="flex h-screen bg-background">
       <Sidebar />
       
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 md:ml-64 overflow-auto">
         <TopBar
           title="AI Recommendations"
           description="Optimize your IT infrastructure with AI-powered insights"
