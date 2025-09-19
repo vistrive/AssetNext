@@ -245,9 +245,9 @@ export default function Assets() {
     }
   };
 
-  const downloadTemplate = async (type: 'template' | 'sample') => {
+  const downloadTemplate = async () => {
     try {
-      const response = await authenticatedRequest("GET", `/api/assets/bulk/${type}`);
+      const response = await authenticatedRequest("GET", "/api/assets/bulk/template");
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Download failed" }));
@@ -258,7 +258,7 @@ export default function Assets() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = type === 'template' ? 'asset_template.csv' : 'asset_sample.csv';
+      a.download = 'asset_template_with_samples.csv';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -266,7 +266,7 @@ export default function Assets() {
     } catch (error) {
       toast({
         title: "Download failed",
-        description: error instanceof Error ? error.message : `Failed to download ${type}. Please try again.`,
+        description: error instanceof Error ? error.message : "Failed to download template. Please try again.",
         variant: "destructive",
       });
     }
@@ -524,47 +524,37 @@ export default function Assets() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Step 1: Download Template</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Download a CSV template to fill in your asset information. You can also download a sample file with example data.
+                    Download a comprehensive CSV template with sample data showing all asset types (hardware, software, peripherals) and statuses.
                   </p>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => downloadTemplate('template')}
-                      data-testid="button-download-template"
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Empty Template
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      onClick={() => downloadTemplate('sample')}
-                      data-testid="button-download-sample"
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Download Sample Data
-                    </Button>
-                  </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={downloadTemplate}
+                    data-testid="button-download-template"
+                    className="w-full"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Template with Samples
+                  </Button>
                 </div>
 
                 <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-2">Step 2: Fill in Your Data</h3>
+                  <h3 className="text-lg font-medium mb-2">Step 2: Customize Your Data</h3>
                   <div className="bg-muted p-4 rounded-lg">
-                    <h4 className="font-medium mb-2">Required Fields:</h4>
+                    <h4 className="font-medium mb-2">Template includes sample data for:</h4>
                     <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• <strong>name:</strong> Asset name (required)</li>
-                      <li>• <strong>type:</strong> hardware, software, or peripheral (required)</li>
-                      <li>• <strong>status:</strong> in-stock, deployed, in-repair, or disposed (required)</li>
+                      <li>• <strong>Hardware:</strong> Laptops, desktops with deployed/in-stock status</li>
+                      <li>• <strong>Software:</strong> Applications with subscription/perpetual licenses</li>
+                      <li>• <strong>Peripherals:</strong> Printers, accessories with all statuses</li>
                     </ul>
                     
-                    <h4 className="font-medium mb-2 mt-4">Optional Fields:</h4>
+                    <h4 className="font-medium mb-2 mt-4">Key Guidelines:</h4>
                     <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• <strong>category, manufacturer, model, serial_number, location</strong></li>
-                      <li>• <strong>purchase_date, warranty_expiry:</strong> Use YYYY-MM-DD or MM/DD/YYYY format</li>
-                      <li>• <strong>purchase_cost:</strong> Numeric value (e.g., 2499.00)</li>
-                      <li>• <strong>specifications:</strong> JSON format (e.g., {"{\"ram\":\"16GB\",\"storage\":\"512GB\"}"})</li>
-                      <li>• For software: <strong>software_name, version, license_type, license_key</strong></li>
+                      <li>• Replace sample data with your actual asset information</li>
+                      <li>• Keep the same column headers (do not modify)</li>
+                      <li>• Required fields: <strong>name, type, status</strong></li>
+                      <li>• Date format: <strong>YYYY-MM-DD</strong> (e.g., 2024-01-15)</li>
+                      <li>• Software assets should include software_name and version</li>
                     </ul>
                   </div>
                 </div>

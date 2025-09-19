@@ -639,44 +639,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return value;
   };
 
-  // Download CSV template
+
+  // Download comprehensive CSV template with sample data
   app.get("/api/assets/bulk/template", authenticateToken, requireRole("manager"), (req: Request, res: Response) => {
-    const headers = [
-      'name',
-      'type',
-      'status',
-      'category',
-      'manufacturer',
-      'model',
-      'serial_number',
-      'location',
-      'assigned_user_email',
-      'assigned_user_name',
-      'purchase_date',
-      'purchase_cost',
-      'warranty_expiry',
-      'specifications',
-      'notes',
-      'software_name',
-      'version',
-      'license_type',
-      'license_key',
-      'used_licenses',
-      'renewal_date',
-      'vendor_name',
-      'vendor_email',
-      'vendor_phone',
-      'company_name',
-      'company_gst_number'
-    ];
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="asset_template.csv"');
-    res.send(headers.join(',') + '\n');
-  });
-
-  // Download CSV sample
-  app.get("/api/assets/bulk/sample", authenticateToken, requireRole("manager"), (req: Request, res: Response) => {
     const headers = [
       'name',
       'type',
@@ -729,10 +694,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '',
         '',
         '',
+        'Apple Inc',
+        'sales@apple.com',
+        '+1-800-275-2273',
+        'Apple Inc',
+        ''
+      ],
+      [
+        'Dell OptiPlex 7090',
+        'hardware',
+        'in-stock',
+        'desktop',
+        'Dell',
+        'OptiPlex 7090',
+        'D9876543210',
+        'Storage Room A',
+        '',
+        '',
+        '2024-02-01',
+        '899.00',
+        '2027-02-01',
+        '{"ram":"8GB","storage":"256GB SSD","processor":"Intel i5"}',
+        'Desktop computer for office use',
         '',
         '',
         '',
         '',
+        '',
+        '',
+        'Dell Technologies',
+        'support@dell.com',
+        '+1-800-624-9896',
+        'Dell Inc',
         ''
       ],
       [
@@ -762,6 +755,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '+1-800-642-7676',
         'Microsoft Corporation',
         ''
+      ],
+      [
+        'Adobe Creative Suite',
+        'software',
+        'in-repair',
+        'design',
+        'Adobe',
+        'Creative Suite',
+        '',
+        'IT Department',
+        '',
+        '',
+        '2023-06-15',
+        '2400.00',
+        '2024-06-15',
+        '{"edition":"Premium","applications":"Photoshop,Illustrator,InDesign"}',
+        'Design software - license renewal needed',
+        'Adobe Creative Suite',
+        '2023',
+        'perpetual',
+        'ADOBE-XXXXX-XXXXX-XXXXX',
+        '10',
+        '',
+        'Adobe Inc',
+        'licensing@adobe.com',
+        '+1-800-833-6687',
+        'Adobe Inc',
+        ''
+      ],
+      [
+        'HP LaserJet Pro 400',
+        'peripheral',
+        'deployed',
+        'printer',
+        'HP',
+        'LaserJet Pro 400',
+        'HP123456789',
+        'Office Floor 1',
+        '',
+        '',
+        '2023-08-20',
+        '299.00',
+        '2026-08-20',
+        '{"type":"laser","color":"monochrome","speed":"35ppm"}',
+        'Network printer for general office use',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'HP Inc',
+        'support@hp.com',
+        '+1-800-474-6836',
+        'HP Inc',
+        ''
+      ],
+      [
+        'Logitech Wireless Mouse',
+        'peripheral',
+        'disposed',
+        'mouse',
+        'Logitech',
+        'MX Master 3',
+        'LOG987654321',
+        'IT Storage',
+        '',
+        '',
+        '2022-03-10',
+        '99.00',
+        '2025-03-10',
+        '{"type":"wireless","buttons":"7","battery":"rechargeable"}',
+        'End of life - battery no longer holds charge',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Logitech',
+        'support@logitech.com',
+        '+1-646-454-3200',
+        'Logitech International',
+        ''
       ]
     ];
 
@@ -770,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const csvContent = [headers.join(','), ...sanitizedData.map(row => row.join(','))].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="asset_sample.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="asset_template_with_samples.csv"');
     res.send(csvContent);
   });
 
