@@ -77,6 +77,7 @@ export interface IStorage {
   getAllAssets(tenantId: string): Promise<Asset[]>;
   getAsset(id: string, tenantId: string): Promise<Asset | undefined>;
   createAsset(asset: InsertAsset): Promise<Asset>;
+  createAssetsBulk(assets: InsertAsset[]): Promise<Asset[]>;
   updateAsset(id: string, tenantId: string, asset: Partial<InsertAsset>): Promise<Asset | undefined>;
   deleteAsset(id: string, tenantId: string): Promise<boolean>;
 
@@ -329,6 +330,17 @@ export class DatabaseStorage implements IStorage {
   async createAsset(asset: InsertAsset): Promise<Asset> {
     const [newAsset] = await db.insert(assets).values(asset).returning();
     return newAsset;
+  }
+
+  async createAssetsBulk(assetList: InsertAsset[]): Promise<Asset[]> {
+    if (assetList.length === 0) {
+      return [];
+    }
+    
+    return await db.transaction(async (tx) => {
+      const newAssets = await tx.insert(assets).values(assetList).returning();
+      return newAssets;
+    });
   }
 
   async updateAsset(id: string, tenantId: string, asset: Partial<InsertAsset>): Promise<Asset | undefined> {
