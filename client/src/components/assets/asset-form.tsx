@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -306,6 +306,70 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       tenantId: "", // Add tenantId to default values
     },
   });
+
+  // Reset form when asset prop changes (for edit mode)
+  useEffect(() => {
+    if (asset) {
+      // Pre-fill form with existing asset data
+      reset({
+        name: asset.name,
+        type: asset.type,
+        category: asset.category || "",
+        manufacturer: asset.manufacturer || "",
+        model: asset.model || "",
+        serialNumber: asset.serialNumber || "",
+        status: asset.status,
+        location: asset.location || "",
+        assignedUserName: asset.assignedUserName || "",
+        purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
+        purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : undefined,
+        warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : "",
+        // Software-specific fields
+        softwareName: asset.softwareName || "",
+        version: asset.version || "",
+        licenseType: asset.licenseType || "",
+        licenseKey: asset.licenseKey || "",
+        usedLicenses: asset.usedLicenses || 0,
+        renewalDate: asset.renewalDate ? new Date(asset.renewalDate).toISOString().split('T')[0] : "",
+        notes: asset.notes || "",
+        vendorName: asset.vendorName || "",
+        vendorEmail: asset.vendorEmail || "",
+        vendorPhone: asset.vendorPhone || "",
+        companyName: asset.companyName || "",
+        companyGstNumber: asset.companyGstNumber || "",
+        tenantId: "", // Add tenantId to form data
+      });
+    } else {
+      // Reset to empty form for create mode
+      reset({
+        name: "",
+        type: "",
+        status: "",
+        category: "",
+        manufacturer: "",
+        model: "",
+        serialNumber: "",
+        location: "",
+        assignedUserName: "",
+        purchaseDate: "",
+        purchaseCost: undefined,
+        warrantyExpiry: "",
+        softwareName: "",
+        version: "",
+        licenseType: "",
+        licenseKey: "",
+        usedLicenses: 0,
+        renewalDate: "",
+        notes: "",
+        vendorName: "",
+        vendorEmail: "",
+        vendorPhone: "",
+        companyName: "",
+        companyGstNumber: "",
+        tenantId: "",
+      });
+    }
+  }, [asset, reset]);
 
   const handleFormSubmit = (data: AssetFormData) => {
     console.log("Form submission data:", data);
