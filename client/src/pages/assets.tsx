@@ -113,10 +113,15 @@ export default function Assets() {
   // Create asset mutation
   const createAssetMutation = useMutation({
     mutationFn: async (assetData: InsertAsset) => {
+      console.log("Creating asset with data:", assetData);
       const response = await authenticatedRequest("POST", "/api/assets", assetData);
-      return response.json();
+      console.log("Create asset response status:", response.status);
+      const result = await response.json();
+      console.log("Create asset response data:", result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Asset creation successful:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
       setIsAssetFormOpen(false);
@@ -126,7 +131,8 @@ export default function Assets() {
         description: "The asset has been created successfully.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Asset creation failed:", error);
       toast({
         title: "Error",
         description: "Failed to create asset. Please try again.",
@@ -193,9 +199,13 @@ export default function Assets() {
   };
 
   const handleAssetSubmit = (assetData: InsertAsset) => {
+    console.log("handleAssetSubmit called with:", assetData);
+    console.log("editingAsset:", editingAsset);
     if (editingAsset) {
+      console.log("Updating existing asset");
       updateAssetMutation.mutate({ id: editingAsset.id, data: assetData });
     } else {
+      console.log("Creating new asset");
       createAssetMutation.mutate(assetData);
     }
   };

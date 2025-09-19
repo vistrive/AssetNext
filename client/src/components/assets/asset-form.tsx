@@ -280,6 +280,9 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
   });
 
   const handleFormSubmit = (data: AssetFormData) => {
+    console.log("Form submission data:", data);
+    console.log("Form errors:", errors);
+    
     const submitData: InsertAsset = {
       ...data,
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
@@ -287,6 +290,8 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       renewalDate: data.renewalDate ? new Date(data.renewalDate) : undefined,
       tenantId: "", // Will be set by the API
     };
+    
+    console.log("Submitting asset data:", submitData);
     onSubmit(submitData);
   };
 
