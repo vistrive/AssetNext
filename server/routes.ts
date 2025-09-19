@@ -553,8 +553,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { type, status } = req.query;
       const filters: any = {};
-      if (type) filters.type = type as string;
-      if (status) filters.status = status as string;
+      
+      // Normalize query parameters - don't filter if "all" or empty
+      if (type && type !== "all") filters.type = type as string;
+      if (status && status !== "all") filters.status = status as string;
 
       const assets = await storage.getAllAssets(req.user!.tenantId, filters);
       res.json(assets);

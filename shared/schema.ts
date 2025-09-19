@@ -51,7 +51,7 @@ export const tenants = pgTable("tenants", {
 export const assets = pgTable("assets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type").notNull(), // hardware, software, peripheral
+  type: text("type").notNull(), // hardware, software, peripheral, others
   category: text("category"), // laptop, desktop, server, etc.
   manufacturer: text("manufacturer"),
   model: text("model"),

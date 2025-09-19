@@ -330,6 +330,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                   <SelectItem value="hardware">Hardware</SelectItem>
                   <SelectItem value="software">Software</SelectItem>
                   <SelectItem value="peripheral">Peripheral</SelectItem>
+                  <SelectItem value="others">Others</SelectItem>
                 </SelectContent>
               </Select>
               {errors.type && (
