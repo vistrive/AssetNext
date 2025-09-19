@@ -261,7 +261,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       location: asset.location || "",
       assignedUserName: asset.assignedUserName || "",
       purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
-      purchaseCost: asset.purchaseCost || "",
+      purchaseCost: asset.purchaseCost || undefined,
       warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : "",
       // Software-specific fields
       softwareName: asset.softwareName || "",
@@ -287,7 +287,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       location: "",
       assignedUserName: "",
       purchaseDate: "",
-      purchaseCost: "",
+      purchaseCost: undefined,
       warrantyExpiry: "",
       softwareName: "",
       version: "",
@@ -313,7 +313,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
       warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : undefined,
       renewalDate: data.renewalDate ? new Date(data.renewalDate) : undefined,
-      tenantId: "", // Will be set by the API
+      // tenantId will be set by the API from authentication context
     };
     
     console.log("Submitting asset data:", submitData);
@@ -456,10 +456,13 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 id="purchaseCost"
                 type="number"
                 step="0.01"
-                {...register("purchaseCost")}
+                {...register("purchaseCost", { valueAsNumber: true })}
                 placeholder="0.00"
                 data-testid="input-purchase-cost"
               />
+              {errors.purchaseCost && (
+                <p className="text-red-500 text-sm mt-1">{errors.purchaseCost.message}</p>
+              )}
             </div>
 
             <div>
