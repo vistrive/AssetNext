@@ -1,6 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import multer from "multer";
+import { parse } from "csv-parse/sync";
 import { 
   generateToken, 
   verifyToken, 
@@ -445,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const settingsData: UpdateOrgSettings = updateOrgSettingsSchema.parse(req.body);
       
-      const updatedTenant = await storage.updateTenantSettings(req.user!.tenantId, settingsData);
+      const updatedTenant = await storage.updateOrgSettings(req.user!.tenantId, settingsData);
       if (!updatedTenant) {
         return res.status(404).json({ message: "Organization not found" });
       }
@@ -515,7 +517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (type) filters.type = type as string;
       if (status) filters.status = status as string;
 
-      const assets = await storage.getAssets(req.user!.tenantId, filters);
+      const assets = await storage.getAllAssets(req.user!.tenantId);
       res.json(assets);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch assets" });
@@ -578,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Software License routes
   app.get("/api/licenses", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const licenses = await storage.getSoftwareLicenses(req.user!.tenantId);
+      const licenses = await storage.getAllSoftwareLicenses(req.user!.tenantId);
       res.json(licenses);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch licenses" });
@@ -616,7 +618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/recommendations/generate", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
     try {
       const assets = await storage.getAssets(req.user!.tenantId);
-      const licenses = await storage.getSoftwareLicenses(req.user!.tenantId);
+      const licenses = await storage.getAllSoftwareLicenses(req.user!.tenantId);
       
       // Get utilization data for all assets
       const utilizationPromises = assets.map(asset => 
