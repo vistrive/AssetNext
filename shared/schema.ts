@@ -63,6 +63,7 @@ export const assets = pgTable("assets", {
   purchaseDate: timestamp("purchase_date"),
   purchaseCost: decimal("purchase_cost", { precision: 10, scale: 2 }),
   warrantyExpiry: timestamp("warranty_expiry"),
+  amcExpiry: timestamp("amc_expiry"), // Annual Maintenance Contract expiry
   specifications: jsonb("specifications"), // CPU, RAM, Storage, etc.
   notes: text("notes"),
   // Software-specific fields (when type is 'software')
