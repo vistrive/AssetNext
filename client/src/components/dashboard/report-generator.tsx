@@ -6,9 +6,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { authenticatedRequest } from "@/lib/auth";
-import { Download, FileSpreadsheet, Filter } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Download, FileSpreadsheet, Filter, Lock } from "lucide-react";
 import * as XLSX from 'xlsx';
 
 interface ReportGeneratorProps {
@@ -21,8 +23,9 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
   const [assetType, setAssetType] = useState<string>("all");
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  // Available fields for selection
+  // Available fields for selection with role requirements
   const availableFields = [
     { id: "name", label: "Asset Name", category: "basic" },
     { id: "type", label: "Asset Type", category: "basic" },
@@ -34,8 +37,8 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
     { id: "location", label: "Location", category: "details" },
     { id: "assignedTo", label: "Assigned To", category: "assignment" },
     { id: "assignedDate", label: "Assigned Date", category: "assignment" },
-    { id: "purchaseDate", label: "Purchase Date", category: "financial" },
-    { id: "purchasePrice", label: "Purchase Price", category: "financial" },
+    { id: "purchaseDate", label: "Purchase Date", category: "financial", requiredRole: "manager" },
+    { id: "purchasePrice", label: "Purchase Price", category: "financial", requiredRole: "manager" },
     { id: "warrantyExpiry", label: "Warranty Expiry", category: "warranty" },
     { id: "amcExpiry", label: "AMC Expiry", category: "warranty" },
     { id: "specifications", label: "Specifications", category: "technical" },
@@ -44,15 +47,31 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
     { id: "updatedAt", label: "Last Updated", category: "other" }
   ];
 
+  // Helper function to check if user has required role
+  const hasRequiredRole = (requiredRole?: string): boolean => {
+    if (!requiredRole) return true;
+    const userRole = user?.role;
+    if (requiredRole === "manager") {
+      return userRole === "manager" || userRole === "admin";
+    }
+    if (requiredRole === "admin") {
+      return userRole === "admin";
+    }
+    return true;
+  };
+
+  // Filter fields based on user role
+  const accessibleFields = availableFields.filter(field => hasRequiredRole(field.requiredRole));
+
   const fieldCategories = [
-    { id: "basic", label: "Basic Information", fields: availableFields.filter(f => f.category === "basic") },
-    { id: "details", label: "Asset Details", fields: availableFields.filter(f => f.category === "details") },
-    { id: "assignment", label: "Assignment Info", fields: availableFields.filter(f => f.category === "assignment") },
-    { id: "financial", label: "Financial Data", fields: availableFields.filter(f => f.category === "financial") },
-    { id: "warranty", label: "Warranty & AMC", fields: availableFields.filter(f => f.category === "warranty") },
-    { id: "technical", label: "Technical Details", fields: availableFields.filter(f => f.category === "technical") },
-    { id: "other", label: "Other", fields: availableFields.filter(f => f.category === "other") }
-  ];
+    { id: "basic", label: "Basic Information", fields: accessibleFields.filter(f => f.category === "basic") },
+    { id: "details", label: "Asset Details", fields: accessibleFields.filter(f => f.category === "details") },
+    { id: "assignment", label: "Assignment Info", fields: accessibleFields.filter(f => f.category === "assignment") },
+    { id: "financial", label: "Financial Data", fields: accessibleFields.filter(f => f.category === "financial") },
+    { id: "warranty", label: "Warranty & AMC", fields: accessibleFields.filter(f => f.category === "warranty") },
+    { id: "technical", label: "Technical Details", fields: accessibleFields.filter(f => f.category === "technical") },
+    { id: "other", label: "Other", fields: accessibleFields.filter(f => f.category === "other") }
+  ].filter(category => category.fields.length > 0); // Only show categories with accessible fields
 
   const handleFieldToggle = (fieldId: string) => {
     setSelectedFields(prev => 
@@ -63,7 +82,7 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
   };
 
   const handleSelectAll = () => {
-    setSelectedFields(availableFields.map(field => field.id));
+    setSelectedFields(accessibleFields.map(field => field.id));
   };
 
   const handleSelectNone = () => {
@@ -71,7 +90,7 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
   };
 
   const handleSelectBasic = () => {
-    const basicFields = availableFields.filter(field => field.category === "basic").map(field => field.id);
+    const basicFields = accessibleFields.filter(field => field.category === "basic").map(field => field.id);
     setSelectedFields(basicFields);
   };
 
@@ -95,6 +114,12 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
       });
 
       const response = await authenticatedRequest("GET", `/api/assets/report?${params}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const reportData = await response.json();
 
       if (!reportData || reportData.length === 0) {
@@ -111,10 +136,13 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Assets Report");
 
-      // Auto-size columns
-      const columnWidths = selectedFields.map(fieldId => {
-        const field = availableFields.find(f => f.id === fieldId);
-        return { wch: Math.max(field?.label.length || 10, 15) };
+      // Auto-size columns based on header names and sample data
+      const columnWidths = Object.keys(reportData[0] || {}).map(header => {
+        const maxDataLength = Math.max(
+          ...reportData.map(row => String(row[header] || '').length),
+          header.length
+        );
+        return { wch: Math.min(Math.max(maxDataLength + 2, 15), 50) };
       });
       worksheet['!cols'] = columnWidths;
 
@@ -131,11 +159,14 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
       });
 
       setIsOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Report generation error:', error);
+      
+      const errorMessage = error?.message || "There was an error generating the report. Please try again.";
+      
       toast({
         title: "Report generation failed",
-        description: "There was an error generating the report. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -245,9 +276,15 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
                             />
                             <Label
                               htmlFor={field.id}
-                              className="text-sm font-normal cursor-pointer"
+                              className="text-sm font-normal cursor-pointer flex items-center gap-2"
                             >
                               {field.label}
+                              {field.requiredRole && (
+                                <Badge variant="outline" className="text-xs">
+                                  <Lock className="h-3 w-3 mr-1" />
+                                  {field.requiredRole}
+                                </Badge>
+                              )}
                             </Label>
                           </div>
                         ))}
@@ -269,6 +306,7 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
                 <Button
                   onClick={generateReport}
                   disabled={isGenerating || selectedFields.length === 0}
+                  className={isGenerating ? "cursor-not-allowed opacity-50" : ""}
                   data-testid="button-download-report"
                 >
                   {isGenerating ? (

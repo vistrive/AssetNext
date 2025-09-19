@@ -1095,11 +1095,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (selectedFields.length === 0) {
         return res.status(400).json({ message: "At least one field must be selected" });
       }
+
+      // Define allowed fields and their role requirements
+      const allowedFields = {
+        'name': { required: false },
+        'type': { required: false },
+        'category': { required: false },
+        'status': { required: false },
+        'serialNumber': { required: false },
+        'manufacturer': { required: false },
+        'model': { required: false },
+        'location': { required: false },
+        'assignedTo': { required: false },
+        'assignedDate': { required: false },
+        'purchaseDate': { requiredRole: 'manager' },
+        'purchasePrice': { requiredRole: 'manager' },
+        'warrantyExpiry': { required: false },
+        'amcExpiry': { required: false },
+        'specifications': { required: false },
+        'notes': { required: false },
+        'createdAt': { required: false },
+        'updatedAt': { required: false }
+      };
+
+      const allowedTypes = ['all', 'hardware', 'software', 'peripheral', 'others'];
       
-      // Fetch all assets with optional type filter
-      const filters: any = {};
-      if (type && type !== 'all') {
-        filters.type = type as string;
+      // Validate fields
+      const invalidFields = selectedFields.filter(field => !allowedFields[field]);
+      if (invalidFields.length > 0) {
+        return res.status(400).json({ 
+          message: `Invalid fields: ${invalidFields.join(', ')}` 
+        });
+      }
+
+      // Validate type
+      if (type && !allowedTypes.includes(type as string)) {
+        return res.status(400).json({ 
+          message: `Invalid type. Must be one of: ${allowedTypes.join(', ')}` 
+        });
+      }
+
+      // Check role permissions for sensitive fields
+      const userRole = req.user!.role;
+      const restrictedFields = selectedFields.filter(field => {
+        const fieldConfig = allowedFields[field];
+        return fieldConfig?.requiredRole && !checkPermission(userRole, fieldConfig.requiredRole);
+      });
+
+      if (restrictedFields.length > 0) {
+        return res.status(403).json({ 
+          message: `Access denied to fields: ${restrictedFields.join(', ')}. Requires ${allowedFields[restrictedFields[0]]?.requiredRole} role or higher.` 
+        });
       }
       
       const assets = await storage.getAllAssets(req.user!.tenantId);
@@ -1110,6 +1156,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filteredAssets = assets.filter(asset => asset.type === type);
       }
       
+      // Helper function to sanitize values for Excel (prevent formula injection)
+      const sanitizeExcelValue = (value: any): string => {
+        if (value === null || value === undefined) return '';
+        const stringValue = String(value);
+        // If value starts with risky characters, prefix with single quote
+        if (/^[=+\-@]/.test(stringValue)) {
+          return `'${stringValue}`;
+        }
+        return stringValue;
+      };
+
       // Transform data to include only selected fields with proper labels
       const reportData = filteredAssets.map(asset => {
         const reportRecord: any = {};
@@ -1117,60 +1174,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         selectedFields.forEach(fieldId => {
           switch (fieldId) {
             case 'name':
-              reportRecord['Asset Name'] = asset.name;
+              reportRecord['Asset Name'] = sanitizeExcelValue(asset.name);
               break;
             case 'type':
-              reportRecord['Asset Type'] = asset.type;
+              reportRecord['Asset Type'] = sanitizeExcelValue(asset.type);
               break;
             case 'category':
-              reportRecord['Category'] = asset.category;
+              reportRecord['Category'] = sanitizeExcelValue(asset.category);
               break;
             case 'status':
-              reportRecord['Status'] = asset.status;
+              reportRecord['Status'] = sanitizeExcelValue(asset.status);
               break;
             case 'serialNumber':
-              reportRecord['Serial Number'] = asset.serialNumber || '';
+              reportRecord['Serial Number'] = sanitizeExcelValue(asset.serialNumber || '');
               break;
             case 'manufacturer':
-              reportRecord['Manufacturer'] = asset.manufacturer || '';
+              reportRecord['Manufacturer'] = sanitizeExcelValue(asset.manufacturer || '');
               break;
             case 'model':
-              reportRecord['Model'] = asset.model || '';
+              reportRecord['Model'] = sanitizeExcelValue(asset.model || '');
               break;
             case 'location':
-              reportRecord['Location'] = asset.location || '';
+              reportRecord['Location'] = sanitizeExcelValue(asset.location || '');
               break;
             case 'assignedTo':
-              reportRecord['Assigned To'] = asset.assignedUserName || '';
+              reportRecord['Assigned To'] = sanitizeExcelValue(asset.assignedUserName || '');
               break;
             case 'assignedDate':
-              reportRecord['Assigned Date'] = asset.assignedDate || '';
+              reportRecord['Assigned Date'] = sanitizeExcelValue(asset.assignedDate || '');
               break;
             case 'purchaseDate':
-              reportRecord['Purchase Date'] = asset.purchaseDate || '';
+              reportRecord['Purchase Date'] = sanitizeExcelValue(asset.purchaseDate || '');
               break;
             case 'purchasePrice':
-              reportRecord['Purchase Price'] = asset.purchasePrice || '';
+              reportRecord['Purchase Price'] = sanitizeExcelValue(asset.purchasePrice || '');
               break;
             case 'warrantyExpiry':
-              reportRecord['Warranty Expiry'] = asset.warrantyExpiry || '';
+              reportRecord['Warranty Expiry'] = sanitizeExcelValue(asset.warrantyExpiry || '');
               break;
             case 'amcExpiry':
-              reportRecord['AMC Expiry'] = asset.amcExpiry || '';
+              reportRecord['AMC Expiry'] = sanitizeExcelValue(asset.amcExpiry || '');
               break;
             case 'specifications':
-              reportRecord['Specifications'] = typeof asset.specifications === 'object' 
-                ? JSON.stringify(asset.specifications) 
-                : (asset.specifications || '');
+              reportRecord['Specifications'] = sanitizeExcelValue(
+                typeof asset.specifications === 'object' 
+                  ? JSON.stringify(asset.specifications) 
+                  : (asset.specifications || '')
+              );
               break;
             case 'notes':
-              reportRecord['Notes'] = asset.notes || '';
+              reportRecord['Notes'] = sanitizeExcelValue(asset.notes || '');
               break;
             case 'createdAt':
-              reportRecord['Created Date'] = asset.createdAt || '';
+              reportRecord['Created Date'] = sanitizeExcelValue(asset.createdAt || '');
               break;
             case 'updatedAt':
-              reportRecord['Last Updated'] = asset.updatedAt || '';
+              reportRecord['Last Updated'] = sanitizeExcelValue(asset.updatedAt || '');
               break;
             default:
               // Skip unknown fields
@@ -1179,6 +1238,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         return reportRecord;
+      });
+
+      // Log report generation activity
+      await storage.createAuditLog({
+        action: "report_generation",
+        resourceType: "asset",
+        resourceId: null,
+        details: `Generated report with fields: ${selectedFields.join(', ')}, type: ${type || 'all'}, records: ${reportData.length}`,
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId
       });
       
       res.json(reportData);
