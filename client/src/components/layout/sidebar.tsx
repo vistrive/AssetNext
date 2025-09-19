@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut,
   User,
-  Server
+  Server,
+  Users
 } from "lucide-react";
 
 const navigation = [
@@ -17,6 +18,7 @@ const navigation = [
   { name: "Assets", href: "/assets", icon: Monitor },
   { name: "Software", href: "/software", icon: Code },
   { name: "AI Recommendations", href: "/recommendations", icon: Bot },
+  { name: "Team Management", href: "/users", icon: Users, requiredRole: "admin" },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -41,6 +43,11 @@ export function Sidebar() {
       
       <nav className="flex-1 p-4 space-y-2">
         {navigation.map((item) => {
+          // Hide admin-only links if user is not admin
+          if (item.requiredRole === "admin" && user?.role !== "admin") {
+            return null;
+          }
+
           const isActive = location === item.href;
           return (
             <Link key={item.name} href={item.href}>

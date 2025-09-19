@@ -12,6 +12,7 @@ import Assets from "@/pages/assets";
 import Recommendations from "@/pages/recommendations";
 import Software from "@/pages/software";
 import Settings from "@/pages/settings";
+import Users from "@/pages/users";
 
 function Router() {
   return (
@@ -45,6 +46,11 @@ function Router() {
       <Route path="/settings">
         <ProtectedRoute requiredRole="read-only">
           <Settings />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/users">
+        <ProtectedRoute requiredRole="admin">
+          <Users />
         </ProtectedRoute>
       </Route>
       <Route component={NotFound} />
