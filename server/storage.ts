@@ -11,6 +11,8 @@ import {
   type InsertAssetUtilization,
   type Recommendation,
   type InsertRecommendation,
+  type AIResponse,
+  type InsertAIResponse,
   type MasterData,
   type InsertMasterData,
   type UserPreferences,
@@ -37,6 +39,7 @@ import {
   softwareLicenses,
   assetUtilization,
   recommendations,
+  aiResponses,
   masterData,
   userPreferences,
   auditLogs,
@@ -108,6 +111,10 @@ export interface IStorage {
   getRecommendations(tenantId: string): Promise<Recommendation[]>;
   createRecommendation(recommendation: InsertRecommendation): Promise<Recommendation>;
   updateRecommendationStatus(id: string, tenantId: string, status: string): Promise<Recommendation | undefined>;
+  
+  // AI Responses
+  createAIResponse(response: InsertAIResponse): Promise<AIResponse>;
+  getAIResponse(id: string, tenantId: string): Promise<AIResponse | undefined>;
 
   // Master Data
   getMasterData(tenantId: string, type?: string): Promise<MasterData[]>;
@@ -465,6 +472,20 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(recommendations.id, id), eq(recommendations.tenantId, tenantId)))
       .returning();
     return updatedRecommendation || undefined;
+  }
+
+  async createAIResponse(response: InsertAIResponse): Promise<AIResponse> {
+    const [newResponse] = await db.insert(aiResponses).values(response).returning();
+    return newResponse;
+  }
+
+  async getAIResponse(id: string, tenantId: string): Promise<AIResponse | undefined> {
+    const response = await db
+      .select()
+      .from(aiResponses)
+      .where(and(eq(aiResponses.id, id), eq(aiResponses.tenantId, tenantId)))
+      .limit(1);
+    return response[0] || undefined;
   }
 
   // Master Data

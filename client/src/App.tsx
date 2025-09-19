@@ -5,11 +5,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Assets from "@/pages/assets";
 import Recommendations from "@/pages/recommendations";
+import AIResponse from "@/pages/ai-response";
 import Software from "@/pages/software";
 import Settings from "@/pages/settings";
 import Users from "@/pages/users";
@@ -44,6 +46,11 @@ function Router() {
           <Recommendations />
         </ProtectedRoute>
       </Route>
+      <Route path="/ai-response">
+        <ProtectedRoute requiredRole="admin">
+          <AIResponse />
+        </ProtectedRoute>
+      </Route>
       <Route path="/software">
         <ProtectedRoute requiredRole="employee">
           <Software />
@@ -71,6 +78,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <FloatingAIAssistant />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

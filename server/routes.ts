@@ -11,7 +11,7 @@ import {
   checkPermission,
   type JWTPayload 
 } from "./services/auth";
-import { generateAssetRecommendations } from "./services/openai";
+import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext } from "./services/openai";
 import { 
   loginSchema, 
   registerSchema, 
@@ -1254,6 +1254,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Report generation error:", error);
       res.status(500).json({ message: "Failed to generate report" });
+    }
+  });
+
+  // AI Assistant routes
+  app.post("/api/ai/query", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const { prompt } = req.body;
+      
+      if (!prompt || typeof prompt !== 'string') {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      // Get current ITAM context
+      const assets = await storage.getAllAssets(req.user!.tenantId);
+      const licenses = await storage.getAllSoftwareLicenses(req.user!.tenantId);
+      
+      // Get utilization data for all assets
+      const utilizationPromises = assets.map(asset => 
+        storage.getAssetUtilization(asset.id, req.user!.tenantId)
+      );
+      const utilizationResults = await Promise.all(utilizationPromises);
+      const utilization = utilizationResults.flat();
+
+      // Get dashboard metrics for context
+      const metrics = await storage.getDashboardMetrics(req.user!.tenantId);
+
+      const context: ITAMQueryContext = {
+        assets,
+        licenses,
+        utilization,
+        totalAssets: metrics.totalAssets || assets.length,
+        activeLicenses: metrics.activeLicenses || licenses.length,
+        userQuery: prompt
+      };
+
+      // Process query with AI
+      const aiResponse = await processITAMQuery(context);
+
+      // Save the response to database
+      const savedResponse = await storage.createAIResponse({
+        prompt,
+        response: aiResponse,
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId
+      });
+
+      // Log the AI query activity
+      await storage.logActivity({
+        action: "ai_query",
+        resourceType: "ai_assistant",
+        resourceId: savedResponse.id,
+        details: `AI query: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`,
+        userId: req.user!.userId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        tenantId: req.user!.tenantId
+      });
+
+      res.json({ sessionId: savedResponse.id });
+    } catch (error) {
+      console.error("AI query error:", error);
+      res.status(500).json({ message: "Failed to process AI query" });
+    }
+  });
+
+  app.get("/api/ai/response/:sessionId", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      
+      const response = await storage.getAIResponse(sessionId, req.user!.tenantId);
+      
+      if (!response) {
+        return res.status(404).json({ message: "AI response not found" });
+      }
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error fetching AI response:", error);
+      res.status(500).json({ message: "Failed to fetch AI response" });
     }
   });
 

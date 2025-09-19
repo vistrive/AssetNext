@@ -166,6 +166,15 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const aiResponses = pgTable("ai_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  prompt: text("prompt").notNull(),
+  response: text("response").notNull(),
+  userId: varchar("user_id").notNull(),
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const masterData = pgTable("master_data", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   type: text("type").notNull(), // manufacturer, model, category, location, vendor, company
@@ -292,6 +301,11 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   createdAt: true,
 });
 
+export const insertAiResponseSchema = createInsertSchema(aiResponses).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertMasterDataSchema = createInsertSchema(masterData).omit({
   id: true,
   createdAt: true,
@@ -364,6 +378,8 @@ export type UserPreferences = typeof userPreferences.$inferSelect;
 export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AIResponse = typeof aiResponses.$inferSelect;
+export type InsertAIResponse = z.infer<typeof insertAiResponseSchema>;
 export type MasterData = typeof masterData.$inferSelect;
 export type InsertMasterData = z.infer<typeof insertMasterDataSchema>;
 export type Ticket = typeof tickets.$inferSelect;

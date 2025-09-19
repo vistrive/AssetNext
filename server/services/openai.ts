@@ -22,6 +22,15 @@ export interface AIRecommendation {
   reasoning: string;
 }
 
+export interface ITAMQueryContext {
+  assets: Asset[];
+  licenses: SoftwareLicense[];
+  utilization: AssetUtilization[];
+  totalAssets: number;
+  activeLicenses: number;
+  userQuery: string;
+}
+
 export async function generateAssetRecommendations(
   input: RecommendationInput
 ): Promise<AIRecommendation[]> {
@@ -160,5 +169,64 @@ Provide analysis in JSON format:
       utilizationTrend: "stable",
       recommendation: "Unable to analyze utilization data.",
     };
+  }
+}
+
+export async function processITAMQuery(context: ITAMQueryContext): Promise<string> {
+  try {
+    const systemPrompt = `You are an expert IT Asset Management (ITAM) consultant with deep knowledge of:
+- Asset lifecycle management (procurement, deployment, maintenance, disposal)
+- Software license optimization and compliance
+- Hardware utilization analysis and optimization
+- Cost management and budget planning
+- Security and compliance requirements
+- Asset tracking and inventory management
+- Vendor management and procurement strategies
+- Technology refresh cycles and planning
+
+You have access to the current ITAM portal data and can provide insights about assets, licenses, utilization, reports, and strategic recommendations.
+
+Always provide practical, actionable advice based on the real data provided. Be specific with numbers when relevant and reference actual assets/licenses when applicable.`;
+
+    const userPrompt = `Based on the current IT Asset Management portal data, please answer this question: "${context.userQuery}"
+
+Current ITAM Context:
+- Total Assets: ${context.totalAssets}
+- Active Software Licenses: ${context.activeLicenses}
+- Assets Summary: ${context.assets.length} assets in database
+- License Summary: ${context.licenses.length} licenses tracked
+- Recent Utilization Data Points: ${context.utilization.length}
+
+Key Assets Data:
+${JSON.stringify(context.assets.slice(0, 10), null, 2)} ${context.assets.length > 10 ? `... and ${context.assets.length - 10} more assets` : ''}
+
+Software Licenses Data:
+${JSON.stringify(context.licenses.slice(0, 5), null, 2)} ${context.licenses.length > 5 ? `... and ${context.licenses.length - 5} more licenses` : ''}
+
+Recent Utilization Data:
+${JSON.stringify(context.utilization.slice(0, 5), null, 2)} ${context.utilization.length > 5 ? `... and ${context.utilization.length - 5} more data points` : ''}
+
+Please provide a comprehensive response that directly addresses the user's question with specific insights based on this real data.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: userPrompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    return response.choices[0].message.content || "I'm sorry, I couldn't generate a response to your query. Please try rephrasing your question.";
+  } catch (error) {
+    console.error("Error processing ITAM query:", error);
+    return "I'm experiencing technical difficulties. Please try your question again in a moment.";
   }
 }
