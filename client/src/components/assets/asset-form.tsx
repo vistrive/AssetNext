@@ -307,7 +307,12 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
           <DialogTitle>{asset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <form onSubmit={(e) => {
+          console.log("Form onSubmit event triggered!");
+          console.log("Form validation state:", { isValid: !Object.keys(errors).length });
+          console.log("Current form errors:", errors);
+          handleSubmit(handleFormSubmit)(e);
+        }} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="name">Asset Name *</Label>
@@ -660,6 +665,12 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             <Button 
               type="submit" 
               disabled={isLoading}
+              onClick={(e) => {
+                console.log("Submit button clicked!");
+                console.log("Button type:", e.currentTarget.type);
+                console.log("Form errors before submit:", errors);
+                // Don't prevent default - let form submission proceed
+              }}
               data-testid="button-submit-asset"
             >
               {isLoading ? "Saving..." : asset ? "Update Asset" : "Create Asset"}
