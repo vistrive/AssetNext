@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,64 +7,31 @@ import { Separator } from "@/components/ui/separator";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { useAuth } from "@/hooks/use-auth";
-import { authenticatedRequest } from "@/lib/auth";
 import { ArrowLeft, Bot, Calendar, Clock, Copy, RefreshCw, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface AIResponse {
-  id: string;
-  prompt: string;
-  response: string;
-  createdAt: string;
-  userId: string;
-  tenantId: string;
-}
+import type { AIResponse } from "@shared/schema";
 
 export default function AIResponsePage() {
   const [location, setLocation] = useLocation();
-  const [response, setResponse] = useState<AIResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
 
   // Extract sessionId from URL params
-  const urlParams = new URLSearchParams(location.split('?')[1] || '');
+  const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('sessionId');
 
-  useEffect(() => {
-    if (!sessionId) {
-      setLocation('/dashboard');
-      return;
-    }
+  const { data: response, isLoading, error, refetch } = useQuery<AIResponse>({
+    queryKey: [`/api/ai/response/${sessionId}`],
+    enabled: !!sessionId && !!user && user.role === "admin",
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
+  });
 
-    fetchResponse();
-  }, [sessionId]);
-
-  const fetchResponse = async () => {
-    if (!sessionId) return;
-
-    try {
-      setIsLoading(true);
-      const res = await authenticatedRequest("GET", `/api/ai/response/${sessionId}`);
-      
-      if (!res.ok) {
-        throw new Error('Failed to fetch AI response');
-      }
-
-      const data = await res.json();
-      setResponse(data);
-    } catch (error) {
-      console.error('Error fetching AI response:', error);
-      toast({
-        title: "Error loading response",
-        description: "Could not load the AI response. Please try again.",
-        variant: "destructive"
-      });
-      setLocation('/dashboard');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Redirect if no session ID
+  if (!sessionId) {
+    setLocation('/dashboard');
+    return null;
+  }
 
   const copyToClipboard = async () => {
     if (!response?.response) return;
@@ -183,7 +150,7 @@ export default function AIResponsePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={fetchResponse}
+                        onClick={() => refetch()}
                         disabled={isLoading}
                         data-testid="button-refresh-response"
                       >
@@ -238,7 +205,7 @@ export default function AIResponsePage() {
                 <div className="text-center">
                   <div className="text-lg font-semibold mb-2">Response not found</div>
                   <div className="text-muted-foreground mb-4">
-                    The AI response could not be loaded.
+                    {error ? 'Failed to fetch AI response' : 'The AI response could not be loaded.'}
                   </div>
                   <Button
                     onClick={() => setLocation('/dashboard')}

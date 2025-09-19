@@ -1260,11 +1260,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Assistant routes
   app.post("/api/ai/query", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const { prompt } = req.body;
+      const aiQuerySchema = z.object({
+        prompt: z.string().min(1, "Prompt is required").max(2000, "Prompt too long")
+      });
       
-      if (!prompt || typeof prompt !== 'string') {
-        return res.status(400).json({ message: "Prompt is required" });
+      const validation = aiQuerySchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid request", 
+          errors: validation.error.issues 
+        });
       }
+      
+      const { prompt } = validation.data;
 
       // Get current ITAM context
       const assets = await storage.getAllAssets(req.user!.tenantId);
@@ -1292,7 +1300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process query with AI
       const aiResponse = await processITAMQuery(context);
 
-      // Save the response to database
+      // Save the response to database with proper scoping
       const savedResponse = await storage.createAIResponse({
         prompt,
         response: aiResponse,
@@ -1323,10 +1331,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { sessionId } = req.params;
       
+      if (!sessionId) {
+        return res.status(400).json({ message: "Session ID is required" });
+      }
+      
       const response = await storage.getAIResponse(sessionId, req.user!.tenantId);
       
       if (!response) {
         return res.status(404).json({ message: "AI response not found" });
+      }
+      
+      // Additional security: ensure the response belongs to this user
+      if (response.userId !== req.user!.userId) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
       res.json(response);

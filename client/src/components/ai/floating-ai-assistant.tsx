@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,6 +27,15 @@ export function FloatingAIAssistant() {
       toast({
         title: "Empty prompt",
         description: "Please enter a question about the ITAM portal.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (prompt.length > 2000) {
+      toast({
+        title: "Prompt too long",
+        description: "Please keep your question under 2000 characters.",
         variant: "destructive"
       });
       return;
@@ -89,6 +98,9 @@ export function FloatingAIAssistant() {
               <Sparkles className="h-5 w-5 text-blue-500" />
               ITAM AI Assistant
             </DialogTitle>
+            <DialogDescription>
+              Ask questions about your IT assets, software licenses, or get optimization recommendations for your ITAM portal.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -109,6 +121,11 @@ export function FloatingAIAssistant() {
               
               <div className="flex justify-between items-center">
                 <div className="text-xs text-muted-foreground">
+                  {prompt.length > 0 && (
+                    <span className={prompt.length > 2000 ? "text-destructive" : ""}>
+                      {prompt.length}/2000 chars • 
+                    </span>
+                  )}
                   Press Enter to send, Shift+Enter for new line
                 </div>
                 <div className="flex gap-2">
@@ -125,7 +142,7 @@ export function FloatingAIAssistant() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={isLoading || !prompt.trim()}
+                    disabled={isLoading || !prompt.trim() || prompt.length > 2000}
                     className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
                     data-testid="button-ai-submit"
                   >
