@@ -7,17 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search } from "lucide-react";
+import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, FileText, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import type { Asset, InsertAsset } from "@shared/schema";
 
 export default function Assets() {
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadResults, setUploadResults] = useState<any>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -130,6 +138,122 @@ export default function Assets() {
     }
   };
 
+  // Bulk upload functions
+  const handleBulkUpload = () => {
+    setIsBulkUploadOpen(true);
+    setUploadFile(null);
+    setUploadResults(null);
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select a CSV file.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setUploadFile(file);
+      setUploadResults(null);
+    }
+  };
+
+  const validateFile = async () => {
+    if (!uploadFile) return;
+
+    setIsValidating(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const response = await authenticatedRequest(
+        "POST", 
+        "/api/assets/bulk/upload?validateOnly=true", 
+        formData
+      );
+      const results = await response.json();
+      setUploadResults(results);
+    } catch (error) {
+      toast({
+        title: "Validation failed",
+        description: "Failed to validate the CSV file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const importAssets = async (mode: 'partial' | 'atomic' = 'partial') => {
+    if (!uploadFile) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const response = await authenticatedRequest(
+        "POST", 
+        `/api/assets/bulk/upload?mode=${mode}`, 
+        formData
+      );
+      const results = await response.json();
+      
+      if (results.summary.inserted > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
+        
+        toast({
+          title: "Import successful",
+          description: `Successfully imported ${results.summary.inserted} assets.`,
+        });
+        
+        setIsBulkUploadOpen(false);
+        setUploadFile(null);
+        setUploadResults(null);
+      } else {
+        setUploadResults(results);
+        toast({
+          title: "No assets imported",
+          description: "No valid assets found to import.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Import failed",
+        description: "Failed to import assets. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const downloadTemplate = async (type: 'template' | 'sample') => {
+    try {
+      const response = await authenticatedRequest("GET", `/api/assets/bulk/${type}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = type === 'template' ? 'asset_template.csv' : 'asset_sample.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: `Failed to download ${type}. Please try again.`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const getAssetIcon = (type: string, category?: string) => {
     if (type === "software") return Code;
     if (category === "laptop") return Laptop;
@@ -180,6 +304,7 @@ export default function Assets() {
           description="Manage your IT assets and equipment"
           onAddClick={handleAddAsset}
           addButtonText="Add Asset"
+          onBulkUploadClick={handleBulkUpload}
         />
         
         <div className="p-6">
@@ -362,6 +487,213 @@ export default function Assets() {
         asset={editingAsset}
         isLoading={createAssetMutation.isPending || updateAssetMutation.isPending}
       />
+
+      {/* Bulk Upload Modal */}
+      <Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Upload Assets</DialogTitle>
+          </DialogHeader>
+
+          <Tabs defaultValue="download" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="download">Download Template</TabsTrigger>
+              <TabsTrigger value="upload">Upload CSV</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="download" className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Step 1: Download Template</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Download a CSV template to fill in your asset information. You can also download a sample file with example data.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => downloadTemplate('template')}
+                      data-testid="button-download-template"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Empty Template
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={() => downloadTemplate('sample')}
+                      data-testid="button-download-sample"
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Download Sample Data
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium mb-2">Step 2: Fill in Your Data</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Required Fields:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• <strong>name:</strong> Asset name (required)</li>
+                      <li>• <strong>type:</strong> hardware, software, or peripheral (required)</li>
+                      <li>• <strong>status:</strong> in-stock, deployed, in-repair, or disposed (required)</li>
+                    </ul>
+                    
+                    <h4 className="font-medium mb-2 mt-4">Optional Fields:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• <strong>category, manufacturer, model, serial_number, location</strong></li>
+                      <li>• <strong>purchase_date, warranty_expiry:</strong> Use YYYY-MM-DD or MM/DD/YYYY format</li>
+                      <li>• <strong>purchase_cost:</strong> Numeric value (e.g., 2499.00)</li>
+                      <li>• <strong>specifications:</strong> JSON format (e.g., {"{\"ram\":\"16GB\",\"storage\":\"512GB\"}"})</li>
+                      <li>• For software: <strong>software_name, version, license_type, license_key</strong></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="upload" className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Step 3: Upload Your CSV</h3>
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="bulk-upload-file"
+                      data-testid="input-bulk-file"
+                    />
+                    <label htmlFor="bulk-upload-file" className="cursor-pointer">
+                      <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-lg font-medium mb-2">Choose CSV file</p>
+                      <p className="text-sm text-muted-foreground">
+                        Click to select your completed CSV file (max 5MB, 5000 rows)
+                      </p>
+                    </label>
+                  </div>
+
+                  {uploadFile && (
+                    <div className="mt-4">
+                      <Alert>
+                        <FileText className="h-4 w-4" />
+                        <AlertDescription>
+                          Selected file: <strong>{uploadFile.name}</strong> ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                        </AlertDescription>
+                      </Alert>
+
+                      <div className="flex gap-2 mt-4">
+                        <Button 
+                          onClick={validateFile} 
+                          disabled={isValidating}
+                          data-testid="button-validate"
+                        >
+                          {isValidating ? "Validating..." : "Validate File"}
+                        </Button>
+                        
+                        {uploadResults && uploadResults.summary.valid > 0 && (
+                          <>
+                            <Button 
+                              onClick={() => importAssets('partial')} 
+                              disabled={isUploading}
+                              data-testid="button-import-partial"
+                            >
+                              {isUploading ? "Importing..." : "Import Valid Assets"}
+                            </Button>
+                            
+                            {uploadResults.summary.invalid === 0 && (
+                              <Button 
+                                onClick={() => importAssets('atomic')} 
+                                disabled={isUploading}
+                                variant="outline"
+                                data-testid="button-import-all"
+                              >
+                                Import All (Atomic)
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {uploadResults && (
+                    <div className="mt-6 space-y-4">
+                      <div className="grid grid-cols-4 gap-4">
+                        <div className="bg-muted p-3 rounded-lg text-center">
+                          <div className="text-2xl font-bold">{uploadResults.summary.total}</div>
+                          <div className="text-sm text-muted-foreground">Total Rows</div>
+                        </div>
+                        <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-green-600">{uploadResults.summary.valid}</div>
+                          <div className="text-sm text-muted-foreground">Valid</div>
+                        </div>
+                        <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-red-600">{uploadResults.summary.invalid}</div>
+                          <div className="text-sm text-muted-foreground">Invalid</div>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-blue-600">{uploadResults.summary.inserted || 0}</div>
+                          <div className="text-sm text-muted-foreground">Imported</div>
+                        </div>
+                      </div>
+
+                      {uploadResults.rows && uploadResults.rows.length > 0 && (
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="max-h-60 overflow-y-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-muted/50 sticky top-0">
+                                <tr>
+                                  <th className="text-left py-2 px-3">Row</th>
+                                  <th className="text-left py-2 px-3">Status</th>
+                                  <th className="text-left py-2 px-3">Issues</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {uploadResults.rows.map((row: any, index: number) => (
+                                  <tr key={index} className="border-t">
+                                    <td className="py-2 px-3">{row.rowNumber}</td>
+                                    <td className="py-2 px-3">
+                                      <div className="flex items-center gap-1">
+                                        {row.status === 'valid' ? (
+                                          <CheckCircle className="h-4 w-4 text-green-600" />
+                                        ) : (
+                                          <XCircle className="h-4 w-4 text-red-600" />
+                                        )}
+                                        <span className={row.status === 'valid' ? 'text-green-600' : 'text-red-600'}>
+                                          {row.status}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      {row.errors?.length > 0 && (
+                                        <div className="text-red-600 text-xs">
+                                          {row.errors.join(', ')}
+                                        </div>
+                                      )}
+                                      {row.warnings?.length > 0 && (
+                                        <div className="text-yellow-600 text-xs">
+                                          {row.warnings.join(', ')}
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

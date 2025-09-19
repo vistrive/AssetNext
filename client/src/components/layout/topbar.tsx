@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Upload } from "lucide-react";
 
 interface TopBarProps {
   title: string;
@@ -8,6 +8,7 @@ interface TopBarProps {
   onAddClick?: () => void;
   showAddButton?: boolean;
   addButtonText?: string;
+  onBulkUploadClick?: () => void;
 }
 
 export function TopBar({ 
@@ -15,7 +16,8 @@ export function TopBar({
   description, 
   onAddClick, 
   showAddButton = true,
-  addButtonText = "Add Asset"
+  addButtonText = "Add Asset",
+  onBulkUploadClick
 }: TopBarProps) {
   return (
     <header className="bg-card border-b border-border px-6 py-4">
@@ -34,6 +36,16 @@ export function TopBar({
             />
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           </div>
+          {onBulkUploadClick && (
+            <Button 
+              variant="outline" 
+              onClick={onBulkUploadClick} 
+              data-testid="button-bulk-upload"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk Upload
+            </Button>
+          )}
           {showAddButton && onAddClick && (
             <Button onClick={onAddClick} data-testid="button-add-asset">
               <Plus className="mr-2 h-4 w-4" />
