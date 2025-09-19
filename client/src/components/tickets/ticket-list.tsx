@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Search, Filter, Plus } from "lucide-react";
 import { TicketCard } from "./ticket-card";
+import { useAuth } from "@/hooks/use-auth";
 import type { Ticket } from "@shared/schema";
 
 interface TicketListProps {
@@ -20,13 +21,37 @@ export function TicketList({
   showCreateButton = true,
   title = "Support Tickets" 
 }: TicketListProps) {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
+  // Build role-specific query parameters
+  const getQueryParams = () => {
+    const params = new URLSearchParams();
+    
+    switch (user?.role) {
+      case "employee":
+        params.set("requestorOnly", "true");
+        break;
+      case "technician":
+        params.set("assignedOnly", "true");
+        break;
+      case "manager":
+      case "admin":
+        // No additional filters - see all tickets in tenant
+        break;
+    }
+    
+    return params.toString();
+  };
+
+  const queryParams = getQueryParams();
+  const apiUrl = queryParams ? `/api/tickets?${queryParams}` : '/api/tickets';
+
   const { data: tickets = [], isLoading, error } = useQuery<Ticket[]>({
-    queryKey: ['/api/tickets'],
+    queryKey: [apiUrl],
   });
 
   // Filter tickets based on search and filter criteria

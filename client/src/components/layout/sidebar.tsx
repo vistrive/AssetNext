@@ -10,14 +10,16 @@ import {
   LogOut,
   User,
   Server,
-  Users
+  Users,
+  Ticket
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Assets", href: "/assets", icon: Monitor },
   { name: "Software", href: "/software", icon: Code },
-  { name: "AI Recommendations", href: "/recommendations", icon: Bot },
+  { name: "AI Recommendations", href: "/recommendations", icon: Bot, requiredRole: "manager" },
   { name: "Team Management", href: "/users", icon: Users, requiredRole: "admin" },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -43,9 +45,15 @@ export function Sidebar() {
       
       <nav className="flex-1 p-4 space-y-2">
         {navigation.map((item) => {
-          // Hide admin-only links if user is not admin
-          if (item.requiredRole === "admin" && user?.role !== "admin") {
-            return null;
+          // Hide links based on role hierarchy
+          if (item.requiredRole && user) {
+            const roleHierarchy = ["employee", "technician", "manager", "admin"];
+            const userRoleIndex = roleHierarchy.indexOf(user.role);
+            const requiredRoleIndex = roleHierarchy.indexOf(item.requiredRole);
+            
+            if (userRoleIndex < requiredRoleIndex) {
+              return null;
+            }
           }
 
           const isActive = location === item.href;

@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
   requiredRole?: string;
 }
 
-const roleHierarchy = ["read-only", "it-manager", "admin"];
+const roleHierarchy = ["employee", "technician", "manager", "admin"];
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuth();

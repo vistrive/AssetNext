@@ -13,6 +13,7 @@ import Recommendations from "@/pages/recommendations";
 import Software from "@/pages/software";
 import Settings from "@/pages/settings";
 import Users from "@/pages/users";
+import Tickets from "@/pages/tickets";
 
 function Router() {
   return (
@@ -28,23 +29,28 @@ function Router() {
           <Dashboard />
         </ProtectedRoute>
       </Route>
+      <Route path="/tickets">
+        <ProtectedRoute requiredRole="employee">
+          <Tickets />
+        </ProtectedRoute>
+      </Route>
       <Route path="/assets">
-        <ProtectedRoute requiredRole="read-only">
+        <ProtectedRoute requiredRole="employee">
           <Assets />
         </ProtectedRoute>
       </Route>
       <Route path="/recommendations">
-        <ProtectedRoute requiredRole="it-manager">
+        <ProtectedRoute requiredRole="manager">
           <Recommendations />
         </ProtectedRoute>
       </Route>
       <Route path="/software">
-        <ProtectedRoute requiredRole="read-only">
+        <ProtectedRoute requiredRole="employee">
           <Software />
         </ProtectedRoute>
       </Route>
       <Route path="/settings">
-        <ProtectedRoute requiredRole="read-only">
+        <ProtectedRoute requiredRole="employee">
           <Settings />
         </ProtectedRoute>
       </Route>
