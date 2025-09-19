@@ -343,7 +343,9 @@ export const registerSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   tenantName: z.string().min(1),
-  role: z.enum(["admin", "manager", "technician", "employee"]),
+  role: z.enum(["technician", "employee"]).refine(val => val !== "", {
+    message: "Please select a role"
+  }),
 });
 
 // Types
