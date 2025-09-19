@@ -10,10 +10,18 @@ interface MetricsGridProps {
 }
 
 export function MetricsGrid({ metrics }: MetricsGridProps) {
+  // Handle undefined or missing metrics gracefully
+  const safeMetrics = {
+    totalAssets: metrics?.totalAssets || 0,
+    activeLicenses: metrics?.activeLicenses || 0,
+    complianceScore: metrics?.complianceScore || 0,
+    costSavings: metrics?.costSavings || 0,
+  };
+
   const metricItems = [
     {
       title: "Total Assets",
-      value: metrics.totalAssets.toLocaleString(),
+      value: safeMetrics.totalAssets.toLocaleString(),
       icon: Monitor,
       color: "text-primary",
       bgColor: "bg-blue-50",
@@ -22,7 +30,7 @@ export function MetricsGrid({ metrics }: MetricsGridProps) {
     },
     {
       title: "Active Licenses",
-      value: metrics.activeLicenses.toLocaleString(),
+      value: safeMetrics.activeLicenses.toLocaleString(),
       icon: Key,
       color: "text-secondary",
       bgColor: "bg-teal-50",
@@ -31,7 +39,7 @@ export function MetricsGrid({ metrics }: MetricsGridProps) {
     },
     {
       title: "Compliance Score",
-      value: `${metrics.complianceScore}%`,
+      value: `${safeMetrics.complianceScore}%`,
       icon: Shield,
       color: "text-green-600",
       bgColor: "bg-green-100",
@@ -40,7 +48,7 @@ export function MetricsGrid({ metrics }: MetricsGridProps) {
     },
     {
       title: "Cost Savings",
-      value: `$${metrics.costSavings.toLocaleString()}`,
+      value: `$${safeMetrics.costSavings.toLocaleString()}`,
       icon: DollarSign,
       color: "text-yellow-600",
       bgColor: "bg-yellow-100",

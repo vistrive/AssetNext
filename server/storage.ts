@@ -919,17 +919,28 @@ export class DatabaseStorage implements IStorage {
       const licenseCounts = await db
         .select({
           total: sql<number>`count(*)`,
-          active: sql<number>`count(*) filter (where status = 'active')`,
-          expired: sql<number>`count(*) filter (where status = 'expired')`,
-          expiringSoon: sql<number>`count(*) filter (where expiry_date <= current_date + interval '30 days' and status = 'active')`
+          active: sql<number>`count(*) filter (where renewal_date > current_date)`,
+          expired: sql<number>`count(*) filter (where renewal_date <= current_date)`,
+          expiringSoon: sql<number>`count(*) filter (where renewal_date <= current_date + interval '30 days' and renewal_date > current_date)`
         })
         .from(softwareLicenses)
         .where(eq(softwareLicenses.tenantId, tenantId));
 
+      const assetStats = assetCounts[0] || { total: 0, active: 0, inactive: 0, maintenance: 0 };
+      const ticketStats = ticketCounts[0] || { total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 };
+      const licenseStats = licenseCounts[0] || { total: 0, active: 0, expired: 0, expiringSoon: 0 };
+
+      // Return the structure expected by the frontend
       return {
-        assets: assetCounts[0] || { total: 0, active: 0, inactive: 0, maintenance: 0 },
-        tickets: ticketCounts[0] || { total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 },
-        licenses: licenseCounts[0] || { total: 0, active: 0, expired: 0, expiringSoon: 0 }
+        totalAssets: assetStats.total,
+        activeLicenses: licenseStats.active,
+        complianceScore: assetStats.total > 0 ? Math.round((assetStats.active / assetStats.total) * 100) : 100,
+        costSavings: licenseStats.active * 500, // Estimated savings per license
+        assetStatusBreakdown: [
+          { status: "active", count: assetStats.active },
+          { status: "inactive", count: assetStats.inactive },
+          { status: "maintenance", count: assetStats.maintenance }
+        ]
       };
     } catch (error) {
       console.error('Error fetching dashboard metrics:', error);
