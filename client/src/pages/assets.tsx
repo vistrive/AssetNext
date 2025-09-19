@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { AssetForm } from "@/components/assets/asset-form";
@@ -16,6 +17,7 @@ import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, Fil
 import type { Asset, InsertAsset } from "@shared/schema";
 
 export default function Assets() {
+  const [location] = useLocation();
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
@@ -28,6 +30,39 @@ export default function Assets() {
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Initialize filters based on URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.split('?')[1] || '');
+    const typeParam = urlParams.get('type');
+    
+    if (typeParam && ['hardware', 'software', 'peripheral', 'others'].includes(typeParam)) {
+      setTypeFilter(typeParam);
+    } else {
+      setTypeFilter("all");
+    }
+  }, [location]);
+
+  // Get dynamic page title based on filter
+  const getPageTitle = () => {
+    switch (typeFilter) {
+      case 'hardware': return 'Hardware Assets';
+      case 'software': return 'Software Assets'; 
+      case 'peripheral': return 'Peripheral Assets';
+      case 'others': return 'Other Assets';
+      default: return 'Assets';
+    }
+  };
+
+  const getPageDescription = () => {
+    switch (typeFilter) {
+      case 'hardware': return 'Manage hardware assets like laptops, desktops, and servers';
+      case 'software': return 'Manage software licenses and applications';
+      case 'peripheral': return 'Manage peripheral devices like printers and accessories';
+      case 'others': return 'Manage other miscellaneous assets';
+      default: return 'Manage your IT assets and equipment';
+    }
+  };
 
   // Fetch assets
   const { data: assets = [], isLoading } = useQuery({
@@ -318,8 +353,8 @@ export default function Assets() {
       
       <main className="flex-1 overflow-auto">
         <TopBar
-          title="Assets"
-          description="Manage your IT assets and equipment"
+          title={getPageTitle()}
+          description={getPageDescription()}
           onAddClick={handleAddAsset}
           addButtonText="Add Asset"
           onBulkUploadClick={handleBulkUpload}
@@ -349,7 +384,8 @@ export default function Assets() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="hardware">Hardware</SelectItem>
                   <SelectItem value="software">Software</SelectItem>
-                  <SelectItem value="peripheral">Peripheral</SelectItem>
+                  <SelectItem value="peripheral">Peripherals</SelectItem>
+                  <SelectItem value="others">Others</SelectItem>
                 </SelectContent>
               </Select>
               
