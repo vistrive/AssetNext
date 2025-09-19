@@ -1,19 +1,31 @@
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { 
+  updateUserProfileSchema,
+  updateUserPreferencesSchema, 
+  updateOrgSettingsSchema,
+  type UpdateUserProfile, 
+  type UpdateUserPreferences, 
+  type UpdateOrgSettings,
+  type User as UserType,
+  type UserPreferences
+} from "@shared/schema";
 import { 
   Settings, 
   User, 
@@ -28,71 +40,199 @@ import {
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user, tenant } = useAuth();
 
-  // User settings form state
-  const [userSettings, setUserSettings] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    email: user?.email || "",
-    notifications: {
-      email: true,
-      push: false,
-      recommendations: true,
-      reports: false
-    }
+  // Fetch user profile data
+  const { data: userProfile, isLoading: userProfileLoading, error: userProfileError } = useQuery<UserType>({
+    queryKey: ["/api/users/me"],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/users/me");
+      return response.json();
+    },
   });
 
-  // Organization settings form state
-  const [orgSettings, setOrgSettings] = useState({
-    name: tenant?.name || "",
-    timezone: "UTC",
-    currency: "USD",
-    autoRecommendations: true,
-    dataRetention: "365"
+  // Fetch user preferences data
+  const { data: userPreferences, isLoading: userPreferencesLoading, error: userPreferencesError } = useQuery<UserPreferences>({
+    queryKey: ["/api/users/me/preferences"],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/users/me/preferences");
+      return response.json();
+    },
   });
 
-  const handleSaveUserSettings = async () => {
-    setIsLoading(true);
-    try {
-      // This would typically make an API call to update user settings
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
-      toast({
-        title: "Settings saved",
-        description: "Your user settings have been updated successfully.",
+  // Fetch organization settings data  
+  const { data: orgSettings, isLoading: orgSettingsLoading, error: orgSettingsError } = useQuery({
+    queryKey: ["/api/org/settings"],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/org/settings");
+      return response.json();
+    },
+    enabled: user?.role === "admin", // Only admin can view org settings
+  });
+
+  // React Hook Form setup
+  const profileForm = useForm<UpdateUserProfile>({
+    resolver: zodResolver(updateUserProfileSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      phone: "",
+      department: "",
+      jobTitle: "",
+      manager: "",
+    },
+  });
+
+  const preferencesForm = useForm<UpdateUserPreferences>({
+    resolver: zodResolver(updateUserPreferencesSchema),
+    defaultValues: {
+      emailNotifications: false,
+      pushNotifications: false,
+      aiRecommendationAlerts: false,
+      weeklyReports: false,
+      assetExpiryAlerts: false,
+      theme: "light",
+      language: "en",
+      timezone: "UTC",
+      dateFormat: "MM/DD/YYYY",
+      itemsPerPage: 25,
+    },
+  });
+
+  const orgForm = useForm<UpdateOrgSettings>({
+    resolver: zodResolver(updateOrgSettingsSchema),
+    defaultValues: {
+      name: "",
+      timezone: "UTC",
+      currency: "USD",
+      dateFormat: "MM/DD/YYYY",
+      autoRecommendations: false,
+      dataRetentionDays: 365,
+    },
+  });
+
+  // Update forms when data loads
+  React.useEffect(() => {
+    if (userProfile) {
+      profileForm.reset({
+        firstName: userProfile.firstName || "",
+        lastName: userProfile.lastName || "",
+        phone: userProfile.phone || "",
+        department: userProfile.department || "",
+        jobTitle: userProfile.jobTitle || "",
+        manager: userProfile.manager || "",
       });
-    } catch (error) {
+    }
+  }, [userProfile, profileForm]);
+
+  React.useEffect(() => {
+    if (userPreferences) {
+      preferencesForm.reset({
+        emailNotifications: userPreferences.emailNotifications || false,
+        pushNotifications: userPreferences.pushNotifications || false,
+        aiRecommendationAlerts: userPreferences.aiRecommendationAlerts || false,
+        weeklyReports: userPreferences.weeklyReports || false,
+        assetExpiryAlerts: userPreferences.assetExpiryAlerts || false,
+        theme: userPreferences.theme || "light",
+        language: userPreferences.language || "en",
+        timezone: userPreferences.timezone || "UTC",
+        dateFormat: userPreferences.dateFormat || "MM/DD/YYYY",
+        itemsPerPage: userPreferences.itemsPerPage || 25,
+      });
+    }
+  }, [userPreferences, preferencesForm]);
+
+  React.useEffect(() => {
+    if (orgSettings) {
+      orgForm.reset({
+        name: orgSettings.name || "",
+        timezone: orgSettings.timezone || "UTC",
+        currency: orgSettings.currency || "USD",
+        dateFormat: orgSettings.dateFormat || "MM/DD/YYYY",
+        autoRecommendations: orgSettings.autoRecommendations || false,
+        dataRetentionDays: orgSettings.dataRetentionDays || 365,
+      });
+    }
+  }, [orgSettings, orgForm]);
+
+  // Update user profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: UpdateUserProfile) => {
+      const response = await authenticatedRequest("PATCH", "/api/users/me", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      });
+    },
+    onError: () => {
       toast({
         title: "Error",
-        description: "Failed to save settings. Please try again.",
+        description: "Failed to update profile. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+  });
 
-  const handleSaveOrgSettings = async () => {
-    setIsLoading(true);
-    try {
-      // This would typically make an API call to update organization settings
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
+  // Update user preferences mutation
+  const updatePreferencesMutation = useMutation({
+    mutationFn: async (data: UpdateUserPreferences) => {
+      const response = await authenticatedRequest("PATCH", "/api/users/me/preferences", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/me/preferences"] });
       toast({
-        title: "Settings saved",
+        title: "Preferences updated",
+        description: "Your preferences have been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update preferences. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update organization settings mutation
+  const updateOrgSettingsMutation = useMutation({
+    mutationFn: async (data: UpdateOrgSettings) => {
+      const response = await authenticatedRequest("PATCH", "/api/org/settings", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/org/settings"] });
+      toast({
+        title: "Organization settings updated",
         description: "Organization settings have been updated successfully.",
       });
-    } catch (error) {
+    },
+    onError: () => {
       toast({
         title: "Error",
-        description: "Failed to save organization settings. Please try again.",
+        description: "Failed to update organization settings. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
+    },
+  });
+
+  const onProfileSubmit = (data: UpdateUserProfile) => {
+    updateProfileMutation.mutate(data);
+  };
+
+  const onPreferencesSubmit = (data: UpdateUserPreferences) => {
+    updatePreferencesMutation.mutate(data);
+  };
+
+  const onOrgSubmit = (data: UpdateOrgSettings) => {
+    updateOrgSettingsMutation.mutate(data);
   };
 
   return (
@@ -148,129 +288,209 @@ export default function SettingsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="firstName">First Name</Label>
-                        <Input
-                          id="firstName"
-                          value={userSettings.firstName}
-                          onChange={(e) => setUserSettings(prev => ({ ...prev, firstName: e.target.value }))}
-                          data-testid="input-first-name"
-                        />
+                    {userProfileLoading ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Skeleton className="h-4 w-20 mb-2" />
+                            <Skeleton className="h-10 w-full" />
+                          </div>
+                          <div>
+                            <Skeleton className="h-4 w-20 mb-2" />
+                            <Skeleton className="h-10 w-full" />
+                          </div>
+                        </div>
+                        <Skeleton className="h-10 w-full" />
                       </div>
-                      <div>
-                        <Label htmlFor="lastName">Last Name</Label>
-                        <Input
-                          id="lastName"
-                          value={userSettings.lastName}
-                          onChange={(e) => setUserSettings(prev => ({ ...prev, lastName: e.target.value }))}
-                          data-testid="input-last-name"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={userSettings.email}
-                        onChange={(e) => setUserSettings(prev => ({ ...prev, email: e.target.value }))}
-                        data-testid="input-email"
-                      />
-                    </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="firstName">First Name</Label>
+                            <Input
+                              id="firstName"
+                              value={profileForm.firstName}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, firstName: e.target.value }))}
+                              data-testid="input-first-name"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="lastName">Last Name</Label>
+                            <Input
+                              id="lastName"
+                              value={profileForm.lastName}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, lastName: e.target.value }))}
+                              data-testid="input-last-name"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="phone">Phone</Label>
+                            <Input
+                              id="phone"
+                              value={profileForm.phone}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
+                              data-testid="input-phone"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="department">Department</Label>
+                            <Input
+                              id="department"
+                              value={profileForm.department}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))}
+                              data-testid="input-department"
+                            />
+                          </div>
+                        </div>
 
-                    <div className="flex items-center justify-between pt-4">
-                      <div>
-                        <p className="font-medium">Current Role</p>
-                        <Badge variant="secondary" data-testid="badge-user-role">
-                          {user?.role}
-                        </Badge>
-                      </div>
-                      <Button onClick={handleSaveUserSettings} disabled={isLoading} data-testid="button-save-profile">
-                        <Save className="h-4 w-4 mr-2" />
-                        {isLoading ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="jobTitle">Job Title</Label>
+                            <Input
+                              id="jobTitle"
+                              value={profileForm.jobTitle}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, jobTitle: e.target.value }))}
+                              data-testid="input-job-title"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="manager">Manager</Label>
+                            <Input
+                              id="manager"
+                              value={profileForm.manager}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, manager: e.target.value }))}
+                              data-testid="input-manager"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4">
+                          <div>
+                            <p className="font-medium">Current Role</p>
+                            <Badge variant="secondary" data-testid="badge-user-role">
+                              {user?.role}
+                            </Badge>
+                          </div>
+                          <Button 
+                            onClick={handleSaveProfile} 
+                            disabled={updateProfileMutation.isPending} 
+                            data-testid="button-save-profile"
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
 
               {/* Organization Settings */}
               <TabsContent value="organization" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building className="h-5 w-5" />
-                      Organization Settings
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="orgName">Organization Name</Label>
-                      <Input
-                        id="orgName"
-                        value={orgSettings.name}
-                        onChange={(e) => setOrgSettings(prev => ({ ...prev, name: e.target.value }))}
-                        data-testid="input-org-name"
-                      />
-                    </div>
+                {user?.role !== "admin" ? (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <p className="text-muted-foreground">
+                        You need admin privileges to access organization settings.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building className="h-5 w-5" />
+                        Organization Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {orgSettingsLoading ? (
+                        <div className="space-y-4">
+                          <Skeleton className="h-10 w-full" />
+                          <div className="grid grid-cols-2 gap-4">
+                            <Skeleton className="h-10 w-full" />
+                            <Skeleton className="h-10 w-full" />
+                          </div>
+                          <Skeleton className="h-6 w-full" />
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <Label htmlFor="orgName">Organization Name</Label>
+                            <Input
+                              id="orgName"
+                              value={orgForm.name}
+                              onChange={(e) => setOrgForm(prev => ({ ...prev, name: e.target.value }))}
+                              data-testid="input-org-name"
+                            />
+                          </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="timezone">Timezone</Label>
-                        <Select value={orgSettings.timezone} onValueChange={(value) => setOrgSettings(prev => ({ ...prev, timezone: value }))}>
-                          <SelectTrigger data-testid="select-timezone">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="UTC">UTC</SelectItem>
-                            <SelectItem value="EST">EST</SelectItem>
-                            <SelectItem value="PST">PST</SelectItem>
-                            <SelectItem value="GMT">GMT</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="currency">Currency</Label>
-                        <Select value={orgSettings.currency} onValueChange={(value) => setOrgSettings(prev => ({ ...prev, currency: value }))}>
-                          <SelectTrigger data-testid="select-currency">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                            <SelectItem value="GBP">GBP</SelectItem>
-                            <SelectItem value="INR">INR</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="timezone">Timezone</Label>
+                              <Select value={orgForm.timezone} onValueChange={(value) => setOrgForm(prev => ({ ...prev, timezone: value }))}>
+                                <SelectTrigger data-testid="select-timezone">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="UTC">UTC</SelectItem>
+                                  <SelectItem value="EST">EST</SelectItem>
+                                  <SelectItem value="PST">PST</SelectItem>
+                                  <SelectItem value="GMT">GMT</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div>
+                              <Label htmlFor="currency">Currency</Label>
+                              <Select value={orgForm.currency} onValueChange={(value) => setOrgForm(prev => ({ ...prev, currency: value }))}>
+                                <SelectTrigger data-testid="select-currency">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="USD">USD</SelectItem>
+                                  <SelectItem value="EUR">EUR</SelectItem>
+                                  <SelectItem value="GBP">GBP</SelectItem>
+                                  <SelectItem value="INR">INR</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
 
-                    <div className="flex items-center justify-between py-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="autoRecommendations">Auto-generate AI Recommendations</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Automatically generate optimization recommendations weekly
-                        </p>
-                      </div>
-                      <Switch
-                        id="autoRecommendations"
-                        checked={orgSettings.autoRecommendations}
-                        onCheckedChange={(checked) => setOrgSettings(prev => ({ ...prev, autoRecommendations: checked }))}
-                        data-testid="switch-auto-recommendations"
-                      />
-                    </div>
+                          <div className="flex items-center justify-between py-4">
+                            <div className="space-y-1">
+                              <Label htmlFor="autoRecommendations">Auto-generate AI Recommendations</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Automatically generate optimization recommendations weekly
+                              </p>
+                            </div>
+                            <Switch
+                              id="autoRecommendations"
+                              checked={orgForm.autoAIRecommendations}
+                              onCheckedChange={(checked) => setOrgForm(prev => ({ ...prev, autoAIRecommendations: checked }))}
+                              data-testid="switch-auto-recommendations"
+                            />
+                          </div>
 
-                    <div className="flex justify-end">
-                      <Button onClick={handleSaveOrgSettings} disabled={isLoading} data-testid="button-save-org">
-                        <Save className="h-4 w-4 mr-2" />
-                        {isLoading ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                          <div className="flex justify-end">
+                            <Button 
+                              onClick={handleSaveOrgSettings} 
+                              disabled={updateOrgSettingsMutation.isPending} 
+                              data-testid="button-save-org"
+                            >
+                              <Save className="h-4 w-4 mr-2" />
+                              {updateOrgSettingsMutation.isPending ? "Saving..." : "Save Changes"}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
 
               {/* Notifications Settings */}
@@ -283,33 +503,57 @@ export default function SettingsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {Object.entries({
-                      email: "Email Notifications",
-                      push: "Push Notifications",
-                      recommendations: "AI Recommendation Alerts",
-                      reports: "Weekly Reports"
-                    }).map(([key, label]) => (
-                      <div key={key} className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <Label htmlFor={key}>{label}</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Receive {label.toLowerCase()} about important updates
-                          </p>
-                        </div>
-                        <Switch
-                          id={key}
-                          checked={userSettings.notifications[key as keyof typeof userSettings.notifications]}
-                          onCheckedChange={(checked) => setUserSettings(prev => ({
-                            ...prev,
-                            notifications: {
-                              ...prev.notifications,
-                              [key]: checked
-                            }
-                          }))}
-                          data-testid={`switch-${key}-notifications`}
-                        />
+                    {userPreferencesLoading ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-48" />
+                            </div>
+                            <Skeleton className="h-6 w-12" />
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        {Object.entries({
+                          emailNotifications: "Email Notifications",
+                          pushNotifications: "Push Notifications", 
+                          aiRecommendations: "AI Recommendation Alerts",
+                          weeklyReports: "Weekly Reports"
+                        }).map(([key, label]) => (
+                          <div key={key} className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <Label htmlFor={key}>{label}</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Receive {label.toLowerCase()} about important updates
+                              </p>
+                            </div>
+                            <Switch
+                              id={key}
+                              checked={preferencesForm[key as keyof typeof preferencesForm] as boolean}
+                              onCheckedChange={(checked) => setPreferencesForm(prev => ({
+                                ...prev,
+                                [key]: checked
+                              }))}
+                              data-testid={`switch-${key}-notifications`}
+                            />
+                          </div>
+                        ))}
+                        
+                        <div className="flex justify-end pt-4">
+                          <Button 
+                            onClick={handleSavePreferences} 
+                            disabled={updatePreferencesMutation.isPending} 
+                            data-testid="button-save-preferences"
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            {updatePreferencesMutation.isPending ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

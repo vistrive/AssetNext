@@ -284,6 +284,19 @@ export const changePasswordSchema = z.object({
   path: ["confirmPassword"],
 });
 
+export const updateUserPreferencesSchema = z.object({
+  emailNotifications: z.boolean(),
+  pushNotifications: z.boolean(),
+  aiRecommendationAlerts: z.boolean(),
+  weeklyReports: z.boolean(),
+  assetExpiryAlerts: z.boolean(),
+  theme: z.enum(["light", "dark", "auto"]),
+  language: z.string(),
+  timezone: z.string(),
+  dateFormat: z.string(),
+  itemsPerPage: z.number().int().min(10).max(100),
+});
+
 export const updateOrgSettingsSchema = z.object({
   name: z.string().min(1, "Organization name is required"),
   timezone: z.string(),
@@ -294,5 +307,6 @@ export const updateOrgSettingsSchema = z.object({
 });
 
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+export type UpdateUserPreferences = z.infer<typeof updateUserPreferencesSchema>;
 export type ChangePassword = z.infer<typeof changePasswordSchema>;
 export type UpdateOrgSettings = z.infer<typeof updateOrgSettingsSchema>;
