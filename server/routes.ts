@@ -1098,15 +1098,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const insertedAssets = await storage.createAssetsBulk(validAssets);
           summary.inserted = insertedAssets.length;
 
-          // Log audit activity
-          await storage.logActivity({
-            action: "bulk_asset_import",
-            resourceType: "asset",
-            resourceId: null,
-            details: `Imported ${summary.inserted} assets from CSV upload`,
-            userId: req.user!.userId,
-            tenantId: req.user!.tenantId
-          });
+          // Log audit activity (with safety wrapper to avoid breaking import if logging fails)
+          try {
+            await storage.logActivity({
+              action: "bulk_asset_import",
+              resourceType: "asset",
+              resourceId: null,
+              description: `Imported ${summary.inserted} assets from CSV upload`,
+              userId: req.user!.userId,
+              userEmail: req.user!.email,
+              userRole: req.user!.role,
+              tenantId: req.user!.tenantId
+            });
+          } catch (auditError) {
+            console.error("Audit logging failed for bulk import:", auditError);
+            // Continue with successful import response even if audit logging fails
+          }
 
           res.status(200).json({ 
             summary, 
