@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { authenticatedRequest } from "@/lib/auth";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { 
@@ -73,21 +73,13 @@ export default function Users() {
   const { user: currentUser } = useAuth();
 
   // Fetch team members
-  const { data: teamMembers = [], isLoading: teamLoading } = useQuery<TeamMember[]>({
+  const { data: teamMembers = [], isLoading: teamLoading, error: teamError } = useQuery<TeamMember[]>({
     queryKey: ["/api/users"],
-    queryFn: async () => {
-      const response = await authenticatedRequest("GET", "/api/users");
-      return response.json();
-    },
   });
 
   // Fetch invitations
-  const { data: invitations = [], isLoading: invitationsLoading } = useQuery<Invitation[]>({
+  const { data: allInvitations = [], isLoading: invitationsLoading, error: invitationsError } = useQuery<Invitation[]>({
     queryKey: ["/api/users/invitations"],
-    queryFn: async () => {
-      const response = await authenticatedRequest("GET", "/api/users/invitations");
-      return response.json();
-    },
   });
 
   // Invite user form
@@ -112,7 +104,7 @@ export default function Users() {
   // Invite user mutation
   const inviteUserMutation = useMutation({
     mutationFn: async (inviteData: InviteUser) => {
-      const response = await authenticatedRequest("POST", "/api/users/invite", inviteData);
+      const response = await apiRequest("POST", "/api/users/invite", inviteData);
       return response.json();
     },
     onSuccess: () => {
@@ -136,7 +128,7 @@ export default function Users() {
   // Update user role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, roleData }: { userId: string; roleData: UpdateUserRole }) => {
-      const response = await authenticatedRequest("PATCH", `/api/users/${userId}/role`, roleData);
+      const response = await apiRequest("PATCH", `/api/users/${userId}/role`, roleData);
       return response.json();
     },
     onSuccess: () => {
@@ -160,7 +152,7 @@ export default function Users() {
   // Deactivate user mutation
   const deactivateUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await authenticatedRequest("PATCH", `/api/users/${userId}/deactivate`);
+      const response = await apiRequest("PATCH", `/api/users/${userId}/deactivate`);
       return response.json();
     },
     onSuccess: () => {
@@ -182,7 +174,7 @@ export default function Users() {
   // Activate user mutation
   const activateUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await authenticatedRequest("PATCH", `/api/users/${userId}/activate`);
+      const response = await apiRequest("PATCH", `/api/users/${userId}/activate`);
       return response.json();
     },
     onSuccess: () => {
@@ -256,8 +248,9 @@ export default function Users() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  // Filter invitations
-  const filteredInvitations = invitations.filter(invitation => {
+  // Filter invitations to only show pending ones
+  const pendingInvitations = allInvitations.filter(invitation => invitation.status === 'pending');
+  const filteredInvitations = pendingInvitations.filter(invitation => {
     const matchesSearch = `${invitation.firstName} ${invitation.lastName} ${invitation.email}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -424,18 +417,48 @@ export default function Users() {
               </CardContent>
             </Card>
 
+            {/* Error Handling */}
+            {teamError && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-8">
+                    <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">Failed to load team members</h3>
+                    <p className="text-muted-foreground">
+                      {teamError instanceof Error ? teamError.message : "Unable to load team data. Please try again."}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {invitationsError && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-8">
+                    <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">Failed to load invitations</h3>
+                    <p className="text-muted-foreground">
+                      {invitationsError instanceof Error ? invitationsError.message : "Unable to load invitation data. Please try again."}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Tabs for Team Members and Invitations */}
-            <Tabs defaultValue="team" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="team" data-testid="tab-team-members">
-                  <UsersIcon className="h-4 w-4 mr-2" />
-                  Team Members ({filteredTeamMembers.length})
-                </TabsTrigger>
-                <TabsTrigger value="invitations" data-testid="tab-invitations">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Pending Invitations ({filteredInvitations.length})
-                </TabsTrigger>
-              </TabsList>
+            {!teamError && !invitationsError && (
+              <Tabs defaultValue="team" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="team" data-testid="tab-team-members">
+                    <UsersIcon className="h-4 w-4 mr-2" />
+                    Team Members ({filteredTeamMembers.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="invitations" data-testid="tab-invitations">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Pending Invitations ({filteredInvitations.length})
+                  </TabsTrigger>
+                </TabsList>
 
               {/* Team Members Tab */}
               <TabsContent value="team" className="space-y-4">
@@ -611,7 +634,8 @@ export default function Users() {
                   </div>
                 )}
               </TabsContent>
-            </Tabs>
+              </Tabs>
+            )}
           </div>
         </main>
       </div>
