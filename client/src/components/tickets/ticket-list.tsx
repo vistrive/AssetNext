@@ -28,36 +28,17 @@ export function TicketList({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
-  // Build role-specific query parameters
-  const getQueryParams = () => {
-    const params = new URLSearchParams();
-    
-    switch (user?.role) {
-      case "employee":
-        params.set("requestorOnly", "true");
-        break;
-      case "technician":
-        params.set("assignedOnly", "true");
-        break;
-      case "manager":
-      case "admin":
-        // No additional filters - see all tickets in tenant
-        break;
-    }
-    
-    return params.toString();
-  };
-
-  const queryParams = getQueryParams();
-  const apiUrl = queryParams ? `/api/tickets?${queryParams}` : '/api/tickets';
+  // Backend handles role-based filtering automatically using JWT token
+  const apiUrl = '/api/tickets';
 
   const { data: tickets = [], isLoading, error } = useQuery<Ticket[]>({
-    queryKey: [apiUrl],
+    queryKey: [apiUrl, user?.id, user?.role], // Role-aware cache to prevent cross-user data leakage
     queryFn: async () => {
       const response = await authenticatedRequest("GET", apiUrl);
       return response.json();
     },
     enabled: !!user, // Only fetch when user is authenticated
+    refetchOnMount: "always", // Ensure fresh data on component mount
   });
 
   // Filter tickets based on search and filter criteria
