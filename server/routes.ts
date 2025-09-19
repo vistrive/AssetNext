@@ -970,8 +970,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (errors.length === 0) {
             const assetData: any = {
               name: record.name.trim(),
-              type: record.type.trim(),
-              status: record.status.trim(),
+              type: record.type.trim().toLowerCase(), // Normalize to lowercase
+              status: record.status.trim().toLowerCase(), // Normalize to lowercase
               tenantId: req.user!.tenantId,
               createdBy: req.user!.userId
             };
@@ -1029,16 +1029,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
 
-            // Validate with schema
-            const validatedAsset = insertAssetSchema.parse(assetData);
-            validAssets.push(validatedAsset);
-
-            results.push({
-              rowNumber,
-              status: 'valid',
-              errors: [],
-              warnings
-            });
+            // Validate with schema before adding to validAssets
+            try {
+              const validatedAsset = insertAssetSchema.parse(assetData);
+              validAssets.push(validatedAsset);
+              
+              results.push({
+                rowNumber,
+                status: 'valid',
+                errors: [],
+                warnings
+              });
+            } catch (schemaError) {
+              if (schemaError instanceof Error) {
+                errors.push(`Schema validation failed: ${schemaError.message}`);
+              } else {
+                errors.push("Schema validation failed");
+              }
+              
+              results.push({
+                rowNumber,
+                status: 'invalid',
+                errors,
+                warnings
+              });
+            }
           } else {
             results.push({
               rowNumber,
@@ -1093,13 +1108,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             tenantId: req.user!.tenantId
           });
 
-          res.json({ 
+          res.status(200).json({ 
             summary, 
             rows: results,
             message: `Successfully imported ${summary.inserted} assets`
           });
         } catch (error) {
-          res.status(500).json({ message: "Failed to import assets" });
+          console.error("Bulk import error:", error);
+          
+          // Provide more detailed error information
+          let errorMessage = "Failed to import assets";
+          if (error instanceof Error) {
+            errorMessage = error.message;
+            // Check for specific database errors
+            if (error.message.includes('duplicate key')) {
+              errorMessage = "Import failed: Duplicate asset found. Please check for existing serial numbers or names.";
+            } else if (error.message.includes('constraint')) {
+              errorMessage = "Import failed: Data validation error. Please check your asset data format.";
+            } else if (error.message.includes('timeout') || error.message.includes('connection')) {
+              errorMessage = "Import failed: Database connection issue. Please try again.";
+            }
+          }
+          
+          res.status(500).json({ 
+            message: errorMessage,
+            summary,
+            rows: results,
+            details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : error) : undefined
+          });
         }
       } else {
         res.json({ 
