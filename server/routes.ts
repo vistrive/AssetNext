@@ -590,6 +590,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to sanitize CSV values (prevent formula injection)
+  const sanitizeCsvValue = (value: string): string => {
+    if (!value) return value;
+    // If value starts with risky characters, prefix with single quote
+    if (/^[=+\-@]/.test(value)) {
+      return `'${value}`;
+    }
+    return value;
+  };
+
   // Download CSV template
   app.get("/api/assets/bulk/template", authenticateToken, requireRole("it-manager"), (req: Request, res: Response) => {
     const headers = [
@@ -716,7 +726,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]
     ];
 
-    const csvContent = [headers.join(','), ...sampleData.map(row => row.join(','))].join('\n');
+    // Sanitize sample data to prevent CSV formula injection
+    const sanitizedData = sampleData.map(row => row.map(cell => sanitizeCsvValue(cell)));
+    const csvContent = [headers.join(','), ...sanitizedData.map(row => row.join(','))].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="asset_sample.csv"');

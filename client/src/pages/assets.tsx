@@ -174,12 +174,18 @@ export default function Assets() {
         "/api/assets/bulk/upload?validateOnly=true", 
         formData
       );
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Validation failed" }));
+        throw new Error(errorData.message || "Validation failed");
+      }
+
       const results = await response.json();
       setUploadResults(results);
     } catch (error) {
       toast({
         title: "Validation failed",
-        description: "Failed to validate the CSV file. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to validate the CSV file. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -200,6 +206,12 @@ export default function Assets() {
         `/api/assets/bulk/upload?mode=${mode}`, 
         formData
       );
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Import failed" }));
+        throw new Error(errorData.message || "Import failed");
+      }
+
       const results = await response.json();
       
       if (results.summary.inserted > 0) {
@@ -218,14 +230,14 @@ export default function Assets() {
         setUploadResults(results);
         toast({
           title: "No assets imported",
-          description: "No valid assets found to import.",
+          description: results.message || "No valid assets found to import.",
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
         title: "Import failed",
-        description: "Failed to import assets. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to import assets. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -236,6 +248,12 @@ export default function Assets() {
   const downloadTemplate = async (type: 'template' | 'sample') => {
     try {
       const response = await authenticatedRequest("GET", `/api/assets/bulk/${type}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Download failed" }));
+        throw new Error(errorData.message || "Download failed");
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -248,7 +266,7 @@ export default function Assets() {
     } catch (error) {
       toast({
         title: "Download failed",
-        description: `Failed to download ${type}. Please try again.`,
+        description: error instanceof Error ? error.message : `Failed to download ${type}. Please try again.`,
         variant: "destructive",
       });
     }
