@@ -1,11 +1,10 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,14 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { 
-  updateUserProfileSchema,
-  updateUserPreferencesSchema, 
-  updateOrgSettingsSchema,
   type UpdateUserProfile, 
   type UpdateUserPreferences, 
   type UpdateOrgSettings,
@@ -73,51 +68,42 @@ export default function SettingsPage() {
     enabled: user?.role === "admin", // Only admin can view org settings
   });
 
-  // React Hook Form setup
-  const profileForm = useForm<UpdateUserProfile>({
-    resolver: zodResolver(updateUserProfileSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      phone: "",
-      department: "",
-      jobTitle: "",
-      manager: "",
-    },
+  // Local form state
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    department: "",
+    jobTitle: "",
+    manager: "",
   });
 
-  const preferencesForm = useForm<UpdateUserPreferences>({
-    resolver: zodResolver(updateUserPreferencesSchema),
-    defaultValues: {
-      emailNotifications: false,
-      pushNotifications: false,
-      aiRecommendationAlerts: false,
-      weeklyReports: false,
-      assetExpiryAlerts: false,
-      theme: "light",
-      language: "en",
-      timezone: "UTC",
-      dateFormat: "MM/DD/YYYY",
-      itemsPerPage: 25,
-    },
+  const [preferencesForm, setPreferencesForm] = useState({
+    emailNotifications: false,
+    pushNotifications: false,
+    aiRecommendationAlerts: false,
+    weeklyReports: false,
+    assetExpiryAlerts: false,
+    theme: "light" as "light" | "dark" | "auto",
+    language: "en",
+    timezone: "UTC",
+    dateFormat: "MM/DD/YYYY",
+    itemsPerPage: 25,
   });
 
-  const orgForm = useForm<UpdateOrgSettings>({
-    resolver: zodResolver(updateOrgSettingsSchema),
-    defaultValues: {
-      name: "",
-      timezone: "UTC",
-      currency: "USD",
-      dateFormat: "MM/DD/YYYY",
-      autoRecommendations: false,
-      dataRetentionDays: 365,
-    },
+  const [orgForm, setOrgForm] = useState({
+    name: "",
+    timezone: "UTC", 
+    currency: "USD",
+    dateFormat: "MM/DD/YYYY",
+    autoRecommendations: false,
+    dataRetentionDays: 365,
   });
 
-  // Update forms when data loads
+  // Update local state when API data loads
   useEffect(() => {
     if (userProfile) {
-      profileForm.reset({
+      setProfileForm({
         firstName: userProfile.firstName || "",
         lastName: userProfile.lastName || "",
         phone: userProfile.phone || "",
@@ -126,28 +112,28 @@ export default function SettingsPage() {
         manager: userProfile.manager || "",
       });
     }
-  }, [userProfile, profileForm]);
+  }, [userProfile]);
 
   useEffect(() => {
     if (userPreferences) {
-      preferencesForm.reset({
+      setPreferencesForm({
         emailNotifications: userPreferences.emailNotifications || false,
         pushNotifications: userPreferences.pushNotifications || false,
         aiRecommendationAlerts: userPreferences.aiRecommendationAlerts || false,
         weeklyReports: userPreferences.weeklyReports || false,
         assetExpiryAlerts: userPreferences.assetExpiryAlerts || false,
-        theme: userPreferences.theme || "light",
+        theme: (userPreferences.theme as "light" | "dark" | "auto") || "light",
         language: userPreferences.language || "en",
         timezone: userPreferences.timezone || "UTC",
         dateFormat: userPreferences.dateFormat || "MM/DD/YYYY",
         itemsPerPage: userPreferences.itemsPerPage || 25,
       });
     }
-  }, [userPreferences, preferencesForm]);
+  }, [userPreferences]);
 
   useEffect(() => {
     if (orgSettings) {
-      orgForm.reset({
+      setOrgForm({
         name: orgSettings.name || "",
         timezone: orgSettings.timezone || "UTC",
         currency: orgSettings.currency || "USD",
@@ -156,7 +142,7 @@ export default function SettingsPage() {
         dataRetentionDays: orgSettings.dataRetentionDays || 365,
       });
     }
-  }, [orgSettings, orgForm]);
+  }, [orgSettings]);
 
   // Update user profile mutation
   const updateProfileMutation = useMutation({
@@ -224,16 +210,16 @@ export default function SettingsPage() {
     },
   });
 
-  const onProfileSubmit = (data: UpdateUserProfile) => {
-    updateProfileMutation.mutate(data);
+  const handleSaveProfile = () => {
+    updateProfileMutation.mutate(profileForm);
   };
 
-  const onPreferencesSubmit = (data: UpdateUserPreferences) => {
-    updatePreferencesMutation.mutate(data);
+  const handleSavePreferences = () => {
+    updatePreferencesMutation.mutate(preferencesForm);
   };
 
-  const onOrgSubmit = (data: UpdateOrgSettings) => {
-    updateOrgSettingsMutation.mutate(data);
+  const handleSaveOrgSettings = () => {
+    updateOrgSettingsMutation.mutate(orgForm);
   };
 
   return (
@@ -471,8 +457,8 @@ export default function SettingsPage() {
                             </div>
                             <Switch
                               id="autoRecommendations"
-                              checked={orgForm.autoAIRecommendations}
-                              onCheckedChange={(checked) => setOrgForm(prev => ({ ...prev, autoAIRecommendations: checked }))}
+                              checked={orgForm.autoRecommendations}
+                              onCheckedChange={(checked) => setOrgForm(prev => ({ ...prev, autoRecommendations: checked }))}
                               data-testid="switch-auto-recommendations"
                             />
                           </div>
