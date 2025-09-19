@@ -76,8 +76,13 @@ export default function Login() {
             </div>
           </div>
           <CardTitle className="text-2xl">
-            {isRegistering ? "Create Account" : "Sign In to AssetVault"}
+            {isRegistering ? "Create Your Organization" : "Sign In to AssetVault"}
           </CardTitle>
+          {isRegistering && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Create a new organization account. You will be the administrator.
+            </p>
+          )}
         </CardHeader>
         
         <CardContent>
@@ -160,6 +165,7 @@ export default function Login() {
                   </p>
                 )}
               </div>
+              
               
               <Button 
                 type="submit" 
