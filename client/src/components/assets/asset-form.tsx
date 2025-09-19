@@ -20,6 +20,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 
 const assetFormSchema = insertAssetSchema.extend({
+  tenantId: z.string().optional(), // Make tenantId optional for form validation
   purchaseDate: z.string().optional(),
   purchaseCost: z.number().positive().optional().or(z.undefined()),
   warrantyExpiry: z.string().optional(),
@@ -236,7 +237,7 @@ function ComboSelect({ value, onValueChange, type, placeholder, label, dataTestI
 interface AssetFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: InsertAsset) => void;
+  onSubmit: (data: Omit<InsertAsset, 'tenantId'>) => void;
   asset?: Asset;
   isLoading?: boolean;
 }
@@ -302,6 +303,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       vendorPhone: "",
       companyName: "",
       companyGstNumber: "",
+      tenantId: "", // Add tenantId to default values
     },
   });
 
@@ -309,8 +311,9 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
     console.log("Form submission data:", data);
     console.log("Form errors:", errors);
     
-    const submitData: InsertAsset = {
-      ...data,
+    const { tenantId: _, ...restData } = data; // Remove tenantId from form data
+    const submitData: Omit<InsertAsset, 'tenantId'> = {
+      ...restData,
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
       warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : undefined,
       renewalDate: data.renewalDate ? new Date(data.renewalDate) : undefined,

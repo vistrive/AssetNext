@@ -230,15 +230,15 @@ export default function Assets() {
     setIsAssetFormOpen(true);
   };
 
-  const handleAssetSubmit = (assetData: InsertAsset) => {
+  const handleAssetSubmit = (assetData: Omit<InsertAsset, 'tenantId'> | InsertAsset) => {
     console.log("handleAssetSubmit called with:", assetData);
     console.log("editingAsset:", editingAsset);
     if (editingAsset) {
       console.log("Updating existing asset");
-      updateAssetMutation.mutate({ id: editingAsset.id, data: assetData });
+      updateAssetMutation.mutate({ id: editingAsset.id, data: assetData as InsertAsset });
     } else {
       console.log("Creating new asset");
-      createAssetMutation.mutate(assetData);
+      createAssetMutation.mutate(assetData as InsertAsset);
     }
   };
 
