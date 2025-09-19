@@ -1082,6 +1082,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Assets Report endpoint
+  app.get("/api/assets/report", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { fields, type } = req.query;
+      
+      if (!fields || typeof fields !== 'string') {
+        return res.status(400).json({ message: "Fields parameter is required" });
+      }
+      
+      const selectedFields = fields.split(',').filter(Boolean);
+      if (selectedFields.length === 0) {
+        return res.status(400).json({ message: "At least one field must be selected" });
+      }
+      
+      // Fetch all assets with optional type filter
+      const filters: any = {};
+      if (type && type !== 'all') {
+        filters.type = type as string;
+      }
+      
+      const assets = await storage.getAllAssets(req.user!.tenantId);
+      
+      // Filter assets by type if specified
+      let filteredAssets = assets;
+      if (type && type !== 'all') {
+        filteredAssets = assets.filter(asset => asset.type === type);
+      }
+      
+      // Transform data to include only selected fields with proper labels
+      const reportData = filteredAssets.map(asset => {
+        const reportRecord: any = {};
+        
+        selectedFields.forEach(fieldId => {
+          switch (fieldId) {
+            case 'name':
+              reportRecord['Asset Name'] = asset.name;
+              break;
+            case 'type':
+              reportRecord['Asset Type'] = asset.type;
+              break;
+            case 'category':
+              reportRecord['Category'] = asset.category;
+              break;
+            case 'status':
+              reportRecord['Status'] = asset.status;
+              break;
+            case 'serialNumber':
+              reportRecord['Serial Number'] = asset.serialNumber || '';
+              break;
+            case 'manufacturer':
+              reportRecord['Manufacturer'] = asset.manufacturer || '';
+              break;
+            case 'model':
+              reportRecord['Model'] = asset.model || '';
+              break;
+            case 'location':
+              reportRecord['Location'] = asset.location || '';
+              break;
+            case 'assignedTo':
+              reportRecord['Assigned To'] = asset.assignedUserName || '';
+              break;
+            case 'assignedDate':
+              reportRecord['Assigned Date'] = asset.assignedDate || '';
+              break;
+            case 'purchaseDate':
+              reportRecord['Purchase Date'] = asset.purchaseDate || '';
+              break;
+            case 'purchasePrice':
+              reportRecord['Purchase Price'] = asset.purchasePrice || '';
+              break;
+            case 'warrantyExpiry':
+              reportRecord['Warranty Expiry'] = asset.warrantyExpiry || '';
+              break;
+            case 'amcExpiry':
+              reportRecord['AMC Expiry'] = asset.amcExpiry || '';
+              break;
+            case 'specifications':
+              reportRecord['Specifications'] = typeof asset.specifications === 'object' 
+                ? JSON.stringify(asset.specifications) 
+                : (asset.specifications || '');
+              break;
+            case 'notes':
+              reportRecord['Notes'] = asset.notes || '';
+              break;
+            case 'createdAt':
+              reportRecord['Created Date'] = asset.createdAt || '';
+              break;
+            case 'updatedAt':
+              reportRecord['Last Updated'] = asset.updatedAt || '';
+              break;
+            default:
+              // Skip unknown fields
+              break;
+          }
+        });
+        
+        return reportRecord;
+      });
+      
+      res.json(reportData);
+    } catch (error) {
+      console.error("Report generation error:", error);
+      res.status(500).json({ message: "Failed to generate report" });
+    }
+  });
+
   // Software License routes
   app.get("/api/licenses", authenticateToken, async (req: Request, res: Response) => {
     try {

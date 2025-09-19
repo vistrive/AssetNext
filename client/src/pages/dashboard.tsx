@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { AssetCategoryTiles } from "@/components/dashboard/asset-category-tiles";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
+import { ReportGenerator } from "@/components/dashboard/report-generator";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Asset, Recommendation } from "@shared/schema";
 
@@ -71,12 +72,17 @@ export default function Dashboard() {
             />
           )}
           
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-            <AIRecommendations
-              recommendations={recommendations}
-              onViewAll={handleViewAllRecommendations}
-              onViewRecommendation={handleViewRecommendation}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <AIRecommendations
+                recommendations={recommendations}
+                onViewAll={handleViewAllRecommendations}
+                onViewRecommendation={handleViewRecommendation}
+              />
+            </div>
+            <div>
+              {metrics && <ReportGenerator metrics={metrics} />}
+            </div>
           </div>
         </div>
       </main>
