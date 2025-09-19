@@ -48,7 +48,7 @@ import {
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -80,6 +80,7 @@ export interface IStorage {
 
   // Tenants
   getTenant(id: string): Promise<Tenant | undefined>;
+  getTenantByName(name: string): Promise<Tenant | undefined>;
   createTenant(tenant: InsertTenant): Promise<Tenant>;
   updateTenant(id: string, tenant: Partial<InsertTenant>): Promise<Tenant | undefined>;
   updateOrgSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined>;
@@ -315,6 +316,11 @@ export class DatabaseStorage implements IStorage {
   // Tenants
   async getTenant(id: string): Promise<Tenant | undefined> {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id));
+    return tenant || undefined;
+  }
+
+  async getTenantByName(name: string): Promise<Tenant | undefined> {
+    const [tenant] = await db.select().from(tenants).where(ilike(tenants.name, name));
     return tenant || undefined;
   }
 

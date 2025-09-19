@@ -118,28 +118,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User already exists" });
       }
 
-      // Create tenant with unique slug handling
-      let slug = tenantName.toLowerCase().replace(/\s+/g, '-');
-      let uniqueSlug = slug;
-      let counter = 1;
-      let tenant;
+      // Check if organization already exists by name (case-insensitive)
+      let tenant = await storage.getTenantByName(tenantName);
       
-      // Ensure unique slug by appending counter if needed
-      while (true) {
-        try {
-          tenant = await storage.createTenant({
-            name: tenantName,
-            slug: uniqueSlug,
-          });
-          break;
-        } catch (error: any) {
-          if (error?.code === '23505' && error?.constraint === 'tenants_slug_unique') {
-            counter++;
-            uniqueSlug = `${slug}-${counter}`;
-            continue;
-          }
-          throw error;
-        }
+      if (!tenant) {
+        // Create new organization if it doesn't exist
+        const slug = tenantName.toLowerCase().replace(/\s+/g, '-');
+        tenant = await storage.createTenant({
+          name: tenantName,
+          slug: slug,
+        });
       }
 
       // Create user - restrict self-registration roles for security
