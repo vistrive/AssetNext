@@ -109,6 +109,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
+      console.log("Registration attempt with data:", {
+        ...req.body,
+        password: req.body.password ? "[REDACTED]" : "undefined"
+      });
+      
       const { email, password, firstName, lastName, tenantName, role }: RegisterRequest = 
         registerSchema.parse(req.body);
 
@@ -151,6 +156,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenant: { id: tenant.id, name: tenant.name },
       });
     } catch (error) {
+      console.error("Registration validation error:", error);
+      if (error instanceof z.ZodError) {
+        console.error("Zod validation errors:", error.errors);
+        return res.status(400).json({ 
+          message: "Invalid registration data", 
+          errors: error.errors 
+        });
+      }
       res.status(400).json({ message: "Invalid request data" });
     }
   });
