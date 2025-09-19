@@ -926,17 +926,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           if (!record.type?.trim()) {
             errors.push("Type is required");
-          } else if (!['hardware', 'software', 'peripheral', 'others'].includes(record.type)) {
+          } else if (!['hardware', 'software', 'peripheral', 'others'].includes(record.type.trim().toLowerCase())) {
             errors.push("Type must be hardware, software, peripheral, or others");
           }
           if (!record.status?.trim()) {
             errors.push("Status is required");
-          } else if (!['in-stock', 'deployed', 'in-repair', 'disposed'].includes(record.status)) {
+          } else if (!['in-stock', 'deployed', 'in-repair', 'disposed'].includes(record.status.trim().toLowerCase())) {
             errors.push("Status must be in-stock, deployed, in-repair, or disposed");
           }
 
           // Type-specific validation
-          if (record.type === 'software' && !record.software_name?.trim()) {
+          if (record.type?.trim().toLowerCase() === 'software' && !record.software_name?.trim()) {
             errors.push("Software name is required for software assets");
           }
 
