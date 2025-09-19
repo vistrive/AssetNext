@@ -177,8 +177,6 @@ export default function Login() {
                   <option value="">Select your role</option>
                   <option value="employee">Employee</option>
                   <option value="technician">Technician</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
                 </select>
                 {registerForm.formState.errors.role && (
                   <p className="text-red-500 text-sm mt-1">

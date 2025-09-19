@@ -123,15 +123,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         slug: tenantName.toLowerCase().replace(/\s+/g, '-'),
       });
 
-      // Create user
+      // Create user - restrict self-registration roles for security
       const hashedPassword = await hashPassword(password);
+      const allowedRole = role === "admin" || role === "manager" ? "employee" : role; // Prevent privilege escalation
       const user = await storage.createUser({
         username: email,
         email,
         password: hashedPassword,
         firstName,
         lastName,
-        role, // Use selected role from signup form
+        role: allowedRole, // Only allow employee/technician for self-registration
         tenantId: tenant.id,
       });
 
