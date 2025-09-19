@@ -841,6 +841,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '+1-646-454-3200',
         'Logitech International',
         ''
+      ],
+      [
+        'Office Furniture Desk',
+        'others',
+        'deployed',
+        'furniture',
+        'IKEA',
+        'BEKANT',
+        'IKEA123456',
+        'Office Floor 2',
+        'jane.smith@techcorp.com',
+        'Jane Smith',
+        '2023-09-15',
+        '199.00',
+        '2028-09-15',
+        '{"dimensions":"160x80cm","color":"white","material":"particleboard"}',
+        'Office desk for employee workspace',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'IKEA',
+        'info@ikea.com',
+        '+1-888-888-4532',
+        'IKEA Inc',
+        ''
       ]
     ];
 
