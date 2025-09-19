@@ -7,16 +7,12 @@ import { MetricsGrid } from "@/components/dashboard/metrics-grid";
 import { AssetStatusChart } from "@/components/dashboard/asset-status-chart";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { RecentAssets } from "@/components/dashboard/recent-assets";
-import { AssetForm } from "@/components/assets/asset-form";
 import { authenticatedRequest } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
 import type { Asset, Recommendation } from "@shared/schema";
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [assetFilter, setAssetFilter] = useState("all");
-  const { toast } = useToast();
 
   // Fetch dashboard metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({
@@ -45,27 +41,6 @@ export default function Dashboard() {
     },
   });
 
-  const handleAddAsset = () => {
-    setIsAssetFormOpen(true);
-  };
-
-  const handleAssetSubmit = async (assetData: any) => {
-    try {
-      await authenticatedRequest("POST", "/api/assets", assetData);
-      setIsAssetFormOpen(false);
-      toast({
-        title: "Asset created",
-        description: "The asset has been created successfully.",
-      });
-      // Refresh data would happen here with query invalidation
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create asset. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleFilterChange = (filter: string) => {
     setAssetFilter(filter);
@@ -113,7 +88,6 @@ export default function Dashboard() {
         <TopBar
           title="Dashboard"
           description="Overview of your IT assets and system health"
-          onAddClick={handleAddAsset}
         />
         
         <div className="p-6 space-y-6">
@@ -144,11 +118,6 @@ export default function Dashboard() {
         </div>
       </main>
       
-      <AssetForm
-        isOpen={isAssetFormOpen}
-        onClose={() => setIsAssetFormOpen(false)}
-        onSubmit={handleAssetSubmit}
-      />
     </div>
   );
 }
