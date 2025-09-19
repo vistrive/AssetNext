@@ -109,10 +109,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
-      console.log("Registration attempt with data:", {
-        ...req.body,
-        password: req.body.password ? "[REDACTED]" : "undefined"
-      });
       
       const { email, password, firstName, lastName, tenantName, role }: RegisterRequest = 
         registerSchema.parse(req.body);
@@ -122,11 +118,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User already exists" });
       }
 
-      // Create tenant
-      const tenant = await storage.createTenant({
-        name: tenantName,
-        slug: tenantName.toLowerCase().replace(/\s+/g, '-'),
-      });
+      // Create tenant with unique slug handling
+      let slug = tenantName.toLowerCase().replace(/\s+/g, '-');
+      let uniqueSlug = slug;
+      let counter = 1;
+      let tenant;
+      
+      // Ensure unique slug by appending counter if needed
+      while (true) {
+        try {
+          tenant = await storage.createTenant({
+            name: tenantName,
+            slug: uniqueSlug,
+          });
+          break;
+        } catch (error: any) {
+          if (error?.code === '23505' && error?.constraint === 'tenants_slug_unique') {
+            counter++;
+            uniqueSlug = `${slug}-${counter}`;
+            continue;
+          }
+          throw error;
+        }
+      }
 
       // Create user - restrict self-registration roles for security
       const hashedPassword = await hashPassword(password);
