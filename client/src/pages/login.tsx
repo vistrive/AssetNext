@@ -76,11 +76,11 @@ export default function Login() {
             </div>
           </div>
           <CardTitle className="text-2xl">
-            {isRegistering ? "Create Your Organization" : "Sign In to AssetVault"}
+            {isRegistering ? "Join Your Company" : "Sign In to AssetVault"}
           </CardTitle>
           {isRegistering && (
             <p className="text-sm text-muted-foreground mt-2">
-              Create a new organization account. You will be the administrator.
+              Join your company or create a new one. First user becomes the administrator.
             </p>
           )}
         </CardHeader>
@@ -156,9 +156,12 @@ export default function Login() {
                 <Input
                   id="tenantName"
                   {...registerForm.register("tenantName")}
-                  placeholder="Your Company Inc."
+                  placeholder="Enter your company name (e.g. Acme Corp)"
                   data-testid="input-tenant-name"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter the exact company name. If it exists, you'll join as a member.
+                </p>
                 {registerForm.formState.errors.tenantName && (
                   <p className="text-red-500 text-sm mt-1">
                     {registerForm.formState.errors.tenantName.message}
@@ -177,6 +180,8 @@ export default function Login() {
                   <option value="">Select your role</option>
                   <option value="employee">Employee</option>
                   <option value="technician">Technician</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
                 </select>
                 {registerForm.formState.errors.role && (
                   <p className="text-red-500 text-sm mt-1">
