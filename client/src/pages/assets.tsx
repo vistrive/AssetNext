@@ -114,11 +114,23 @@ export default function Assets() {
   const createAssetMutation = useMutation({
     mutationFn: async (assetData: InsertAsset) => {
       console.log("Creating asset with data:", assetData);
-      const response = await authenticatedRequest("POST", "/api/assets", assetData);
-      console.log("Create asset response status:", response.status);
-      const result = await response.json();
-      console.log("Create asset response data:", result);
-      return result;
+      try {
+        const response = await authenticatedRequest("POST", "/api/assets", assetData);
+        console.log("Create asset response status:", response.status);
+        
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error("API Error Response:", errorData);
+          throw new Error(`API Error ${response.status}: ${errorData}`);
+        }
+        
+        const result = await response.json();
+        console.log("Create asset response data:", result);
+        return result;
+      } catch (error) {
+        console.error("Request failed:", error);
+        throw error;
+      }
     },
     onSuccess: (data) => {
       console.log("Asset creation successful:", data);
@@ -133,9 +145,18 @@ export default function Assets() {
     },
     onError: (error) => {
       console.error("Asset creation failed:", error);
+      let errorMessage = "Failed to create asset. Please try again.";
+      if (error.message.includes("400")) {
+        errorMessage = "Please check all required fields are filled correctly.";
+      } else if (error.message.includes("401")) {
+        errorMessage = "You are not authorized to create assets.";
+      } else if (error.message.includes("422")) {
+        errorMessage = "Invalid data provided. Please check your inputs.";
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to create asset. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     },

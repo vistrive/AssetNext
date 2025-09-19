@@ -23,9 +23,9 @@ const assetFormSchema = insertAssetSchema.extend({
   purchaseDate: z.string().optional(),
   warrantyExpiry: z.string().optional(),
   renewalDate: z.string().optional(),
-  vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
-  vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]+$/, "Please enter a valid phone number").optional().or(z.literal("")),
-  companyGstNumber: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Please enter a valid 15-character GST number").optional().or(z.literal("")),
+  vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")).or(z.undefined()),
+  vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]*$/, "Please enter a valid phone number").optional().or(z.literal("")).or(z.undefined()),
+  companyGstNumber: z.string().optional().or(z.literal("")).or(z.undefined()),
 }).superRefine((data, ctx) => {
   // Make software-specific fields mandatory when type is 'software'
   if (data.type === 'software') {
