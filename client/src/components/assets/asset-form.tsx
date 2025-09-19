@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const assetFormSchema = insertAssetSchema.extend({
   purchaseDate: z.string().optional(),
+  purchaseCost: z.number().positive().optional().or(z.undefined()),
   warrantyExpiry: z.string().optional(),
   renewalDate: z.string().optional(),
   vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")).or(z.undefined()),
@@ -261,7 +262,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       location: asset.location || "",
       assignedUserName: asset.assignedUserName || "",
       purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
-      purchaseCost: asset.purchaseCost || undefined,
+      purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : undefined,
       warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : "",
       // Software-specific fields
       softwareName: asset.softwareName || "",
