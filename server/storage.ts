@@ -942,6 +942,61 @@ export async function seedDatabase() {
       invitedBy: null,
     });
 
+    // Create sample users with different roles for testing
+    const managerUser = await storage.createUser({
+      username: "manager",
+      email: "manager@techcorp.com",
+      password: hashedPassword,
+      firstName: "Michael",
+      lastName: "Davis",
+      role: "manager",
+      avatar: null,
+      phone: null,
+      department: "IT",
+      jobTitle: "IT Manager",
+      manager: null,
+      lastLoginAt: null,
+      isActive: true,
+      tenantId: tenant.id,
+      invitedBy: adminUser.id,
+    });
+
+    const technicianUser = await storage.createUser({
+      username: "technician",
+      email: "technician@techcorp.com",
+      password: hashedPassword,
+      firstName: "Alex",
+      lastName: "Thompson",
+      role: "technician",
+      avatar: null,
+      phone: null,
+      department: "IT",
+      jobTitle: "IT Technician",
+      manager: managerUser.id,
+      lastLoginAt: null,
+      isActive: true,
+      tenantId: tenant.id,
+      invitedBy: managerUser.id,
+    });
+
+    const employeeUser = await storage.createUser({
+      username: "employee",
+      email: "employee@techcorp.com",
+      password: hashedPassword,
+      firstName: "Emma",
+      lastName: "Wilson",
+      role: "employee",
+      avatar: null,
+      phone: null,
+      department: "Marketing",
+      jobTitle: "Marketing Specialist",
+      manager: null,
+      lastLoginAt: null,
+      isActive: true,
+      tenantId: tenant.id,
+      invitedBy: adminUser.id,
+    });
+
     // Seed sample master data
     const sampleMasterData = [
       // Manufacturers
