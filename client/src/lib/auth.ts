@@ -18,8 +18,12 @@ export async function authenticatedRequest(
   data?: unknown
 ): Promise<Response> {
   const token = getAuthToken();
+  console.log("Auth token present:", !!token);
+  console.log("Making authenticated request to:", method, url);
+  
   if (!token) {
-    throw new Error("No authentication token found");
+    console.error("No authentication token found in localStorage");
+    throw new Error("No authentication token found - please log in again");
   }
 
   // Handle FormData differently from regular JSON data
@@ -34,18 +38,29 @@ export async function authenticatedRequest(
     headers["Content-Type"] = "application/json";
   }
 
+  console.log("Request headers:", { ...headers, Authorization: "Bearer [REDACTED]" });
+  console.log("Request data:", data);
+
   const response = await fetch(url, {
     method,
     headers,
     body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
   });
 
+  console.log("Response status:", response.status);
+  console.log("Response ok:", response.ok);
+
   if (!response.ok) {
+    const responseText = await response.text();
+    console.error("API Error Response:", response.status, responseText);
+    
     if (response.status === 401) {
+      console.warn("Authentication failed - removing token and redirecting to login");
       removeAuthToken();
       window.location.href = "/login";
+      throw new Error("Authentication expired - please log in again");
     }
-    throw new Error(`${response.status}: ${response.statusText}`);
+    throw new Error(`API Error ${response.status}: ${responseText}`);
   }
 
   return response;

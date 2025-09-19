@@ -146,19 +146,30 @@ export default function Assets() {
     onError: (error) => {
       console.error("Asset creation failed:", error);
       let errorMessage = "Failed to create asset. Please try again.";
-      if (error.message.includes("400")) {
+      
+      if (error.message.includes("Authentication expired") || error.message.includes("No authentication token")) {
+        errorMessage = "Your session has expired. Please log in again.";
+      } else if (error.message.includes("400")) {
         errorMessage = "Please check all required fields are filled correctly.";
       } else if (error.message.includes("401")) {
-        errorMessage = "You are not authorized to create assets.";
+        errorMessage = "Authentication failed. Please log in again.";
       } else if (error.message.includes("422")) {
         errorMessage = "Invalid data provided. Please check your inputs.";
+      } else if (error.message.includes("500")) {
+        errorMessage = "Server error. Please try again later.";
       }
       
       toast({
-        title: "Error",
+        title: "Asset Creation Failed",
         description: errorMessage,
         variant: "destructive",
       });
+      
+      // If it's an auth error, close the form to prevent confusion
+      if (error.message.includes("401") || error.message.includes("Authentication")) {
+        setIsAssetFormOpen(false);
+        setEditingAsset(undefined);
+      }
     },
   });
 
