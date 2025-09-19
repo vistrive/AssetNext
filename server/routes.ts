@@ -109,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
-      const { email, password, firstName, lastName, tenantName }: RegisterRequest = 
+      const { email, password, firstName, lastName, tenantName, role }: RegisterRequest = 
         registerSchema.parse(req.body);
 
       const existingUser = await storage.getUserByEmail(email);
@@ -131,7 +131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
         firstName,
         lastName,
-        role: "admin", // First user is admin
+        role, // Use selected role from signup form
         tenantId: tenant.id,
       });
 
