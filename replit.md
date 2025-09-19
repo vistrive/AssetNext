@@ -22,6 +22,13 @@ Preferred communication style: Simple, everyday language.
   - **Other Assets**: CCTV Cameras and Access Control category tiles
   - **Navigation Integration**: All tiles and buttons navigate to filtered asset views with proper URL parameters
   - **Accessibility**: Added comprehensive data-testid attributes for testing and UI automation
+- **Global Floating AI Assistant**: Implemented comprehensive AI-powered assistant accessible from all pages
+  - **Centered Positioning**: Positioned at right center instead of bottom-right for professional appearance
+  - **Customizable Position**: Users can move the assistant up/down with persistent position memory via localStorage
+  - **Admin-Only Access**: Role-based access control limiting functionality to admin users
+  - **Comprehensive Query Processing**: Handles any ITAM-related questions about assets, licenses, reports, and recommendations
+  - **Secure Implementation**: Multi-tenant data isolation, request validation, and audit logging
+  - **Enhanced UX**: Character counter, keyboard shortcuts, loading states, and accessibility features
 
 ## System Architecture
 

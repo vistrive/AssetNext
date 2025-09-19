@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,15 +7,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { authenticatedRequest } from "@/lib/auth";
-import { Bot, Send, Sparkles, X, MessageSquare } from "lucide-react";
+import { Bot, Send, Sparkles, X, MessageSquare, ChevronUp, ChevronDown } from "lucide-react";
 
 export function FloatingAIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [positionOffset, setPositionOffset] = useState(0); // Vertical offset from center
+  const [showControls, setShowControls] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  // Load position from localStorage on mount
+  useEffect(() => {
+    const savedOffset = localStorage.getItem('ai-assistant-position');
+    if (savedOffset) {
+      setPositionOffset(parseInt(savedOffset, 10));
+    }
+  }, []);
+
+  // Save position to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('ai-assistant-position', positionOffset.toString());
+  }, [positionOffset]);
 
   // Only show to admin users
   if (!user || user.role !== "admin") {
@@ -79,8 +94,40 @@ export function FloatingAIAssistant() {
     }
   };
 
+  const moveUp = () => {
+    setPositionOffset(prev => Math.max(prev - 60, -200)); // Constrain upward movement
+  };
+
+  const moveDown = () => {
+    setPositionOffset(prev => Math.min(prev + 60, 200)); // Constrain downward movement
+  };
+
+  const containerStyle = {
+    transform: `translateY(${positionOffset}px)`
+  };
+
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div 
+      className="fixed top-1/2 right-6 z-50 flex flex-col items-center gap-2"
+      style={containerStyle}
+      onMouseEnter={() => setShowControls(true)}
+      onMouseLeave={() => setShowControls(false)}
+    >
+      {/* Move Up Button */}
+      <Button
+        size="sm"
+        variant="outline"
+        className={`rounded-full w-8 h-8 shadow-md transition-all duration-200 ${
+          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+        }`}
+        onClick={moveUp}
+        disabled={positionOffset <= -200}
+        data-testid="button-ai-move-up"
+      >
+        <ChevronUp className="h-4 w-4" />
+      </Button>
+
+      {/* Main AI Assistant Button */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button
@@ -174,6 +221,20 @@ export function FloatingAIAssistant() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Move Down Button */}
+      <Button
+        size="sm"
+        variant="outline"
+        className={`rounded-full w-8 h-8 shadow-md transition-all duration-200 ${
+          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+        }`}
+        onClick={moveDown}
+        disabled={positionOffset >= 200}
+        data-testid="button-ai-move-down"
+      >
+        <ChevronDown className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
