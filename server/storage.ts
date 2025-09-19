@@ -89,7 +89,7 @@ export interface IStorage {
   updateOrgSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined>;
 
   // Assets
-  getAllAssets(tenantId: string): Promise<Asset[]>;
+  getAllAssets(tenantId: string, filters?: { type?: string; status?: string }): Promise<Asset[]>;
   getAsset(id: string, tenantId: string): Promise<Asset | undefined>;
   createAsset(asset: InsertAsset): Promise<Asset>;
   createAssetsBulk(assets: InsertAsset[]): Promise<Asset[]>;
@@ -363,8 +363,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Assets
-  async getAllAssets(tenantId: string): Promise<Asset[]> {
-    return await db.select().from(assets).where(eq(assets.tenantId, tenantId));
+  async getAllAssets(tenantId: string, filters?: { type?: string; status?: string }): Promise<Asset[]> {
+    const conditions = [eq(assets.tenantId, tenantId)];
+    
+    if (filters?.type) {
+      conditions.push(eq(assets.type, filters.type));
+    }
+    
+    if (filters?.status) {
+      conditions.push(eq(assets.status, filters.status));
+    }
+    
+    return await db.select().from(assets).where(and(...conditions));
   }
 
   async getAsset(id: string, tenantId: string): Promise<Asset | undefined> {

@@ -556,7 +556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (type) filters.type = type as string;
       if (status) filters.status = status as string;
 
-      const assets = await storage.getAllAssets(req.user!.tenantId);
+      const assets = await storage.getAllAssets(req.user!.tenantId, filters);
       res.json(assets);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch assets" });
@@ -893,8 +893,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           if (!record.type?.trim()) {
             errors.push("Type is required");
-          } else if (!['hardware', 'software', 'peripheral'].includes(record.type)) {
-            errors.push("Type must be hardware, software, or peripheral");
+          } else if (!['hardware', 'software', 'peripheral', 'others'].includes(record.type)) {
+            errors.push("Type must be hardware, software, peripheral, or others");
           }
           if (!record.status?.trim()) {
             errors.push("Status is required");
