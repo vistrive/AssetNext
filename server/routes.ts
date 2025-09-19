@@ -577,6 +577,383 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk upload endpoints
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only CSV files are allowed'));
+      }
+    }
+  });
+
+  // Download CSV template
+  app.get("/api/assets/bulk/template", authenticateToken, requireRole("it-manager"), (req: Request, res: Response) => {
+    const headers = [
+      'name',
+      'type',
+      'status',
+      'category',
+      'manufacturer',
+      'model',
+      'serial_number',
+      'location',
+      'assigned_user_email',
+      'assigned_user_name',
+      'purchase_date',
+      'purchase_cost',
+      'warranty_expiry',
+      'specifications',
+      'notes',
+      'software_name',
+      'version',
+      'license_type',
+      'license_key',
+      'used_licenses',
+      'renewal_date',
+      'vendor_name',
+      'vendor_email',
+      'vendor_phone',
+      'company_name',
+      'company_gst_number'
+    ];
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="asset_template.csv"');
+    res.send(headers.join(',') + '\n');
+  });
+
+  // Download CSV sample
+  app.get("/api/assets/bulk/sample", authenticateToken, requireRole("it-manager"), (req: Request, res: Response) => {
+    const headers = [
+      'name',
+      'type',
+      'status',
+      'category',
+      'manufacturer',
+      'model',
+      'serial_number',
+      'location',
+      'assigned_user_email',
+      'assigned_user_name',
+      'purchase_date',
+      'purchase_cost',
+      'warranty_expiry',
+      'specifications',
+      'notes',
+      'software_name',
+      'version',
+      'license_type',
+      'license_key',
+      'used_licenses',
+      'renewal_date',
+      'vendor_name',
+      'vendor_email',
+      'vendor_phone',
+      'company_name',
+      'company_gst_number'
+    ];
+
+    const sampleData = [
+      [
+        'MacBook Pro 16"',
+        'hardware',
+        'deployed',
+        'laptop',
+        'Apple',
+        'MacBook Pro',
+        'A1234567890',
+        'Office Floor 2',
+        'john.doe@techcorp.com',
+        'John Doe',
+        '2024-01-15',
+        '2499.00',
+        '2027-01-15',
+        '{"ram":"16GB","storage":"512GB SSD","processor":"M1 Pro"}',
+        'High-performance laptop for development team',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        ''
+      ],
+      [
+        'Microsoft Office 365',
+        'software',
+        'deployed',
+        'productivity',
+        'Microsoft',
+        'Office 365',
+        '',
+        'Cloud',
+        '',
+        '',
+        '2024-02-01',
+        '150.00',
+        '2025-02-01',
+        '{"edition":"Business Premium","users":"unlimited"}',
+        'Annual subscription for productivity suite',
+        'Microsoft Office 365',
+        '2024',
+        'subscription',
+        'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX',
+        '50',
+        '2025-02-01',
+        'Microsoft',
+        'support@microsoft.com',
+        '+1-800-642-7676',
+        'Microsoft Corporation',
+        ''
+      ]
+    ];
+
+    const csvContent = [headers.join(','), ...sampleData.map(row => row.join(','))].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="asset_sample.csv"');
+    res.send(csvContent);
+  });
+
+  // Bulk upload endpoint
+  app.post("/api/assets/bulk/upload", authenticateToken, requireRole("it-manager"), upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const validateOnly = req.query.validateOnly === 'true';
+      const mode = (req.query.mode as string) || 'partial'; // partial or atomic
+      
+      // Parse CSV
+      const csvContent = req.file.buffer.toString('utf8');
+      const records = parse(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true
+      });
+
+      if (records.length === 0) {
+        return res.status(400).json({ message: "CSV file is empty" });
+      }
+
+      if (records.length > 5000) {
+        return res.status(400).json({ message: "Maximum 5000 rows allowed" });
+      }
+
+      const results: any[] = [];
+      const validAssets: any[] = [];
+      let rowNumber = 1; // Start from 1 (header is row 0)
+
+      for (const record of records) {
+        rowNumber++;
+        const errors: string[] = [];
+        const warnings: string[] = [];
+
+        try {
+          // Basic validation
+          if (!record.name?.trim()) {
+            errors.push("Name is required");
+          }
+          if (!record.type?.trim()) {
+            errors.push("Type is required");
+          } else if (!['hardware', 'software', 'peripheral'].includes(record.type)) {
+            errors.push("Type must be hardware, software, or peripheral");
+          }
+          if (!record.status?.trim()) {
+            errors.push("Status is required");
+          } else if (!['in-stock', 'deployed', 'in-repair', 'disposed'].includes(record.status)) {
+            errors.push("Status must be in-stock, deployed, in-repair, or disposed");
+          }
+
+          // Type-specific validation
+          if (record.type === 'software' && !record.software_name?.trim()) {
+            errors.push("Software name is required for software assets");
+          }
+
+          // Date validation
+          const dateFields = ['purchase_date', 'warranty_expiry', 'renewal_date'];
+          for (const field of dateFields) {
+            if (record[field] && record[field].trim()) {
+              const date = new Date(record[field]);
+              if (isNaN(date.getTime())) {
+                errors.push(`${field} must be a valid date (YYYY-MM-DD or MM/DD/YYYY)`);
+              }
+            }
+          }
+
+          // Number validation
+          if (record.purchase_cost && record.purchase_cost.trim()) {
+            const cost = parseFloat(record.purchase_cost);
+            if (isNaN(cost) || cost < 0) {
+              errors.push("Purchase cost must be a valid positive number");
+            }
+          }
+
+          if (record.used_licenses && record.used_licenses.trim()) {
+            const licenses = parseInt(record.used_licenses);
+            if (isNaN(licenses) || licenses < 0) {
+              errors.push("Used licenses must be a valid non-negative integer");
+            }
+          }
+
+          // Build asset object if no errors
+          if (errors.length === 0) {
+            const assetData: any = {
+              name: record.name.trim(),
+              type: record.type.trim(),
+              status: record.status.trim(),
+              tenantId: req.user!.tenantId,
+              createdBy: req.user!.userId
+            };
+
+            // Add optional fields
+            const optionalFields = [
+              'category', 'manufacturer', 'model', 'serial_number', 'location',
+              'assigned_user_name', 'notes', 'software_name', 'version',
+              'license_type', 'license_key', 'vendor_name', 'vendor_email',
+              'vendor_phone', 'company_name', 'company_gst_number'
+            ];
+
+            for (const field of optionalFields) {
+              if (record[field] && record[field].trim()) {
+                assetData[field === 'serial_number' ? 'serialNumber' : 
+                          field === 'assigned_user_name' ? 'assignedUserName' :
+                          field === 'software_name' ? 'softwareName' :
+                          field === 'license_type' ? 'licenseType' :
+                          field === 'license_key' ? 'licenseKey' :
+                          field === 'vendor_name' ? 'vendorName' :
+                          field === 'vendor_email' ? 'vendorEmail' :
+                          field === 'vendor_phone' ? 'vendorPhone' :
+                          field === 'company_name' ? 'companyName' :
+                          field === 'company_gst_number' ? 'companyGstNumber' :
+                          field] = record[field].trim();
+              }
+            }
+
+            // Handle dates
+            if (record.purchase_date && record.purchase_date.trim()) {
+              assetData.purchaseDate = new Date(record.purchase_date);
+            }
+            if (record.warranty_expiry && record.warranty_expiry.trim()) {
+              assetData.warrantyExpiry = new Date(record.warranty_expiry);
+            }
+            if (record.renewal_date && record.renewal_date.trim()) {
+              assetData.renewalDate = new Date(record.renewal_date);
+            }
+
+            // Handle numbers
+            if (record.purchase_cost && record.purchase_cost.trim()) {
+              assetData.purchaseCost = record.purchase_cost.trim();
+            }
+            if (record.used_licenses && record.used_licenses.trim()) {
+              assetData.usedLicenses = parseInt(record.used_licenses);
+            }
+
+            // Handle JSON specifications
+            if (record.specifications && record.specifications.trim()) {
+              try {
+                assetData.specifications = JSON.parse(record.specifications);
+              } catch (e) {
+                warnings.push("Invalid JSON in specifications field, treating as text");
+                assetData.specifications = { note: record.specifications.trim() };
+              }
+            }
+
+            // Validate with schema
+            const validatedAsset = insertAssetSchema.parse(assetData);
+            validAssets.push(validatedAsset);
+
+            results.push({
+              rowNumber,
+              status: 'valid',
+              errors: [],
+              warnings
+            });
+          } else {
+            results.push({
+              rowNumber,
+              status: 'invalid',
+              errors,
+              warnings
+            });
+          }
+        } catch (error) {
+          results.push({
+            rowNumber,
+            status: 'invalid',
+            errors: [error instanceof Error ? error.message : 'Validation failed'],
+            warnings
+          });
+        }
+      }
+
+      const summary = {
+        total: records.length,
+        valid: validAssets.length,
+        invalid: records.length - validAssets.length,
+        inserted: 0
+      };
+
+      // If validation only, return results
+      if (validateOnly) {
+        return res.json({ summary, rows: results });
+      }
+
+      // Insert assets if not validation-only
+      if (validAssets.length > 0) {
+        if (mode === 'atomic' && summary.invalid > 0) {
+          return res.status(400).json({
+            message: "Atomic mode: Cannot import any assets because some rows have errors",
+            summary,
+            rows: results
+          });
+        }
+
+        try {
+          const insertedAssets = await storage.createAssetsBulk(validAssets);
+          summary.inserted = insertedAssets.length;
+
+          // Log audit activity
+          await storage.logActivity({
+            action: "bulk_asset_import",
+            resourceType: "asset",
+            resourceId: null,
+            details: `Imported ${summary.inserted} assets from CSV upload`,
+            userId: req.user!.userId,
+            tenantId: req.user!.tenantId
+          });
+
+          res.json({ 
+            summary, 
+            rows: results,
+            message: `Successfully imported ${summary.inserted} assets`
+          });
+        } catch (error) {
+          res.status(500).json({ message: "Failed to import assets" });
+        }
+      } else {
+        res.json({ 
+          summary, 
+          rows: results,
+          message: "No valid assets to import"
+        });
+      }
+
+    } catch (error) {
+      console.error("Bulk upload error:", error);
+      res.status(500).json({ message: "Failed to process file" });
+    }
+  });
+
   // Software License routes
   app.get("/api/licenses", authenticateToken, async (req: Request, res: Response) => {
     try {
