@@ -127,6 +127,51 @@ export class MemStorage implements IStorage {
     };
     this.users.set(adminUser.id, adminUser);
 
+    // Seed sample master data
+    const sampleMasterData: MasterData[] = [
+      // Manufacturers
+      { id: "master-1", type: "manufacturer", value: "Apple", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-2", type: "manufacturer", value: "Dell", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-3", type: "manufacturer", value: "HP", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-4", type: "manufacturer", value: "Lenovo", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-5", type: "manufacturer", value: "Microsoft", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      
+      // Models
+      { id: "master-6", type: "model", value: "MacBook Pro", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-7", type: "model", value: "MacBook Air", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-8", type: "model", value: "OptiPlex 7090", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-9", type: "model", value: "EliteBook 850", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-10", type: "model", value: "ThinkPad X1 Carbon", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      
+      // Categories
+      { id: "master-11", type: "category", value: "laptop", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-12", type: "category", value: "desktop", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-13", type: "category", value: "server", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-14", type: "category", value: "monitor", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-15", type: "category", value: "printer", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      
+      // Locations
+      { id: "master-16", type: "location", value: "Office Floor 1", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-17", type: "location", value: "Office Floor 2", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-18", type: "location", value: "Storage Room A", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-19", type: "location", value: "Storage Room B", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-20", type: "location", value: "Warehouse", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      
+      // Vendor Names
+      { id: "master-21", type: "vendor", value: "Apple Inc.", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-22", type: "vendor", value: "Dell Technologies", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-23", type: "vendor", value: "HP Inc.", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-24", type: "vendor", value: "Lenovo Group", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      
+      // Company Names
+      { id: "master-25", type: "company", value: "Apple Inc.", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-26", type: "company", value: "Dell Technologies Inc.", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-27", type: "company", value: "HP Inc.", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-28", type: "company", value: "Lenovo Group Ltd.", createdBy: adminUser.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+    ];
+
+    sampleMasterData.forEach(data => this.masterData.set(data.id, data));
+
     // Seed sample assets
     const sampleAssets: Asset[] = [
       {
@@ -264,51 +309,6 @@ export class MemStorage implements IStorage {
     ];
 
     sampleRecommendations.forEach(rec => this.recommendations.set(rec.id, rec));
-
-    // Seed sample master data
-    const sampleMasterData: MasterData[] = [
-      // Manufacturers
-      { id: "master-1", type: "manufacturer", value: "Apple", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-2", type: "manufacturer", value: "Dell", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-3", type: "manufacturer", value: "HP", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-4", type: "manufacturer", value: "Lenovo", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-5", type: "manufacturer", value: "Microsoft", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      
-      // Models
-      { id: "master-6", type: "model", value: "MacBook Pro", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-7", type: "model", value: "MacBook Air", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-8", type: "model", value: "OptiPlex 7090", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-9", type: "model", value: "EliteBook 850", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-10", type: "model", value: "ThinkPad X1 Carbon", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      
-      // Categories
-      { id: "master-11", type: "category", value: "laptop", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-12", type: "category", value: "desktop", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-13", type: "category", value: "server", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-14", type: "category", value: "monitor", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-15", type: "category", value: "printer", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      
-      // Locations
-      { id: "master-16", type: "location", value: "Office Floor 1", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-17", type: "location", value: "Office Floor 2", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-18", type: "location", value: "Storage Room A", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-19", type: "location", value: "Storage Room B", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-20", type: "location", value: "Warehouse", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      
-      // Vendor Names
-      { id: "master-21", type: "vendor", value: "Apple Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-22", type: "vendor", value: "Dell Technologies", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-23", type: "vendor", value: "HP Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-24", type: "vendor", value: "Lenovo Group", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      
-      // Company Names
-      { id: "master-25", type: "company", value: "Apple Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-26", type: "company", value: "Dell Technologies Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-27", type: "company", value: "HP Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-      { id: "master-28", type: "company", value: "Lenovo Group Ltd.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
-    ];
-
-    sampleMasterData.forEach(data => this.masterData.set(data.id, data));
   }
 
   // Users

@@ -16,9 +16,16 @@ import {
   insertAssetSchema,
   insertSoftwareLicenseSchema,
   insertMasterDataSchema,
+  updateUserProfileSchema,
+  insertUserPreferencesSchema,
+  updateOrgSettingsSchema,
   type LoginRequest,
-  type RegisterRequest
+  type RegisterRequest,
+  type UpdateUserProfile,
+  type InsertUserPreferences,
+  type UpdateOrgSettings
 } from "@shared/schema";
+import { z } from "zod";
 
 declare global {
   namespace Express {
@@ -136,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/verify", authenticateToken, async (req: Request, res: Response) => {
+  app.get("/api/auth/verify", authenticateToken, async (req: Request, res: Response) => {
     const user = await storage.getUser(req.user!.userId);
     const tenant = await storage.getTenant(req.user!.tenantId);
     
@@ -155,6 +162,333 @@ export async function registerRoutes(app: Express): Promise<Server> {
       },
       tenant: tenant ? { id: tenant.id, name: tenant.name } : null,
     });
+  });
+
+  // User Profile Management
+  app.get("/api/users/me", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.tenantId !== req.user!.tenantId) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        department: user.department,
+        jobTitle: user.jobTitle,
+        manager: user.manager,
+        avatar: user.avatar,
+        role: user.role,
+        isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+  });
+
+  app.patch("/api/users/me", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const profileData: UpdateUserProfile = updateUserProfileSchema.parse(req.body);
+      
+      // SECURITY: Whitelist only safe profile fields, prevent privilege escalation
+      const safeProfileData: UpdateUserProfile = {
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        phone: profileData.phone,
+        department: profileData.department,
+        jobTitle: profileData.jobTitle,
+        manager: profileData.manager,
+      };
+      
+      const updatedUser = await storage.updateUserProfile(req.user!.userId, req.user!.tenantId, safeProfileData);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "user_profile_updated",
+        resourceType: "user",
+        resourceId: req.user!.userId,
+        userEmail: updatedUser.email,
+        userRole: updatedUser.role,
+        description: `User profile updated: ${Object.keys(safeProfileData).join(', ')}`,
+      });
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        phone: updatedUser.phone,
+        department: updatedUser.department,
+        jobTitle: updatedUser.jobTitle,
+        manager: updatedUser.manager,
+        avatar: updatedUser.avatar,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
+        lastLoginAt: updatedUser.lastLoginAt,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid profile data" });
+    }
+  });
+
+  // User Preferences Management
+  app.get("/api/users/me/preferences", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const preferences = await storage.getUserPreferences(req.user!.userId, req.user!.tenantId);
+      
+      if (!preferences) {
+        // Return default preferences if none exist
+        const defaults = {
+          emailNotifications: true,
+          pushNotifications: true,
+          aiRecommendationAlerts: true,
+          weeklyReports: true,
+          assetExpiryAlerts: true,
+          theme: "light" as const,
+          language: "en",
+          timezone: "UTC",
+          dateFormat: "MM/dd/yyyy",
+          dashboardLayout: "default",
+          itemsPerPage: 25,
+        };
+        return res.json(defaults);
+      }
+
+      res.json(preferences);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user preferences" });
+    }
+  });
+
+  app.patch("/api/users/me/preferences", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const preferencesData: Partial<InsertUserPreferences> = insertUserPreferencesSchema.partial().parse(req.body);
+      
+      let preferences = await storage.getUserPreferences(req.user!.userId, req.user!.tenantId);
+      
+      if (!preferences) {
+        // Create new preferences if they don't exist - SECURITY: Only allow preference fields
+        const safePreferencesData = {
+          emailNotifications: preferencesData.emailNotifications,
+          pushNotifications: preferencesData.pushNotifications,
+          aiRecommendationAlerts: preferencesData.aiRecommendationAlerts,
+          weeklyReports: preferencesData.weeklyReports,
+          assetExpiryAlerts: preferencesData.assetExpiryAlerts,
+          theme: preferencesData.theme,
+          language: preferencesData.language,
+          timezone: preferencesData.timezone,
+          dateFormat: preferencesData.dateFormat,
+          dashboardLayout: preferencesData.dashboardLayout,
+          itemsPerPage: preferencesData.itemsPerPage,
+        };
+        
+        const newPreferences: InsertUserPreferences = {
+          userId: req.user!.userId,
+          tenantId: req.user!.tenantId,
+          emailNotifications: safePreferencesData.emailNotifications ?? true,
+          pushNotifications: safePreferencesData.pushNotifications ?? true,
+          aiRecommendationAlerts: safePreferencesData.aiRecommendationAlerts ?? true,
+          weeklyReports: safePreferencesData.weeklyReports ?? true,
+          assetExpiryAlerts: safePreferencesData.assetExpiryAlerts ?? true,
+          theme: safePreferencesData.theme ?? "light",
+          language: safePreferencesData.language ?? "en",
+          timezone: safePreferencesData.timezone ?? "UTC",
+          dateFormat: safePreferencesData.dateFormat ?? "MM/dd/yyyy",
+          dashboardLayout: safePreferencesData.dashboardLayout ?? "default",
+          itemsPerPage: safePreferencesData.itemsPerPage ?? 25,
+        };
+        preferences = await storage.createUserPreferences(newPreferences);
+      } else {
+        // SECURITY: Only allow preference fields, block identity field tampering
+        const safePreferencesUpdate = {
+          emailNotifications: preferencesData.emailNotifications,
+          pushNotifications: preferencesData.pushNotifications,
+          aiRecommendationAlerts: preferencesData.aiRecommendationAlerts,
+          weeklyReports: preferencesData.weeklyReports,
+          assetExpiryAlerts: preferencesData.assetExpiryAlerts,
+          theme: preferencesData.theme,
+          language: preferencesData.language,
+          timezone: preferencesData.timezone,
+          dateFormat: preferencesData.dateFormat,
+          dashboardLayout: preferencesData.dashboardLayout,
+          itemsPerPage: preferencesData.itemsPerPage,
+        };
+        preferences = await storage.updateUserPreferences(req.user!.userId, req.user!.tenantId, safePreferencesUpdate);
+      }
+
+      if (!preferences) {
+        return res.status(404).json({ message: "Failed to update preferences" });
+      }
+
+      // Log the activity  
+      const user = await storage.getUser(req.user!.userId);
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "user_preferences_updated",
+        resourceType: "user_preferences",
+        resourceId: preferences.id,
+        userEmail: user?.email || "",
+        userRole: user?.role || "read-only",
+        description: `User preferences updated: ${Object.keys(preferencesData).join(', ')}`,
+      });
+
+      res.json(preferences);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid preferences data" });
+    }
+  });
+
+  // Password Change
+  app.post("/api/users/me/change-password", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      // SECURITY: Proper validation schema for password change
+      const passwordChangeSchema = z.object({
+        currentPassword: z.string().min(1, "Current password is required"),
+        newPassword: z.string().min(8, "New password must be at least 8 characters long"),
+        confirmNewPassword: z.string().min(1, "Password confirmation is required"),
+      }).refine((data) => data.newPassword === data.confirmNewPassword, {
+        message: "New password and confirmation do not match",
+        path: ["confirmNewPassword"],
+      });
+
+      const { currentPassword, newPassword, confirmNewPassword } = passwordChangeSchema.parse(req.body);
+
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.tenantId !== req.user!.tenantId) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Verify current password
+      const isValidPassword = await comparePassword(currentPassword, user.password);
+      if (!isValidPassword) {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+
+      // Hash new password and update
+      const hashedNewPassword = await hashPassword(newPassword);
+      const success = await storage.updateUserPassword(req.user!.userId, req.user!.tenantId, hashedNewPassword);
+      
+      if (!success) {
+        return res.status(500).json({ message: "Failed to update password" });
+      }
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "password_changed",
+        resourceType: "user",
+        resourceId: req.user!.userId,
+        userEmail: user.email,
+        userRole: user.role,
+        description: "User changed their password",
+      });
+
+      res.json({ message: "Password updated successfully" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid password data", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
+  // Organization Settings
+  app.get("/api/org/settings", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const tenant = await storage.getTenant(req.user!.tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
+      res.json({
+        id: tenant.id,
+        name: tenant.name,
+        timezone: tenant.timezone,
+        currency: tenant.currency,
+        dateFormat: tenant.dateFormat,
+        autoRecommendations: tenant.autoRecommendations,
+        dataRetentionDays: tenant.dataRetentionDays,
+        createdAt: tenant.createdAt,
+        updatedAt: tenant.updatedAt,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch organization settings" });
+    }
+  });
+
+  app.patch("/api/org/settings", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const settingsData: UpdateOrgSettings = updateOrgSettingsSchema.parse(req.body);
+      
+      const updatedTenant = await storage.updateTenantSettings(req.user!.tenantId, settingsData);
+      if (!updatedTenant) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
+      // Log the activity
+      const user = await storage.getUser(req.user!.userId);
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "org_settings_updated",
+        resourceType: "tenant",
+        resourceId: req.user!.tenantId,
+        userEmail: user?.email || "",
+        userRole: user?.role || "read-only",
+        description: `Organization settings updated: ${Object.keys(settingsData).join(', ')}`,
+      });
+
+      res.json({
+        id: updatedTenant.id,
+        name: updatedTenant.name,
+        timezone: updatedTenant.timezone,
+        currency: updatedTenant.currency,
+        dateFormat: updatedTenant.dateFormat,
+        autoRecommendations: updatedTenant.autoRecommendations,
+        dataRetentionDays: updatedTenant.dataRetentionDays,
+        createdAt: updatedTenant.createdAt,
+        updatedAt: updatedTenant.updatedAt,
+      });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid settings data" });
+    }
+  });
+
+  // User Activity History
+  app.get("/api/users/me/activity", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const activities = await storage.getAuditLogs(req.user!.tenantId, {
+        userId: req.user!.userId,
+        limit,
+        offset,
+      });
+
+      res.json(activities);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user activity" });
+    }
   });
 
   // Dashboard routes

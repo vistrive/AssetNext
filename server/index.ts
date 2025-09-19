@@ -21,8 +21,18 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      
+      // SECURITY: Never log sensitive endpoints or their responses
+      if (capturedJsonResponse && !path.includes("/auth/")) {
+        // Always exclude sensitive fields like tokens from logs
+        const safeResponse = { ...capturedJsonResponse };
+        delete safeResponse.token;
+        delete safeResponse.password;
+        
+        // Only log non-empty, non-sensitive responses
+        if (Object.keys(safeResponse).length > 0) {
+          logLine += ` :: ${JSON.stringify(safeResponse)}`;
+        }
       }
 
       if (logLine.length > 80) {
@@ -43,8 +53,14 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    // SECURITY: Log error but don't crash the process
+    log(`Error ${status}: ${message}`);
+    console.error(err);
+
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
+    // Don't throw - this would crash the process
   });
 
   // importantly only setup vite in development and after
