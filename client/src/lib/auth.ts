@@ -22,13 +22,22 @@ export async function authenticatedRequest(
     throw new Error("No authentication token found");
   }
 
+  // Handle FormData differently from regular JSON data
+  const isFormData = data instanceof FormData;
+  
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+  };
+  
+  // Only set Content-Type for JSON data, let browser set it for FormData
+  if (data && !isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(url, {
     method,
-    headers: {
-      ...(data ? { "Content-Type": "application/json" } : {}),
-      Authorization: `Bearer ${token}`,
-    },
-    body: data ? JSON.stringify(data) : undefined,
+    headers,
+    body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
   });
 
   if (!response.ok) {
