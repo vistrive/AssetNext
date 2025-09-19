@@ -137,6 +137,9 @@ export interface IStorage {
   // Ticket Activities
   logTicketActivity(activity: InsertTicketActivity): Promise<TicketActivity>;
   getTicketActivities(ticketId: string, tenantId: string): Promise<TicketActivity[]>;
+  
+  // Dashboard Metrics
+  getDashboardMetrics(tenantId: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -884,6 +887,54 @@ export class DatabaseStorage implements IStorage {
       .from(ticketActivities)
       .where(and(eq(ticketActivities.ticketId, ticketId), eq(ticketActivities.tenantId, tenantId)))
       .orderBy(ticketActivities.createdAt);
+  }
+
+  // Dashboard Metrics
+  async getDashboardMetrics(tenantId: string): Promise<any> {
+    try {
+      // Get asset counts
+      const assetCounts = await db
+        .select({
+          total: sql<number>`count(*)`,
+          active: sql<number>`count(*) filter (where status = 'active')`,
+          inactive: sql<number>`count(*) filter (where status = 'inactive')`,
+          maintenance: sql<number>`count(*) filter (where status = 'maintenance')`
+        })
+        .from(assets)
+        .where(eq(assets.tenantId, tenantId));
+
+      // Get ticket counts
+      const ticketCounts = await db
+        .select({
+          total: sql<number>`count(*)`,
+          open: sql<number>`count(*) filter (where status = 'open')`,
+          inProgress: sql<number>`count(*) filter (where status = 'in_progress')`,
+          resolved: sql<number>`count(*) filter (where status = 'resolved')`,
+          closed: sql<number>`count(*) filter (where status = 'closed')`
+        })
+        .from(tickets)
+        .where(eq(tickets.tenantId, tenantId));
+
+      // Get license counts
+      const licenseCounts = await db
+        .select({
+          total: sql<number>`count(*)`,
+          active: sql<number>`count(*) filter (where status = 'active')`,
+          expired: sql<number>`count(*) filter (where status = 'expired')`,
+          expiringSoon: sql<number>`count(*) filter (where expiry_date <= current_date + interval '30 days' and status = 'active')`
+        })
+        .from(softwareLicenses)
+        .where(eq(softwareLicenses.tenantId, tenantId));
+
+      return {
+        assets: assetCounts[0] || { total: 0, active: 0, inactive: 0, maintenance: 0 },
+        tickets: ticketCounts[0] || { total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 },
+        licenses: licenseCounts[0] || { total: 0, active: 0, expired: 0, expiringSoon: 0 }
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard metrics:', error);
+      throw error;
+    }
   }
 }
 

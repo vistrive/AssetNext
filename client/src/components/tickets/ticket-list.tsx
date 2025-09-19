@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Filter, Plus } from "lucide-react";
 import { TicketCard } from "./ticket-card";
 import { useAuth } from "@/hooks/use-auth";
+import { authenticatedRequest } from "@/lib/auth";
 import type { Ticket } from "@shared/schema";
 
 interface TicketListProps {
@@ -52,6 +53,11 @@ export function TicketList({
 
   const { data: tickets = [], isLoading, error } = useQuery<Ticket[]>({
     queryKey: [apiUrl],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", apiUrl);
+      return response.json();
+    },
+    enabled: !!user, // Only fetch when user is authenticated
   });
 
   // Filter tickets based on search and filter criteria
