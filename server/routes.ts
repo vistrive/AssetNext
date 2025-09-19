@@ -536,7 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/assets", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+  app.post("/api/assets", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const assetData = insertAssetSchema.parse({
         ...req.body,
@@ -550,7 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/assets/:id", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+  app.put("/api/assets/:id", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const assetData = insertAssetSchema.partial().parse(req.body);
       const asset = await storage.updateAsset(req.params.id, req.user!.tenantId, assetData);
@@ -601,7 +601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Download CSV template
-  app.get("/api/assets/bulk/template", authenticateToken, requireRole("it-manager"), (req: Request, res: Response) => {
+  app.get("/api/assets/bulk/template", authenticateToken, requireRole("manager"), (req: Request, res: Response) => {
     const headers = [
       'name',
       'type',
@@ -637,7 +637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Download CSV sample
-  app.get("/api/assets/bulk/sample", authenticateToken, requireRole("it-manager"), (req: Request, res: Response) => {
+  app.get("/api/assets/bulk/sample", authenticateToken, requireRole("manager"), (req: Request, res: Response) => {
     const headers = [
       'name',
       'type',
@@ -736,7 +736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk upload endpoint
-  app.post("/api/assets/bulk/upload", authenticateToken, requireRole("it-manager"), upload.single('file'), async (req: Request, res: Response) => {
+  app.post("/api/assets/bulk/upload", authenticateToken, requireRole("manager"), upload.single('file'), async (req: Request, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -976,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/licenses", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+  app.post("/api/licenses", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const licenseData = insertSoftwareLicenseSchema.parse({
         ...req.body,
@@ -1004,7 +1004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/recommendations/generate", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+  app.post("/api/recommendations/generate", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const assets = await storage.getAssets(req.user!.tenantId);
       const licenses = await storage.getAllSoftwareLicenses(req.user!.tenantId);
@@ -1040,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/recommendations/:id", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+  app.put("/api/recommendations/:id", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const { status } = req.body;
       if (!["pending", "accepted", "dismissed"].includes(status)) {
@@ -1082,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/master", authenticateToken, requireRole("it-manager"), async (req: Request, res: Response) => {
+  app.post("/api/master", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const masterDataInput = insertMasterDataSchema.parse({
         ...req.body,

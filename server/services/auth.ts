@@ -15,7 +15,7 @@ export function generateToken(user: User): string {
   const payload: JWTPayload = {
     userId: user.id,
     tenantId: user.tenantId,
-    role: user.role,
+    role: migrateRole(user.role), // Ensure JWT contains migrated role
     email: user.email,
   };
   
@@ -38,10 +38,41 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
+// Role constants to ensure consistency across the application
+export const ROLES = {
+  EMPLOYEE: "employee",
+  TECHNICIAN: "technician", 
+  MANAGER: "manager",
+  ADMIN: "admin"
+} as const;
+
+export const ROLE_HIERARCHY = [ROLES.EMPLOYEE, ROLES.TECHNICIAN, ROLES.MANAGER, ROLES.ADMIN];
+
 export function checkPermission(userRole: string, requiredRole: string): boolean {
-  const roles = ["read-only", "it-manager", "admin"];
-  const userLevel = roles.indexOf(userRole);
-  const requiredLevel = roles.indexOf(requiredRole);
+  
+  // Migrate old roles to new roles for backward compatibility
+  const migratedUserRole = migrateRole(userRole);
+  const migratedRequiredRole = migrateRole(requiredRole);
+  
+  const userLevel = ROLE_HIERARCHY.indexOf(migratedUserRole);
+  const requiredLevel = ROLE_HIERARCHY.indexOf(migratedRequiredRole);
+  
+  // Security guard: reject unknown roles to prevent privilege escalation
+  if (userLevel === -1 || requiredLevel === -1) {
+    console.error(`Unknown role detected - user: ${migratedUserRole}, required: ${migratedRequiredRole}`);
+    return false;
+  }
   
   return userLevel >= requiredLevel;
+}
+
+// Helper function to migrate old roles to new roles
+export function migrateRole(oldRole: string): string {
+  const roleMigration: Record<string, string> = {
+    "read-only": "employee",
+    "it-manager": "manager",
+    "admin": "admin"
+  };
+  
+  return roleMigration[oldRole] || oldRole;
 }

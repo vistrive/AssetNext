@@ -10,7 +10,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
-  role: text("role").notNull().default("read-only"), // admin, it-manager, read-only
+  role: text("role").notNull().default("employee"), // admin, manager, technician, employee
   avatar: text("avatar"), // URL to profile picture
   phone: text("phone"),
   department: text("department"),
@@ -178,6 +178,73 @@ export const masterData = pgTable("master_data", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Tickets for Service Desk
+export const tickets = pgTable("tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketNumber: text("ticket_number").notNull().unique(), // Auto-generated ticket number
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(), // hardware, software, network, account, other
+  priority: text("priority").notNull().default("medium"), // low, medium, high, urgent
+  status: text("status").notNull().default("open"), // open, in-progress, resolved, closed, cancelled
+  
+  // User relationships
+  requestorId: varchar("requestor_id").notNull(), // Employee who raised the ticket
+  requestorName: text("requestor_name").notNull(),
+  requestorEmail: text("requestor_email").notNull(),
+  assignedToId: varchar("assigned_to_id"), // Technician assigned to ticket
+  assignedToName: text("assigned_to_name"),
+  assignedById: varchar("assigned_by_id"), // Admin who assigned the ticket
+  assignedByName: text("assigned_by_name"),
+  
+  // Timestamps
+  assignedAt: timestamp("assigned_at"),
+  resolvedAt: timestamp("resolved_at"),
+  closedAt: timestamp("closed_at"),
+  dueDate: timestamp("due_date"),
+  
+  // Additional details
+  resolution: text("resolution"), // Resolution details when ticket is resolved
+  resolutionNotes: text("resolution_notes"), // Internal notes for resolution
+  assetId: varchar("asset_id"), // Related asset (if applicable)
+  assetName: text("asset_name"),
+  attachments: jsonb("attachments"), // File attachments metadata
+  tags: text("tags").array(), // Array of tags for categorization
+  
+  // Tenant isolation
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Ticket Comments for communication trail
+export const ticketComments = pgTable("ticket_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull(),
+  authorId: varchar("author_id").notNull(),
+  authorName: text("author_name").notNull(),
+  authorRole: text("author_role").notNull(),
+  content: text("content").notNull(),
+  isInternal: boolean("is_internal").default(false), // Internal notes vs public comments
+  attachments: jsonb("attachments"), // File attachments metadata
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Ticket Activity Log for audit trail
+export const ticketActivities = pgTable("ticket_activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull(),
+  activityType: text("activity_type").notNull(), // created, assigned, status_changed, commented, resolved, closed
+  description: text("description").notNull(), // Human-readable description
+  actorId: varchar("actor_id").notNull(),
+  actorName: text("actor_name").notNull(),
+  actorRole: text("actor_role").notNull(),
+  metadata: jsonb("metadata"), // Additional context data
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -230,13 +297,30 @@ export const insertMasterDataSchema = createInsertSchema(masterData).omit({
   updatedAt: true,
 });
 
+export const insertTicketSchema = createInsertSchema(tickets).omit({
+  id: true,
+  ticketNumber: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTicketCommentSchema = createInsertSchema(ticketComments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTicketActivitySchema = createInsertSchema(ticketActivities).omit({
+  id: true,
+  createdAt: true,
+});
+
 // User Invitations Table
 export const userInvitations = pgTable("user_invitations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull(),
   firstName: text("first_name"),
   lastName: text("last_name"),
-  role: text("role").notNull().default("read-only"), // admin, it-manager, read-only
+  role: text("role").notNull().default("employee"), // admin, manager, technician, employee
   tenantId: varchar("tenant_id").notNull(),
   invitedBy: varchar("invited_by").notNull(),
   token: text("token").notNull().unique(), // Invitation token
@@ -280,6 +364,12 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type MasterData = typeof masterData.$inferSelect;
 export type InsertMasterData = z.infer<typeof insertMasterDataSchema>;
+export type Ticket = typeof tickets.$inferSelect;
+export type InsertTicket = z.infer<typeof insertTicketSchema>;
+export type TicketComment = typeof ticketComments.$inferSelect;
+export type InsertTicketComment = z.infer<typeof insertTicketCommentSchema>;
+export type TicketActivity = typeof ticketActivities.$inferSelect;
+export type InsertTicketActivity = z.infer<typeof insertTicketActivitySchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type RegisterRequest = z.infer<typeof registerSchema>;
 
@@ -329,7 +419,7 @@ export const inviteUserSchema = z.object({
   email: z.string().email("Valid email address is required"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  role: z.enum(["read-only", "it-manager", "admin"]),
+  role: z.enum(["employee", "technician", "manager", "admin"]),
 });
 
 export const acceptInvitationSchema = z.object({
@@ -338,7 +428,7 @@ export const acceptInvitationSchema = z.object({
 });
 
 export const updateUserRoleSchema = z.object({
-  role: z.enum(["read-only", "it-manager", "admin"]),
+  role: z.enum(["employee", "technician", "manager", "admin"]),
 });
 
 export const insertUserInvitationSchema = createInsertSchema(userInvitations).omit({
@@ -358,3 +448,45 @@ export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 export type UpdateUserPreferences = z.infer<typeof updateUserPreferencesSchema>;
 export type ChangePassword = z.infer<typeof changePasswordSchema>;
 export type UpdateOrgSettings = z.infer<typeof updateOrgSettingsSchema>;
+
+// Ticket validation schemas
+export const createTicketSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200, "Title too long"),
+  description: z.string().min(1, "Description is required").max(2000, "Description too long"),
+  category: z.enum(["hardware", "software", "network", "account", "other"]),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  assetId: z.string().optional(),
+  assetName: z.string().optional(),
+});
+
+export const updateTicketSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200, "Title too long").optional(),
+  description: z.string().min(1, "Description is required").max(2000, "Description too long").optional(),
+  category: z.enum(["hardware", "software", "network", "account", "other"]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  status: z.enum(["open", "in-progress", "resolved", "closed", "cancelled"]).optional(),
+  assignedToId: z.string().optional(),
+  resolution: z.string().max(2000, "Resolution too long").optional(),
+  resolutionNotes: z.string().max(2000, "Resolution notes too long").optional(),
+});
+
+export const assignTicketSchema = z.object({
+  assignedToId: z.string().min(1, "Technician ID is required"),
+});
+
+export const addTicketCommentSchema = z.object({
+  content: z.string().min(1, "Comment content is required").max(2000, "Comment too long"),
+  isInternal: z.boolean().default(false),
+});
+
+export const updateTicketStatusSchema = z.object({
+  status: z.enum(["open", "in-progress", "resolved", "closed", "cancelled"]),
+  resolution: z.string().max(2000, "Resolution too long").optional(),
+  resolutionNotes: z.string().max(2000, "Resolution notes too long").optional(),
+});
+
+export type CreateTicket = z.infer<typeof createTicketSchema>;
+export type UpdateTicket = z.infer<typeof updateTicketSchema>;
+export type AssignTicket = z.infer<typeof assignTicketSchema>;
+export type AddTicketComment = z.infer<typeof addTicketCommentSchema>;
+export type UpdateTicketStatus = z.infer<typeof updateTicketStatusSchema>;
