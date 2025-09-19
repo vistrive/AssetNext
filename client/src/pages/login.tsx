@@ -52,10 +52,24 @@ export default function Login() {
 
   const handleRegister = async (data: RegisterRequest) => {
     try {
-      await registerUser(data);
+      const response = await registerUser(data);
+      const roleAssignment = (response as any)?.roleAssignment;
+      
+      let description = "Your account has been created successfully.";
+      
+      if (roleAssignment) {
+        if (roleAssignment.isFirstUser) {
+          description = "Welcome! As the first user, you've been made an administrator.";
+        } else if (roleAssignment.wasDowngraded) {
+          description = `Account created! For security, you've been assigned the Employee role. An admin can upgrade your role if needed.`;
+        } else {
+          description = `Account created! You've joined as a ${roleAssignment.assigned}.`;
+        }
+      }
+      
       toast({
         title: "Account created!",
-        description: "Your account has been created successfully.",
+        description,
       });
     } catch (error) {
       toast({

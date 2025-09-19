@@ -130,16 +130,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create user - restrict self-registration roles for security
+      // Check if this is the first user in the organization
+      const existingUsers = await storage.getTenantUsers(tenant.id);
+      const isFirstUser = existingUsers.length === 0;
+      
+      // Create user with proper role assignment
       const hashedPassword = await hashPassword(password);
-      const allowedRole = role === "admin" || role === "manager" ? "employee" : role; // Prevent privilege escalation
+      let effectiveRole = role;
+      
+      if (isFirstUser) {
+        // First user becomes admin regardless of selected role
+        effectiveRole = "admin";
+      } else {
+        // Restrict self-registration roles for security - only allow employee/technician
+        effectiveRole = role === "admin" || role === "manager" ? "employee" : role;
+      }
+      
       const user = await storage.createUser({
         username: email,
         email,
         password: hashedPassword,
         firstName,
         lastName,
-        role: allowedRole, // Only allow employee/technician for self-registration
+        role: effectiveRole,
         tenantId: tenant.id,
       });
 
@@ -156,6 +169,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tenantId: user.tenantId,
         },
         tenant: { id: tenant.id, name: tenant.name },
+        roleAssignment: {
+          requested: role,
+          assigned: effectiveRole,
+          isFirstUser,
+          wasElevated: isFirstUser && role !== "admin",
+          wasDowngraded: !isFirstUser && (role === "admin" || role === "manager")
+        }
       });
     } catch (error) {
       console.error("Registration validation error:", error);
