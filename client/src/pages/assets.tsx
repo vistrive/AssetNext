@@ -45,6 +45,15 @@ export default function Assets() {
 
   // Get dynamic page title based on filter
   const getPageTitle = () => {
+    const urlParams = new URLSearchParams(location.split('?')[1] || '');
+    const categoryParam = urlParams.get('category');
+    
+    if (categoryParam) {
+      // Create title from category (e.g., "pc" -> "PC Assets")
+      const categoryName = categoryParam.charAt(0).toUpperCase() + categoryParam.slice(1).replace('-', ' ');
+      return `${categoryName} Assets`;
+    }
+    
     switch (typeFilter) {
       case 'hardware': return 'Hardware Assets';
       case 'software': return 'Software Assets'; 
@@ -55,6 +64,30 @@ export default function Assets() {
   };
 
   const getPageDescription = () => {
+    const urlParams = new URLSearchParams(location.split('?')[1] || '');
+    const categoryParam = urlParams.get('category');
+    
+    if (categoryParam) {
+      const categoryDescriptions: Record<string, string> = {
+        'pc': 'Manage desktop computers and workstations',
+        'laptop': 'Manage portable computers and notebooks',
+        'server': 'Manage server hardware and infrastructure',
+        'rack': 'Manage server racks and data center equipment',
+        'mobile': 'Manage mobile phones and cellular devices',
+        'tablet': 'Manage tablets and portable touch devices',
+        'printer': 'Manage printing devices and equipment',
+        '3d-printer': 'Manage 3D printing equipment',
+        'scanner': 'Manage scanning devices and equipment',
+        'mouse': 'Manage computer mice and pointing devices',
+        'router': 'Manage network routing equipment',
+        'switch': 'Manage network switching equipment',
+        'hub': 'Manage network hub equipment',
+        'cctv': 'Manage CCTV cameras and surveillance equipment',
+        'access-control': 'Manage access control hardware and systems'
+      };
+      return categoryDescriptions[categoryParam] || 'Manage specific asset category';
+    }
+    
     switch (typeFilter) {
       case 'hardware': return 'Manage hardware assets like laptops, desktops, and servers';
       case 'software': return 'Manage software licenses and applications';

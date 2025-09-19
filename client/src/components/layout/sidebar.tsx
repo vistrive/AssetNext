@@ -17,7 +17,16 @@ import {
   ChevronRight,
   Laptop,
   Printer,
-  Package
+  Package,
+  Smartphone,
+  Tablet,
+  HardDrive,
+  Mouse,
+  Router,
+  Wifi,
+  Camera,
+  Shield,
+  Scan
 } from "lucide-react";
 
 const navigation = [
@@ -28,10 +37,43 @@ const navigation = [
     href: "/assets", 
     icon: Monitor,
     subItems: [
-      { name: "Hardware", href: "/assets?type=hardware", icon: Laptop },
+      { 
+        name: "Hardware", 
+        href: "/assets?type=hardware", 
+        icon: Laptop,
+        subItems: [
+          { name: "PC", href: "/assets?type=hardware&category=pc", icon: Monitor },
+          { name: "Laptop", href: "/assets?type=hardware&category=laptop", icon: Laptop },
+          { name: "Server", href: "/assets?type=hardware&category=server", icon: Server },
+          { name: "Racks", href: "/assets?type=hardware&category=rack", icon: HardDrive },
+          { name: "Mobile Phone", href: "/assets?type=hardware&category=mobile", icon: Smartphone },
+          { name: "Tablets", href: "/assets?type=hardware&category=tablet", icon: Tablet },
+        ]
+      },
       { name: "Software", href: "/assets?type=software", icon: Code },
-      { name: "Peripherals", href: "/assets?type=peripheral", icon: Printer },
-      { name: "Others", href: "/assets?type=others", icon: Package },
+      { 
+        name: "Peripherals", 
+        href: "/assets?type=peripheral", 
+        icon: Printer,
+        subItems: [
+          { name: "Printers", href: "/assets?type=peripheral&category=printer", icon: Printer },
+          { name: "3D Printers", href: "/assets?type=peripheral&category=3d-printer", icon: Package },
+          { name: "Scanners", href: "/assets?type=peripheral&category=scanner", icon: Scan },
+          { name: "Mouse", href: "/assets?type=peripheral&category=mouse", icon: Mouse },
+          { name: "Routers", href: "/assets?type=peripheral&category=router", icon: Router },
+          { name: "Switches", href: "/assets?type=peripheral&category=switch", icon: Wifi },
+          { name: "Hubs", href: "/assets?type=peripheral&category=hub", icon: Wifi },
+        ]
+      },
+      { 
+        name: "Others", 
+        href: "/assets?type=others", 
+        icon: Package,
+        subItems: [
+          { name: "CCTV Cameras", href: "/assets?type=others&category=cctv", icon: Camera },
+          { name: "Access Control", href: "/assets?type=others&category=access-control", icon: Shield },
+        ]
+      },
     ]
   },
   { name: "AI Recommendations", href: "/recommendations", icon: Bot, requiredRole: "manager" },
@@ -58,11 +100,17 @@ export function Sidebar() {
   const isSubItemActive = (item: any) => {
     if (!item.subItems) return location === item.href;
     
-    // Check if current location matches any subitem
+    // Check if current location matches any subitem or sub-subitem
     return item.subItems.some((subItem: any) => {
-      const subItemPath = subItem.href.split('?')[0];
-      const currentPath = location.split('?')[0];
-      return currentPath === subItemPath;
+      if (location === subItem.href || location.includes(subItem.href)) return true;
+      
+      // Check nested subItems (third level)
+      if (subItem.subItems) {
+        return subItem.subItems.some((nestedItem: any) => 
+          location === nestedItem.href || location.includes(nestedItem.href)
+        );
+      }
+      return false;
     });
   };
 
@@ -125,18 +173,63 @@ export function Sidebar() {
                     <div className="ml-8 mt-2 space-y-1">
                       {item.subItems.map((subItem: any) => {
                         const isSubActive = location === subItem.href || 
-                          (location.includes('?') && location.startsWith(subItem.href));
+                          (location.includes('?') && location.includes(subItem.href.split('?')[1]));
+                        const hasNestedSubItems = subItem.subItems && subItem.subItems.length > 0;
+                        const isSubExpanded = isMenuExpanded(subItem.name);
                         
                         return (
-                          <Link key={subItem.name} href={subItem.href}>
-                            <a 
-                              className={`sidebar-link text-sm ${isSubActive ? 'active' : ''}`}
-                              data-testid={`nav-${subItem.name.toLowerCase().replace(' ', '-')}`}
-                            >
-                              <subItem.icon className="w-4 h-4 mr-3" />
-                              {subItem.name}
-                            </a>
-                          </Link>
+                          <div key={subItem.name}>
+                            {hasNestedSubItems ? (
+                              // Sub-item with nested items
+                              <div>
+                                <button
+                                  onClick={() => toggleMenu(subItem.name)}
+                                  className={`sidebar-link text-sm w-full text-left ${isSubActive ? 'active' : ''}`}
+                                  data-testid={`nav-${subItem.name.toLowerCase().replace(' ', '-')}`}
+                                >
+                                  <subItem.icon className="w-4 h-4 mr-3" />
+                                  {subItem.name}
+                                  {isSubExpanded ? (
+                                    <ChevronDown className="w-3 h-3 ml-auto" />
+                                  ) : (
+                                    <ChevronRight className="w-3 h-3 ml-auto" />
+                                  )}
+                                </button>
+                                
+                                {isSubExpanded && (
+                                  <div className="ml-6 mt-1 space-y-1">
+                                    {subItem.subItems.map((nestedItem: any) => {
+                                      const isNestedActive = location === nestedItem.href || 
+                                        location.includes(nestedItem.href);
+                                      
+                                      return (
+                                        <Link key={nestedItem.name} href={nestedItem.href}>
+                                          <div 
+                                            className={`sidebar-link text-xs ${isNestedActive ? 'active' : ''}`}
+                                            data-testid={`nav-${nestedItem.name.toLowerCase().replace(/\s+/g, '-')}`}
+                                          >
+                                            <nestedItem.icon className="w-3 h-3 mr-2" />
+                                            {nestedItem.name}
+                                          </div>
+                                        </Link>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              // Regular sub-item
+                              <Link href={subItem.href}>
+                                <div 
+                                  className={`sidebar-link text-sm ${isSubActive ? 'active' : ''}`}
+                                  data-testid={`nav-${subItem.name.toLowerCase().replace(' ', '-')}`}
+                                >
+                                  <subItem.icon className="w-4 h-4 mr-3" />
+                                  {subItem.name}
+                                </div>
+                              </Link>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -145,7 +238,7 @@ export function Sidebar() {
               ) : (
                 // Regular menu item
                 <Link href={item.href}>
-                  <a 
+                  <div 
                     className={`sidebar-link ${isActive ? 'active' : ''}`}
                     data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
                   >
@@ -156,7 +249,7 @@ export function Sidebar() {
                         3
                       </span>
                     )}
-                  </a>
+                  </div>
                 </Link>
               )}
             </div>
