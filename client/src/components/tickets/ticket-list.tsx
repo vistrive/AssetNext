@@ -62,7 +62,7 @@ export function TicketList({
   const { data: technicians = [] } = useQuery({
     queryKey: ['/api/users/technicians'],
     queryFn: async () => {
-      const response = await authenticatedRequest("GET", "/api/users?role=technician");
+      const response = await authenticatedRequest("GET", "/api/users/technicians");
       return response.json();
     },
     enabled: !!user && (user.role === "manager" || user.role === "admin"),

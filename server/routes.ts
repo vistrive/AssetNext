@@ -1117,6 +1117,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get technicians for ticket assignment (Managers and Admins only)
+  app.get("/api/users/technicians", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getTenantUsers(req.user!.tenantId);
+      
+      // Filter to only technicians and remove sensitive information
+      const technicians = users
+        .filter(user => user.role === "technician" && user.isActive)
+        .map(user => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          department: user.department,
+          jobTitle: user.jobTitle,
+        }));
+
+      res.json(technicians);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch technicians" });
+    }
+  });
+
   // User Management Routes (Admin only)
   app.get("/api/users", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
     try {
