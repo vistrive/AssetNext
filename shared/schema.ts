@@ -11,6 +11,13 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   role: text("role").notNull().default("read-only"), // admin, it-manager, read-only
+  avatar: text("avatar"), // URL to profile picture
+  phone: text("phone"),
+  department: text("department"),
+  jobTitle: text("job_title"),
+  manager: text("manager"),
+  lastLoginAt: timestamp("last_login_at"),
+  isActive: boolean("is_active").default(true),
   tenantId: varchar("tenant_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -20,6 +27,22 @@ export const tenants = pgTable("tenants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  logo: text("logo"), // Company logo URL
+  website: text("website"),
+  industry: text("industry"),
+  employeeCount: integer("employee_count"),
+  // Settings
+  timezone: text("timezone").default("UTC"),
+  currency: text("currency").default("USD"),
+  dateFormat: text("date_format").default("MM/DD/YYYY"),
+  fiscalYearStart: text("fiscal_year_start").default("01-01"),
+  autoRecommendations: boolean("auto_recommendations").default(true),
+  dataRetentionDays: integer("data_retention_days").default(365),
+  // Security Settings
+  enforceSSO: boolean("enforce_sso").default(false),
+  requireMFA: boolean("require_mfa").default(false),
+  sessionTimeout: integer("session_timeout").default(480), // minutes
+  passwordPolicy: jsonb("password_policy"), // complexity rules
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -101,12 +124,57 @@ export const recommendations = pgTable("recommendations", {
   tenantId: varchar("tenant_id").notNull(),
 });
 
+// User Preferences
+export const userPreferences = pgTable("user_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  // Notification Settings
+  emailNotifications: boolean("email_notifications").default(true),
+  pushNotifications: boolean("push_notifications").default(false),
+  aiRecommendationAlerts: boolean("ai_recommendation_alerts").default(true),
+  weeklyReports: boolean("weekly_reports").default(false),
+  assetExpiryAlerts: boolean("asset_expiry_alerts").default(true),
+  // Display Settings
+  theme: text("theme").default("light"), // light, dark, auto
+  language: text("language").default("en"),
+  timezone: text("timezone").default("UTC"),
+  dateFormat: text("date_format").default("MM/DD/YYYY"),
+  dashboardLayout: jsonb("dashboard_layout"), // widget preferences
+  itemsPerPage: integer("items_per_page").default(25),
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Audit Logs for Enterprise Compliance
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  action: text("action").notNull(), // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  resourceType: text("resource_type").notNull(), // ASSET, LICENSE, USER, SETTING
+  resourceId: varchar("resource_id"),
+  userId: varchar("user_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  userRole: text("user_role").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  beforeState: jsonb("before_state"),
+  afterState: jsonb("after_state"),
+  description: text("description"),
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const masterData = pgTable("master_data", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   type: text("type").notNull(), // manufacturer, model, category, location, vendor, company
   value: text("value").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  metadata: jsonb("metadata"), // flexible properties
+  createdBy: varchar("created_by").notNull(),
   tenantId: varchar("tenant_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Insert Schemas
@@ -144,9 +212,21 @@ export const insertRecommendationSchema = createInsertSchema(recommendations).om
   generatedAt: true,
 });
 
+export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertMasterDataSchema = createInsertSchema(masterData).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 // Authentication schemas
@@ -176,7 +256,43 @@ export type AssetUtilization = typeof assetUtilization.$inferSelect;
 export type InsertAssetUtilization = z.infer<typeof insertAssetUtilizationSchema>;
 export type Recommendation = typeof recommendations.$inferSelect;
 export type InsertRecommendation = z.infer<typeof insertRecommendationSchema>;
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type MasterData = typeof masterData.$inferSelect;
 export type InsertMasterData = z.infer<typeof insertMasterDataSchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type RegisterRequest = z.infer<typeof registerSchema>;
+
+// Additional validation schemas for API endpoints
+export const updateUserProfileSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  phone: z.string().optional(),
+  department: z.string().optional(),
+  jobTitle: z.string().optional(),
+  manager: z.string().optional(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+export const updateOrgSettingsSchema = z.object({
+  name: z.string().min(1, "Organization name is required"),
+  timezone: z.string(),
+  currency: z.string(),
+  dateFormat: z.string(),
+  autoRecommendations: z.boolean(),
+  dataRetentionDays: z.number().int().min(30).max(2555), // 30 days to 7 years
+});
+
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+export type ChangePassword = z.infer<typeof changePasswordSchema>;
+export type UpdateOrgSettings = z.infer<typeof updateOrgSettingsSchema>;

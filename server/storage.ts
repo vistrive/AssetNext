@@ -12,7 +12,13 @@ import {
   type Recommendation,
   type InsertRecommendation,
   type MasterData,
-  type InsertMasterData
+  type InsertMasterData,
+  type UserPreferences,
+  type InsertUserPreferences,
+  type AuditLog,
+  type InsertAuditLog,
+  type UpdateUserProfile,
+  type UpdateOrgSettings
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
@@ -23,11 +29,23 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  updateUserProfile(userId: string, tenantId: string, profile: UpdateUserProfile): Promise<User | undefined>;
+  updateUserPassword(userId: string, tenantId: string, hashedPassword: string): Promise<boolean>;
+
+  // User Preferences
+  getUserPreferences(userId: string, tenantId: string): Promise<UserPreferences | undefined>;
+  createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
+  updateUserPreferences(userId: string, tenantId: string, preferences: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined>;
 
   // Tenants
   getTenant(id: string): Promise<Tenant | undefined>;
   getTenantBySlug(slug: string): Promise<Tenant | undefined>;
   createTenant(tenant: InsertTenant): Promise<Tenant>;
+  updateTenantSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined>;
+
+  // Audit Logs
+  getAuditLogs(tenantId: string, filters?: { action?: string; resourceType?: string; userId?: string; limit?: number; offset?: number }): Promise<AuditLog[]>;
+  logActivity(auditLog: InsertAuditLog): Promise<AuditLog>;
 
   // Assets
   getAssets(tenantId: string, filters?: { type?: string; status?: string }): Promise<Asset[]>;
@@ -73,6 +91,9 @@ export class MemStorage implements IStorage {
   private softwareLicenses: Map<string, SoftwareLicense> = new Map();
   private assetUtilization: Map<string, AssetUtilization> = new Map();
   private recommendations: Map<string, Recommendation> = new Map();
+  // Use composite key for tenant isolation: `${tenantId}:${userId}`
+  private userPreferences: Map<string, UserPreferences> = new Map();
+  private auditLogs: Map<string, AuditLog> = new Map();
   private masterData: Map<string, MasterData> = new Map();
 
   constructor() {
@@ -247,44 +268,44 @@ export class MemStorage implements IStorage {
     // Seed sample master data
     const sampleMasterData: MasterData[] = [
       // Manufacturers
-      { id: "master-1", type: "manufacturer", value: "Apple", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-2", type: "manufacturer", value: "Dell", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-3", type: "manufacturer", value: "HP", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-4", type: "manufacturer", value: "Lenovo", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-5", type: "manufacturer", value: "Microsoft", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-1", type: "manufacturer", value: "Apple", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-2", type: "manufacturer", value: "Dell", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-3", type: "manufacturer", value: "HP", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-4", type: "manufacturer", value: "Lenovo", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-5", type: "manufacturer", value: "Microsoft", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
       
       // Models
-      { id: "master-6", type: "model", value: "MacBook Pro", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-7", type: "model", value: "MacBook Air", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-8", type: "model", value: "OptiPlex 7090", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-9", type: "model", value: "EliteBook 850", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-10", type: "model", value: "ThinkPad X1 Carbon", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-6", type: "model", value: "MacBook Pro", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-7", type: "model", value: "MacBook Air", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-8", type: "model", value: "OptiPlex 7090", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-9", type: "model", value: "EliteBook 850", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-10", type: "model", value: "ThinkPad X1 Carbon", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
       
       // Categories
-      { id: "master-11", type: "category", value: "laptop", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-12", type: "category", value: "desktop", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-13", type: "category", value: "server", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-14", type: "category", value: "monitor", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-15", type: "category", value: "printer", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-11", type: "category", value: "laptop", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-12", type: "category", value: "desktop", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-13", type: "category", value: "server", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-14", type: "category", value: "monitor", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-15", type: "category", value: "printer", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
       
       // Locations
-      { id: "master-16", type: "location", value: "Office Floor 1", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-17", type: "location", value: "Office Floor 2", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-18", type: "location", value: "Storage Room A", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-19", type: "location", value: "Storage Room B", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-20", type: "location", value: "Warehouse", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-16", type: "location", value: "Office Floor 1", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-17", type: "location", value: "Office Floor 2", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-18", type: "location", value: "Storage Room A", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-19", type: "location", value: "Storage Room B", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-20", type: "location", value: "Warehouse", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
       
       // Vendor Names
-      { id: "master-21", type: "vendor", value: "Apple Inc.", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-22", type: "vendor", value: "Dell Technologies", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-23", type: "vendor", value: "HP Inc.", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-24", type: "vendor", value: "Lenovo Group", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-21", type: "vendor", value: "Apple Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-22", type: "vendor", value: "Dell Technologies", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-23", type: "vendor", value: "HP Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-24", type: "vendor", value: "Lenovo Group", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
       
       // Company Names
-      { id: "master-25", type: "company", value: "Apple Inc.", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-26", type: "company", value: "Dell Technologies Inc.", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-27", type: "company", value: "HP Inc.", tenantId: tenant.id, createdAt: new Date() },
-      { id: "master-28", type: "company", value: "Lenovo Group Ltd.", tenantId: tenant.id, createdAt: new Date() },
+      { id: "master-25", type: "company", value: "Apple Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-26", type: "company", value: "Dell Technologies Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-27", type: "company", value: "HP Inc.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
+      { id: "master-28", type: "company", value: "Lenovo Group Ltd.", createdBy: user.id, tenantId: tenant.id, createdAt: new Date(), updatedAt: new Date() },
     ];
 
     sampleMasterData.forEach(data => this.masterData.set(data.id, data));
@@ -316,9 +337,102 @@ export class MemStorage implements IStorage {
     const user = this.users.get(id);
     if (!user) return undefined;
     
-    const updatedUser = { ...user, ...updateUser, updatedAt: new Date() };
+    // SECURITY: Only allow updating safe fields, prevent tenant/role manipulation
+    const safeUpdate = {
+      firstName: updateUser.firstName,
+      lastName: updateUser.lastName,
+      phone: updateUser.phone,
+      department: updateUser.department,
+      jobTitle: updateUser.jobTitle,
+      manager: updateUser.manager,
+      avatar: updateUser.avatar,
+      lastLoginAt: updateUser.lastLoginAt,
+      isActive: updateUser.isActive,
+    };
+    
+    const updatedUser = { ...user, ...safeUpdate, updatedAt: new Date() };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+
+  async updateUserProfile(userId: string, tenantId: string, profile: UpdateUserProfile): Promise<User | undefined> {
+    const existingUser = this.users.get(userId);
+    if (!existingUser || existingUser.tenantId !== tenantId) return undefined;
+    
+    const updatedUser = { 
+      ...existingUser, 
+      ...profile,
+      updatedAt: new Date() 
+    };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async updateUserPassword(userId: string, tenantId: string, hashedPassword: string): Promise<boolean> {
+    const existingUser = this.users.get(userId);
+    if (!existingUser || existingUser.tenantId !== tenantId) return false;
+    
+    const updatedUser = { 
+      ...existingUser, 
+      password: hashedPassword,
+      updatedAt: new Date() 
+    };
+    this.users.set(userId, updatedUser);
+    return true;
+  }
+
+  async getUserPreferences(userId: string, tenantId: string): Promise<UserPreferences | undefined> {
+    const key = `${tenantId}:${userId}`;
+    return this.userPreferences.get(key);
+  }
+
+  async createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences> {
+    const key = `${preferences.tenantId}:${preferences.userId}`;
+    
+    // Check if preferences already exist (enforce uniqueness)
+    if (this.userPreferences.has(key)) {
+      throw new Error("User preferences already exist");
+    }
+    
+    const newPrefs: UserPreferences = {
+      id: randomUUID(),
+      ...preferences,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.userPreferences.set(key, newPrefs);
+    return newPrefs;
+  }
+
+  async updateUserPreferences(userId: string, tenantId: string, preferences: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined> {
+    const key = `${tenantId}:${userId}`;
+    const existingPrefs = this.userPreferences.get(key);
+    
+    if (!existingPrefs) return undefined;
+    
+    // SECURITY: Only allow updating preference fields, not identity fields
+    const safeUpdate = {
+      emailNotifications: preferences.emailNotifications,
+      pushNotifications: preferences.pushNotifications,
+      aiRecommendationAlerts: preferences.aiRecommendationAlerts,
+      weeklyReports: preferences.weeklyReports,
+      assetExpiryAlerts: preferences.assetExpiryAlerts,
+      theme: preferences.theme,
+      language: preferences.language,
+      timezone: preferences.timezone,
+      dateFormat: preferences.dateFormat,
+      dashboardLayout: preferences.dashboardLayout,
+      itemsPerPage: preferences.itemsPerPage,
+    };
+    
+    const updatedPrefs = {
+      ...existingPrefs,
+      ...safeUpdate,
+      updatedAt: new Date()
+    };
+    
+    this.userPreferences.set(key, updatedPrefs);
+    return updatedPrefs;
   }
 
   // Tenants
@@ -340,6 +454,63 @@ export class MemStorage implements IStorage {
     };
     this.tenants.set(id, tenant);
     return tenant;
+  }
+
+  async updateTenantSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined> {
+    const tenant = this.tenants.get(tenantId);
+    if (!tenant) return undefined;
+    
+    // SECURITY: Only allow updating whitelisted organization settings
+    const safeUpdate = {
+      name: settings.name,
+      timezone: settings.timezone,
+      currency: settings.currency,
+      dateFormat: settings.dateFormat,
+      autoRecommendations: settings.autoRecommendations,
+      dataRetentionDays: settings.dataRetentionDays,
+    };
+    
+    const updatedTenant = { 
+      ...tenant, 
+      ...safeUpdate,
+      updatedAt: new Date() 
+    };
+    this.tenants.set(tenantId, updatedTenant);
+    return updatedTenant;
+  }
+
+  async getAuditLogs(tenantId: string, filters?: { action?: string; resourceType?: string; userId?: string; limit?: number; offset?: number }): Promise<AuditLog[]> {
+    let logs = Array.from(this.auditLogs.values())
+      .filter(log => log.tenantId === tenantId);
+    
+    if (filters?.action) {
+      logs = logs.filter(log => log.action === filters.action);
+    }
+    if (filters?.resourceType) {
+      logs = logs.filter(log => log.resourceType === filters.resourceType);
+    }
+    if (filters?.userId) {
+      logs = logs.filter(log => log.userId === filters.userId);
+    }
+    
+    // Sort by newest first
+    logs = logs.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+    
+    // Apply pagination
+    const offset = filters?.offset || 0;
+    const limit = filters?.limit || 100;
+    return logs.slice(offset, offset + limit);
+  }
+
+  async logActivity(auditLog: InsertAuditLog): Promise<AuditLog> {
+    const id = randomUUID();
+    const log: AuditLog = {
+      ...auditLog,
+      id,
+      createdAt: new Date(),
+    };
+    this.auditLogs.set(id, log);
+    return log;
   }
 
   // Assets
