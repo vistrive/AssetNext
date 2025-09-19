@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -114,7 +115,7 @@ export default function SettingsPage() {
   });
 
   // Update forms when data loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (userProfile) {
       profileForm.reset({
         firstName: userProfile.firstName || "",
@@ -127,7 +128,7 @@ export default function SettingsPage() {
     }
   }, [userProfile, profileForm]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (userPreferences) {
       preferencesForm.reset({
         emailNotifications: userPreferences.emailNotifications || false,
@@ -144,7 +145,7 @@ export default function SettingsPage() {
     }
   }, [userPreferences, preferencesForm]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (orgSettings) {
       orgForm.reset({
         name: orgSettings.name || "",
