@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Search, Filter, Plus } from "lucide-react";
 import { TicketCard } from "./ticket-card";
 import { useAuth } from "@/hooks/use-auth";
 import { authenticatedRequest } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 import type { Ticket } from "@shared/schema";
 
 interface TicketListProps {
@@ -23,10 +28,22 @@ export function TicketList({
   title = "Support Tickets" 
 }: TicketListProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  
+  // Assignment dialog state
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState<string>("");
+  const [selectedAssignee, setSelectedAssignee] = useState<string>("");
+  
+  // Status update dialog state
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [resolution, setResolution] = useState<string>("");
+  const [resolutionNotes, setResolutionNotes] = useState<string>("");
 
   // Backend handles role-based filtering automatically using JWT token
   const apiUrl = '/api/tickets';
@@ -40,6 +57,110 @@ export function TicketList({
     enabled: !!user, // Only fetch when user is authenticated
     refetchOnMount: "always", // Ensure fresh data on component mount
   });
+
+  // Get technicians for assignment dropdown  
+  const { data: technicians = [] } = useQuery({
+    queryKey: ['/api/users/technicians'],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/users?role=technician");
+      return response.json();
+    },
+    enabled: !!user && (user.role === "manager" || user.role === "admin"),
+  });
+
+  // Assignment mutation
+  const assignTicketMutation = useMutation({
+    mutationFn: async ({ ticketId, assigneeId, assigneeName }: { ticketId: string, assigneeId: string, assigneeName: string }) => {
+      const response = await authenticatedRequest("PUT", `/api/tickets/${ticketId}/assign`, {
+        assignedToId: assigneeId,
+        assignedToName: assigneeName,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [apiUrl] });
+      toast({
+        title: "Ticket assigned",
+        description: "Ticket has been successfully assigned.",
+      });
+      setAssignDialogOpen(false);
+      setSelectedTicketId("");
+      setSelectedAssignee("");
+    },
+    onError: () => {
+      toast({
+        title: "Assignment failed",
+        description: "Failed to assign ticket. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Status update mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ ticketId, status, resolution, resolutionNotes }: { ticketId: string, status: string, resolution?: string, resolutionNotes?: string }) => {
+      const response = await authenticatedRequest("PUT", `/api/tickets/${ticketId}/status`, {
+        status,
+        resolution,
+        resolutionNotes,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [apiUrl] });
+      toast({
+        title: "Status updated",
+        description: "Ticket status has been successfully updated.",
+      });
+      setStatusDialogOpen(false);
+      setSelectedTicketId("");
+      setSelectedStatus("");
+      setResolution("");
+      setResolutionNotes("");
+    },
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "Failed to update ticket status. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handlers
+  const handleAssignTicket = (ticketId: string) => {
+    setSelectedTicketId(ticketId);
+    setAssignDialogOpen(true);
+  };
+
+  const handleUpdateStatus = (ticketId: string) => {
+    setSelectedTicketId(ticketId);
+    setStatusDialogOpen(true);
+  };
+
+  const handleAssignSubmit = () => {
+    if (!selectedAssignee || !selectedTicketId) return;
+    
+    const assignee = technicians.find((tech: any) => tech.id === selectedAssignee);
+    if (!assignee) return;
+    
+    assignTicketMutation.mutate({
+      ticketId: selectedTicketId,
+      assigneeId: selectedAssignee,
+      assigneeName: `${assignee.firstName} ${assignee.lastName}`,
+    });
+  };
+
+  const handleStatusSubmit = () => {
+    if (!selectedStatus || !selectedTicketId) return;
+    
+    updateStatusMutation.mutate({
+      ticketId: selectedTicketId,
+      status: selectedStatus,
+      resolution: resolution || undefined,
+      resolutionNotes: resolutionNotes || undefined,
+    });
+  };
 
   // Filter tickets based on search and filter criteria
   const filteredTickets = tickets.filter(ticket => {
@@ -207,11 +328,109 @@ export function TicketList({
                 key={ticket.id}
                 ticket={ticket}
                 onClick={() => onTicketClick?.(ticket)}
+                onAssign={handleAssignTicket}
+                onUpdateStatus={handleUpdateStatus}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Assignment Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Ticket</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="assignee">Assign to Technician</Label>
+              <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
+                <SelectTrigger data-testid="select-assignee">
+                  <SelectValue placeholder="Select a technician" />
+                </SelectTrigger>
+                <SelectContent>
+                  {technicians.map((tech: any) => (
+                    <SelectItem key={tech.id} value={tech.id}>
+                      {tech.firstName} {tech.lastName} ({tech.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAssignSubmit}
+                disabled={!selectedAssignee || assignTicketMutation.isPending}
+                data-testid="button-confirm-assign"
+              >
+                {assignTicketMutation.isPending ? "Assigning..." : "Assign"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Update Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Ticket Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger data-testid="select-status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(selectedStatus === "resolved" || selectedStatus === "closed") && (
+              <>
+                <div>
+                  <Label htmlFor="resolution">Resolution Summary</Label>
+                  <Input
+                    value={resolution}
+                    onChange={(e) => setResolution(e.target.value)}
+                    placeholder="Brief resolution summary"
+                    data-testid="input-resolution"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="resolutionNotes">Resolution Notes</Label>
+                  <Textarea
+                    value={resolutionNotes}
+                    onChange={(e) => setResolutionNotes(e.target.value)}
+                    placeholder="Detailed resolution notes..."
+                    data-testid="textarea-resolution-notes"
+                  />
+                </div>
+              </>
+            )}
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleStatusSubmit}
+                disabled={!selectedStatus || updateStatusMutation.isPending}
+                data-testid="button-confirm-status"
+              >
+                {updateStatusMutation.isPending ? "Updating..." : "Update"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
