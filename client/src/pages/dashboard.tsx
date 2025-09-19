@@ -3,31 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
-import { MetricsGrid } from "@/components/dashboard/metrics-grid";
-import { AssetStatusChart } from "@/components/dashboard/asset-status-chart";
+import { AssetCategoryTiles } from "@/components/dashboard/asset-category-tiles";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
-import { RecentAssets } from "@/components/dashboard/recent-assets";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Asset, Recommendation } from "@shared/schema";
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  const [assetFilter, setAssetFilter] = useState("all");
 
   // Fetch dashboard metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ["/api/dashboard/metrics"],
     queryFn: async () => {
       const response = await authenticatedRequest("GET", "/api/dashboard/metrics");
-      return response.json();
-    },
-  });
-
-  // Fetch recent assets
-  const { data: assets = [], isLoading: assetsLoading } = useQuery({
-    queryKey: ["/api/assets"],
-    queryFn: async () => {
-      const response = await authenticatedRequest("GET", "/api/assets");
       return response.json();
     },
   });
@@ -41,15 +29,6 @@ export default function Dashboard() {
     },
   });
 
-
-  const handleFilterChange = (filter: string) => {
-    setAssetFilter(filter);
-  };
-
-  const handleViewAllAssets = () => {
-    navigate("/assets");
-  };
-
   const handleViewAllRecommendations = () => {
     navigate("/recommendations");
   };
@@ -58,12 +37,12 @@ export default function Dashboard() {
     navigate(`/recommendations?id=${id}`);
   };
 
-  const handleEditAsset = (id: string) => {
-    navigate(`/assets?edit=${id}`);
-  };
-
-  const handleViewAsset = (id: string) => {
-    navigate(`/assets?view=${id}`);
+  const handleNavigateToAssets = (type: string, category?: string) => {
+    if (category) {
+      navigate(`/assets?type=${type}&category=${category}`);
+    } else {
+      navigate(`/assets?type=${type}`);
+    }
   };
 
   if (metricsLoading) {
@@ -74,12 +53,6 @@ export default function Dashboard() {
     );
   }
 
-  // Filter assets based on selected filter
-  const filteredAssets = assets.filter((asset: Asset) => {
-    if (assetFilter === "all") return true;
-    return asset.type === assetFilter;
-  }).slice(0, 10); // Show only recent 10
-
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -87,37 +60,26 @@ export default function Dashboard() {
       <main className="flex-1 overflow-auto">
         <TopBar
           title="Dashboard"
-          description="Overview of your IT assets and system health"
+          description="IT Asset Overview with Category Breakdowns"
         />
         
         <div className="p-6 space-y-6">
-          {metrics && <MetricsGrid metrics={metrics} />}
+          {metrics && (
+            <AssetCategoryTiles 
+              metrics={metrics} 
+              onNavigateToAssets={handleNavigateToAssets}
+            />
+          )}
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {metrics && (
-              <AssetStatusChart
-                statusBreakdown={metrics.assetStatusBreakdown}
-                totalAssets={metrics.totalAssets}
-              />
-            )}
-            
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
             <AIRecommendations
               recommendations={recommendations}
               onViewAll={handleViewAllRecommendations}
               onViewRecommendation={handleViewRecommendation}
             />
           </div>
-          
-          <RecentAssets
-            assets={filteredAssets}
-            onFilterChange={handleFilterChange}
-            onViewAll={handleViewAllAssets}
-            onEditAsset={handleEditAsset}
-            onViewAsset={handleViewAsset}
-          />
         </div>
       </main>
-      
     </div>
   );
 }

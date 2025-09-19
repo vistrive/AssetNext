@@ -898,55 +898,238 @@ export class DatabaseStorage implements IStorage {
   // Dashboard Metrics
   async getDashboardMetrics(tenantId: string): Promise<any> {
     try {
-      // Get asset counts
-      const assetCounts = await db
+      // Get overall asset counts by type
+      const assetTypesCounts = await db
         .select({
+          type: assets.type,
           total: sql<number>`count(*)`,
-          active: sql<number>`count(*) filter (where status = 'active')`,
-          inactive: sql<number>`count(*) filter (where status = 'inactive')`,
-          maintenance: sql<number>`count(*) filter (where status = 'maintenance')`
+          deployed: sql<number>`count(*) filter (where status = 'deployed')`,
+          inStock: sql<number>`count(*) filter (where status = 'in-stock')`,
+          inRepair: sql<number>`count(*) filter (where status = 'in-repair')`,
+          disposed: sql<number>`count(*) filter (where status = 'disposed')`
         })
         .from(assets)
-        .where(eq(assets.tenantId, tenantId));
+        .where(eq(assets.tenantId, tenantId))
+        .groupBy(assets.type);
+
+      // Get hardware breakdown by category
+      const hardwareCounts = await db
+        .select({
+          category: assets.category,
+          total: sql<number>`count(*)`,
+          deployed: sql<number>`count(*) filter (where status = 'deployed')`,
+          inStock: sql<number>`count(*) filter (where status = 'in-stock')`,
+          inRepair: sql<number>`count(*) filter (where status = 'in-repair')`
+        })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'hardware')))
+        .groupBy(assets.category);
+
+      // Get hardware warranty/AMC status
+      const hardwareWarrantyStatus = await db
+        .select({
+          total: sql<number>`count(*)`,
+          warrantyExpiring: sql<number>`count(*) filter (where warranty_expiry IS NOT NULL AND warranty_expiry <= current_date + interval '30 days' and warranty_expiry > current_date)`,
+          warrantyExpired: sql<number>`count(*) filter (where warranty_expiry IS NOT NULL AND warranty_expiry <= current_date)`,
+          amcDue: sql<number>`count(*) filter (where amc_expiry IS NOT NULL AND amc_expiry <= current_date + interval '30 days' and amc_expiry > current_date)`,
+          amcExpired: sql<number>`count(*) filter (where amc_expiry IS NOT NULL AND amc_expiry <= current_date)`
+        })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'hardware')));
+
+      // Get software license status
+      const softwareStatus = await db
+        .select({
+          total: sql<number>`count(*)`,
+          assigned: sql<number>`sum(COALESCE(used_licenses, 0))`,
+          totalLicenses: sql<number>`sum(COALESCE(total_licenses, 0))`,
+          renewalDue: sql<number>`count(*) filter (where renewal_date IS NOT NULL AND renewal_date <= current_date + interval '30 days' and renewal_date > current_date)`,
+          expired: sql<number>`count(*) filter (where renewal_date IS NOT NULL AND renewal_date <= current_date)`
+        })
+        .from(softwareLicenses)
+        .where(eq(softwareLicenses.tenantId, tenantId));
+
+      // Get peripheral breakdown by category
+      const peripheralCounts = await db
+        .select({
+          category: assets.category,
+          total: sql<number>`count(*)`,
+          deployed: sql<number>`count(*) filter (where status = 'deployed')`,
+          inStock: sql<number>`count(*) filter (where status = 'in-stock')`,
+          inRepair: sql<number>`count(*) filter (where status = 'in-repair')`
+        })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'peripheral')))
+        .groupBy(assets.category);
+
+      // Get uncategorized or "other" assets within each type
+      const othersCounts = await db
+        .select({
+          type: assets.type,
+          category: assets.category,
+          total: sql<number>`count(*)`,
+          deployed: sql<number>`count(*) filter (where status = 'deployed')`,
+          inStock: sql<number>`count(*) filter (where status = 'in-stock')`,
+          inRepair: sql<number>`count(*) filter (where status = 'in-repair')`
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          sql`category IN ('cctv', 'access-control', 'security', 'surveillance', 'other')`
+        ))
+        .groupBy(assets.type, assets.category);
 
       // Get ticket counts
       const ticketCounts = await db
         .select({
           total: sql<number>`count(*)`,
           open: sql<number>`count(*) filter (where status = 'open')`,
-          inProgress: sql<number>`count(*) filter (where status = 'in_progress')`,
+          inProgress: sql<number>`count(*) filter (where status = 'in-progress')`,
           resolved: sql<number>`count(*) filter (where status = 'resolved')`,
           closed: sql<number>`count(*) filter (where status = 'closed')`
         })
         .from(tickets)
         .where(eq(tickets.tenantId, tenantId));
 
-      // Get license counts
-      const licenseCounts = await db
-        .select({
-          total: sql<number>`count(*)`,
-          active: sql<number>`count(*) filter (where renewal_date > current_date)`,
-          expired: sql<number>`count(*) filter (where renewal_date <= current_date)`,
-          expiringSoon: sql<number>`count(*) filter (where renewal_date <= current_date + interval '30 days' and renewal_date > current_date)`
-        })
-        .from(softwareLicenses)
-        .where(eq(softwareLicenses.tenantId, tenantId));
+      // Process results
+      const assetsByType = assetTypesCounts.reduce((acc: any, item) => {
+        acc[item.type] = {
+          total: item.total,
+          deployed: item.deployed,
+          inStock: item.inStock,
+          inRepair: item.inRepair,
+          disposed: item.disposed
+        };
+        return acc;
+      }, {});
 
-      const assetStats = assetCounts[0] || { total: 0, active: 0, inactive: 0, maintenance: 0 };
-      const ticketStats = ticketCounts[0] || { total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 };
-      const licenseStats = licenseCounts[0] || { total: 0, active: 0, expired: 0, expiringSoon: 0 };
+      const hardwareBreakdown = hardwareCounts.reduce((acc: any, item) => {
+        if (item.category) {
+          acc[item.category] = {
+            total: item.total,
+            deployed: item.deployed,
+            inStock: item.inStock,
+            inRepair: item.inRepair
+          };
+        }
+        return acc;
+      }, {});
 
-      // Return the structure expected by the frontend
+      const peripheralBreakdown = peripheralCounts.reduce((acc: any, item) => {
+        if (item.category) {
+          acc[item.category] = {
+            total: item.total,
+            deployed: item.deployed,
+            inStock: item.inStock,
+            inRepair: item.inRepair
+          };
+        }
+        return acc;
+      }, {});
+
+      const othersBreakdown = othersCounts.reduce((acc: any, item) => {
+        if (item.category) {
+          acc[item.category] = {
+            total: item.total,
+            deployed: item.deployed,
+            inStock: item.inStock,
+            inRepair: item.inRepair,
+            type: item.type
+          };
+        }
+        return acc;
+      }, {});
+
+      const warrantyStatus = hardwareWarrantyStatus[0] || { 
+        total: 0, warrantyExpiring: 0, warrantyExpired: 0, amcDue: 0, amcExpired: 0 
+      };
+
+      const licenseStatus = softwareStatus[0] || { 
+        total: 0, assigned: 0, totalLicenses: 0, renewalDue: 0, expired: 0 
+      };
+
+      const ticketStats = ticketCounts[0] || { 
+        total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 
+      };
+
+      const totalAssets = assetTypesCounts.reduce((sum, item) => sum + item.total, 0);
+      
+      // Calculate utilization percentage for software licenses
+      const utilizationPct = licenseStatus.totalLicenses > 0 
+        ? Math.round((licenseStatus.assigned * 100) / licenseStatus.totalLicenses) 
+        : 0;
+
+      // Maintain backward compatibility with existing UI
+      const assetStatusBreakdown = [
+        { status: "deployed", count: assetTypesCounts.reduce((sum, item) => sum + item.deployed, 0) },
+        { status: "in-stock", count: assetTypesCounts.reduce((sum, item) => sum + item.inStock, 0) },
+        { status: "in-repair", count: assetTypesCounts.reduce((sum, item) => sum + item.inRepair, 0) },
+        { status: "disposed", count: assetTypesCounts.reduce((sum, item) => sum + item.disposed, 0) }
+      ];
+
+      // Calculate comprehensive metrics for the response
+      const unassignedLicenses = Math.max(0, licenseStatus.totalLicenses - licenseStatus.assigned);
+      const utilizationPctFinal = licenseStatus.totalLicenses > 0 
+        ? Math.round((licenseStatus.assigned * 100) / licenseStatus.totalLicenses) 
+        : 0;
+
       return {
-        totalAssets: assetStats.total,
-        activeLicenses: licenseStats.active,
-        complianceScore: assetStats.total > 0 ? Math.round((assetStats.active / assetStats.total) * 100) : 100,
-        costSavings: licenseStats.active * 500, // Estimated savings per license
-        assetStatusBreakdown: [
-          { status: "active", count: assetStats.active },
-          { status: "inactive", count: assetStats.inactive },
-          { status: "maintenance", count: assetStats.maintenance }
-        ]
+        // Legacy compatibility - maintain existing structure for current UI
+        totalAssets,
+        activeLicenses: licenseStatus.totalLicenses - licenseStatus.expired,
+        complianceScore: totalAssets > 0 ? Math.round(((totalAssets - warrantyStatus.warrantyExpired) / totalAssets) * 100) : 100,
+        assetStatusBreakdown,
+
+        // Enhanced metrics for new dashboard tiles
+        pendingActions: warrantyStatus.warrantyExpiring + warrantyStatus.amcDue + licenseStatus.renewalDue,
+        assetsByType,
+        
+        // Hardware detailed breakdown
+        hardware: {
+          overview: assetsByType.hardware || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
+          byCategory: hardwareBreakdown,
+          warrantyStatus: {
+            total: warrantyStatus.total,
+            expiring: warrantyStatus.warrantyExpiring,
+            expired: warrantyStatus.warrantyExpired,
+            amcDue: warrantyStatus.amcDue,
+            amcExpired: warrantyStatus.amcExpired
+          }
+        },
+
+        // Software detailed breakdown
+        software: {
+          overview: assetsByType.software || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
+          licenseStatus: {
+            totalLicenses: licenseStatus.totalLicenses,
+            assigned: licenseStatus.assigned,
+            unassigned: unassignedLicenses,
+            unutilized: unassignedLicenses, // Same as unassigned for now
+            renewalDue: licenseStatus.renewalDue,
+            expired: licenseStatus.expired,
+            utilizationPct: utilizationPctFinal
+          }
+        },
+
+        // Peripheral detailed breakdown
+        peripherals: {
+          overview: assetsByType.peripheral || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
+          byCategory: peripheralBreakdown
+        },
+
+        // Others detailed breakdown (special categories like CCTV, access control)
+        others: {
+          overview: {
+            total: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.total, 0),
+            deployed: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.deployed, 0),
+            inStock: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.inStock, 0),
+            inRepair: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.inRepair, 0)
+          },
+          byCategory: othersBreakdown
+        },
+
+        // Ticket metrics
+        tickets: ticketStats
       };
     } catch (error) {
       console.error('Error fetching dashboard metrics:', error);

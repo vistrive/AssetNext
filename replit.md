@@ -10,6 +10,19 @@ The system is designed as a full-stack web application with a React-based fronte
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+**September 19, 2025**
+- **Enhanced Dashboard with Comprehensive Asset Category Tiles**: Implemented detailed tile-based dashboard replacing basic metrics grid
+  - **Overview Cards**: Total Assets, Active Licenses, Compliance Score, Pending Actions with clickable navigation
+  - **Hardware Section**: Individual tiles for PC, Laptop, Server, Racks, Mobile Phone, Tablets with status indicators (Deployed, Stock, Repair)
+  - **Hardware Status Tracking**: Comprehensive warranty/AMC overview showing expired, expiring, AMC due metrics
+  - **Software License Management**: Detailed license metrics including total, assigned, unassigned, unutilized, renewal due, expired with utilization percentage and progress bar
+  - **Peripheral Devices**: Individual tiles for Printers, 3D Printers, Scanners, Mouse, Routers, Switches, Hubs
+  - **Other Assets**: CCTV Cameras and Access Control category tiles
+  - **Navigation Integration**: All tiles and buttons navigate to filtered asset views with proper URL parameters
+  - **Accessibility**: Added comprehensive data-testid attributes for testing and UI automation
+
 ## System Architecture
 
 ### Frontend Architecture
