@@ -19,11 +19,17 @@ import {
   updateUserProfileSchema,
   insertUserPreferencesSchema,
   updateOrgSettingsSchema,
+  inviteUserSchema,
+  acceptInvitationSchema,
+  updateUserRoleSchema,
   type LoginRequest,
   type RegisterRequest,
   type UpdateUserProfile,
   type InsertUserPreferences,
-  type UpdateOrgSettings
+  type UpdateOrgSettings,
+  type InviteUser,
+  type AcceptInvitation,
+  type UpdateUserRole
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -713,6 +719,285 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(distinctValues);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch distinct values" });
+    }
+  });
+
+  // User Management Routes (Admin only)
+  app.get("/api/users", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getTenantUsers(req.user!.tenantId);
+      
+      // Remove sensitive information
+      const safeUsers = users.map(user => ({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        department: user.department,
+        jobTitle: user.jobTitle,
+        isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
+        invitedBy: user.invitedBy,
+        createdAt: user.createdAt,
+      }));
+
+      res.json(safeUsers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/users/invite", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const inviteData: InviteUser = inviteUserSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(inviteData.email);
+      if (existingUser && existingUser.tenantId === req.user!.tenantId) {
+        return res.status(400).json({ message: "User already exists in your organization" });
+      }
+
+      // Check if invitation already exists
+      const existingInvitation = await storage.getInvitationByEmail(inviteData.email, req.user!.tenantId);
+      if (existingInvitation) {
+        return res.status(400).json({ message: "Invitation already sent to this email" });
+      }
+
+      // Create invitation
+      const invitation = await storage.createInvitation({
+        email: inviteData.email,
+        firstName: inviteData.firstName,
+        lastName: inviteData.lastName,
+        role: inviteData.role,
+        tenantId: req.user!.tenantId,
+        invitedBy: req.user!.userId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      });
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "user_invited",
+        resourceType: "user_invitation",
+        resourceId: invitation.id,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Invited ${inviteData.email} with role ${inviteData.role}`,
+      });
+
+      res.status(201).json({
+        id: invitation.id,
+        email: invitation.email,
+        firstName: invitation.firstName,
+        lastName: invitation.lastName,
+        role: invitation.role,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt,
+        createdAt: invitation.createdAt,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid invitation data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create invitation" });
+    }
+  });
+
+  app.get("/api/users/invitations", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const invitations = await storage.getTenantInvitations(req.user!.tenantId);
+      
+      // Include inviter information
+      const invitationsWithInviter = await Promise.all(
+        invitations.map(async (invitation) => {
+          const inviter = await storage.getUser(invitation.invitedBy);
+          return {
+            ...invitation,
+            inviterName: inviter ? `${inviter.firstName} ${inviter.lastName}` : "Unknown",
+          };
+        })
+      );
+      
+      res.json(invitationsWithInviter);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch invitations" });
+    }
+  });
+
+  app.patch("/api/users/:userId/role", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const userId = req.params.userId;
+      const roleData: UpdateUserRole = updateUserRoleSchema.parse(req.body);
+      
+      // Prevent self-role modification
+      if (userId === req.user!.userId) {
+        return res.status(400).json({ message: "Cannot modify your own role" });
+      }
+
+      const updatedUser = await storage.updateUserRole(userId, req.user!.tenantId, roleData);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "user_role_updated",
+        resourceType: "user",
+        resourceId: userId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Updated user role to ${roleData.role}`,
+      });
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid role data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  app.patch("/api/users/:userId/deactivate", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const userId = req.params.userId;
+      
+      // Prevent self-deactivation
+      if (userId === req.user!.userId) {
+        return res.status(400).json({ message: "Cannot deactivate your own account" });
+      }
+
+      const success = await storage.deactivateUser(userId, req.user!.tenantId);
+      if (!success) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "user_deactivated",
+        resourceType: "user",
+        resourceId: userId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: "User account deactivated",
+      });
+
+      res.json({ message: "User deactivated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to deactivate user" });
+    }
+  });
+
+  app.patch("/api/users/:userId/activate", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const userId = req.params.userId;
+      
+      const success = await storage.activateUser(userId, req.user!.tenantId);
+      if (!success) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "user_activated",
+        resourceType: "user",
+        resourceId: userId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: "User account activated",
+      });
+
+      res.json({ message: "User activated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to activate user" });
+    }
+  });
+
+  // Invitation acceptance route (public - no auth required)
+  app.post("/api/auth/accept-invitation", async (req: Request, res: Response) => {
+    try {
+      const acceptData: AcceptInvitation = acceptInvitationSchema.parse(req.body);
+      
+      const result = await storage.acceptInvitation(acceptData.token, acceptData.password);
+      if (!result) {
+        return res.status(400).json({ message: "Invalid or expired invitation" });
+      }
+
+      const { user, invitation } = result;
+      const token = generateToken(user);
+      const tenant = await storage.getTenant(user.tenantId);
+
+      // Log the activity
+      await storage.logActivity({
+        userId: user.id,
+        tenantId: user.tenantId,
+        action: "invitation_accepted",
+        resourceType: "user",
+        resourceId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        description: "User accepted invitation and joined organization",
+      });
+
+      res.status(201).json({
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          tenantId: user.tenantId,
+        },
+        tenant: tenant ? { id: tenant.id, name: tenant.name } : null,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid invitation data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to accept invitation" });
+    }
+  });
+
+  // Get invitation details (public - no auth required)
+  app.get("/api/auth/invitation/:token", async (req: Request, res: Response) => {
+    try {
+      const token = req.params.token;
+      const invitation = await storage.getInvitation(token);
+      
+      if (!invitation || invitation.status !== "pending" || invitation.expiresAt < new Date()) {
+        return res.status(404).json({ message: "Invalid or expired invitation" });
+      }
+
+      const tenant = await storage.getTenant(invitation.tenantId);
+      const inviter = await storage.getUser(invitation.invitedBy);
+
+      res.json({
+        email: invitation.email,
+        firstName: invitation.firstName,
+        lastName: invitation.lastName,
+        role: invitation.role,
+        organizationName: tenant?.name || "Unknown Organization",
+        inviterName: inviter ? `${inviter.firstName} ${inviter.lastName}` : "Unknown",
+        expiresAt: invitation.expiresAt,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch invitation details" });
     }
   });
 

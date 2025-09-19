@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
   isActive: boolean("is_active").default(true),
   tenantId: varchar("tenant_id").notNull(),
+  invitedBy: varchar("invited_by"), // User who invited this user
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -229,6 +230,23 @@ export const insertMasterDataSchema = createInsertSchema(masterData).omit({
   updatedAt: true,
 });
 
+// User Invitations Table
+export const userInvitations = pgTable("user_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  role: text("role").notNull().default("read-only"), // admin, it-manager, read-only
+  tenantId: varchar("tenant_id").notNull(),
+  invitedBy: varchar("invited_by").notNull(),
+  token: text("token").notNull().unique(), // Invitation token
+  status: text("status").notNull().default("pending"), // pending, accepted, expired
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Authentication schemas
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -306,6 +324,36 @@ export const updateOrgSettingsSchema = z.object({
   dataRetentionDays: z.number().int().min(30).max(2555), // 30 days to 7 years
 });
 
+// User invitation schemas
+export const inviteUserSchema = z.object({
+  email: z.string().email("Valid email address is required"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  role: z.enum(["read-only", "it-manager", "admin"]),
+});
+
+export const acceptInvitationSchema = z.object({
+  token: z.string().min(1, "Invitation token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const updateUserRoleSchema = z.object({
+  role: z.enum(["read-only", "it-manager", "admin"]),
+});
+
+export const insertUserInvitationSchema = createInsertSchema(userInvitations).omit({
+  id: true,
+  token: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserInvitation = typeof userInvitations.$inferSelect;
+export type InsertUserInvitation = z.infer<typeof insertUserInvitationSchema>;
+export type InviteUser = z.infer<typeof inviteUserSchema>;
+export type AcceptInvitation = z.infer<typeof acceptInvitationSchema>;
+export type UpdateUserRole = z.infer<typeof updateUserRoleSchema>;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 export type UpdateUserPreferences = z.infer<typeof updateUserPreferencesSchema>;
 export type ChangePassword = z.infer<typeof changePasswordSchema>;
