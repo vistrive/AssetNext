@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
+import { stringify } from "csv-stringify/sync";
 import { 
   generateToken, 
   verifyToken, 
@@ -874,7 +875,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Sanitize sample data to prevent CSV formula injection
     const sanitizedData = sampleData.map(row => row.map(cell => sanitizeCsvValue(cell)));
-    const csvContent = [headers.join(','), ...sanitizedData.map(row => row.join(','))].join('\n');
+    
+    // Use proper CSV serialization to handle commas, quotes, and special characters
+    const csvContent = stringify([headers, ...sanitizedData]);
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="asset_template_with_samples.csv"');
