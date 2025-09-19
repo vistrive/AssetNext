@@ -464,10 +464,8 @@ export const updateTicketSchema = z.object({
   description: z.string().min(1, "Description is required").max(2000, "Description too long").optional(),
   category: z.enum(["hardware", "software", "network", "account", "other"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  status: z.enum(["open", "in-progress", "resolved", "closed", "cancelled"]).optional(),
-  assignedToId: z.string().optional(),
-  resolution: z.string().max(2000, "Resolution too long").optional(),
-  resolutionNotes: z.string().max(2000, "Resolution notes too long").optional(),
+  assetId: z.string().optional(),
+  assetName: z.string().optional(),
 });
 
 export const assignTicketSchema = z.object({

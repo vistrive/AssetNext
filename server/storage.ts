@@ -23,6 +23,14 @@ import {
   type InsertUserInvitation,
   type InviteUser,
   type UpdateUserRole,
+  type Ticket,
+  type InsertTicket,
+  type TicketComment,
+  type InsertTicketComment,
+  type TicketActivity,
+  type InsertTicketActivity,
+  type CreateTicket,
+  type UpdateTicket,
   users,
   tenants,
   assets,
@@ -32,7 +40,10 @@ import {
   masterData,
   userPreferences,
   auditLogs,
-  userInvitations
+  userInvitations,
+  tickets,
+  ticketComments,
+  ticketActivities
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
@@ -105,6 +116,27 @@ export interface IStorage {
   // Audit Logs
   logActivity(activity: InsertAuditLog): Promise<AuditLog>;
   getAuditLogs(tenantId: string): Promise<AuditLog[]>;
+
+  // Tickets
+  createTicket(ticket: InsertTicket): Promise<Ticket>;
+  getTicket(id: string, tenantId: string): Promise<Ticket | undefined>;
+  getAllTickets(tenantId: string): Promise<Ticket[]>;
+  getTicketsByAssignee(assignedToId: string, tenantId: string): Promise<Ticket[]>;
+  getTicketsByRequestor(requestorId: string, tenantId: string): Promise<Ticket[]>;
+  updateTicket(id: string, tenantId: string, ticket: UpdateTicket): Promise<Ticket | undefined>;
+  assignTicket(id: string, tenantId: string, assignedToId: string, assignedToName: string, assignedById: string, assignedByName: string): Promise<Ticket | undefined>;
+  updateTicketStatus(id: string, tenantId: string, status: string, resolution?: string, resolutionNotes?: string): Promise<Ticket | undefined>;
+  deleteTicket(id: string, tenantId: string): Promise<boolean>;
+
+  // Ticket Comments
+  addTicketComment(comment: InsertTicketComment): Promise<TicketComment>;
+  getTicketComments(ticketId: string, tenantId: string): Promise<TicketComment[]>;
+  updateTicketComment(id: string, tenantId: string, content: string): Promise<TicketComment | undefined>;
+  deleteTicketComment(id: string, tenantId: string): Promise<boolean>;
+
+  // Ticket Activities
+  logTicketActivity(activity: InsertTicketActivity): Promise<TicketActivity>;
+  getTicketActivities(ticketId: string, tenantId: string): Promise<TicketActivity[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -468,6 +500,390 @@ export class DatabaseStorage implements IStorage {
       .from(auditLogs)
       .where(eq(auditLogs.tenantId, tenantId))
       .orderBy(desc(auditLogs.createdAt));
+  }
+
+  // Tickets
+  async createTicket(ticket: InsertTicket): Promise<Ticket> {
+    return await db.transaction(async (tx) => {
+      let ticketNumber: string;
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      // Generate unique ticket number with retry logic
+      while (attempts < maxAttempts) {
+        const timestamp = Date.now().toString().slice(-6);
+        const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+        ticketNumber = `TKT-${timestamp}-${random}`;
+        
+        try {
+          const [newTicket] = await tx
+            .insert(tickets)
+            .values({
+              ...ticket,
+              ticketNumber,
+            })
+            .returning();
+
+          // Log creation activity
+          await tx.insert(ticketActivities).values({
+            ticketId: newTicket.id,
+            activityType: "created",
+            description: `Ticket created by ${ticket.requestorName}`,
+            actorId: ticket.requestorId,
+            actorName: ticket.requestorName,
+            actorRole: "employee",
+            tenantId: ticket.tenantId,
+          });
+
+          return newTicket;
+        } catch (error: any) {
+          if (error.code === '23505' && error.constraint?.includes('ticket_number')) {
+            // Unique constraint violation on ticket number, retry
+            attempts++;
+            if (attempts >= maxAttempts) {
+              throw new Error("Failed to generate unique ticket number after multiple attempts");
+            }
+            continue;
+          }
+          throw error;
+        }
+      }
+      
+      throw new Error("Failed to create ticket");
+    });
+  }
+
+  async getTicket(id: string, tenantId: string): Promise<Ticket | undefined> {
+    const [ticket] = await db
+      .select()
+      .from(tickets)
+      .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)));
+    
+    return ticket;
+  }
+
+  async getAllTickets(tenantId: string): Promise<Ticket[]> {
+    return await db
+      .select()
+      .from(tickets)
+      .where(eq(tickets.tenantId, tenantId))
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async getTicketsByAssignee(assignedToId: string, tenantId: string): Promise<Ticket[]> {
+    return await db
+      .select()
+      .from(tickets)
+      .where(and(eq(tickets.assignedToId, assignedToId), eq(tickets.tenantId, tenantId)))
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async getTicketsByRequestor(requestorId: string, tenantId: string): Promise<Ticket[]> {
+    return await db
+      .select()
+      .from(tickets)
+      .where(and(eq(tickets.requestorId, requestorId), eq(tickets.tenantId, tenantId)))
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async updateTicket(id: string, tenantId: string, ticket: UpdateTicket): Promise<Ticket | undefined> {
+    return await db.transaction(async (tx) => {
+      // Verify ticket exists and belongs to tenant
+      const [existingTicket] = await tx
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)));
+      
+      if (!existingTicket) {
+        throw new Error("Ticket not found or access denied");
+      }
+
+      const [updatedTicket] = await tx
+        .update(tickets)
+        .set({ ...ticket, updatedAt: new Date() })
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)))
+        .returning();
+
+      // Log activity for field updates
+      if (Object.keys(ticket).length > 0) {
+        await tx.insert(ticketActivities).values({
+          ticketId: id,
+          activityType: "updated",
+          description: `Ticket details updated`,
+          actorId: existingTicket.requestorId, // Default to requestor, should be passed from route
+          actorName: existingTicket.requestorName,
+          actorRole: "employee",
+          tenantId: existingTicket.tenantId, // Use ticket's tenantId, not payload
+        });
+      }
+      
+      return updatedTicket;
+    });
+  }
+
+  async assignTicket(
+    id: string, 
+    tenantId: string, 
+    assignedToId: string, 
+    assignedToName: string, 
+    assignedById: string, 
+    assignedByName: string
+  ): Promise<Ticket | undefined> {
+    return await db.transaction(async (tx) => {
+      // Verify ticket exists and belongs to tenant
+      const [existingTicket] = await tx
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)));
+      
+      if (!existingTicket) {
+        throw new Error("Ticket not found or access denied");
+      }
+
+      const [updatedTicket] = await tx
+        .update(tickets)
+        .set({
+          assignedToId,
+          assignedToName,
+          assignedById,
+          assignedByName,
+          assignedAt: new Date(),
+          status: "in-progress",
+          updatedAt: new Date(),
+        })
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)))
+        .returning();
+
+      // Log activity
+      await tx.insert(ticketActivities).values({
+        ticketId: id,
+        activityType: "assigned",
+        description: `Ticket assigned to ${assignedToName} by ${assignedByName}`,
+        actorId: assignedById,
+        actorName: assignedByName,
+        actorRole: "admin", // Assuming admin assigns tickets
+        tenantId,
+      });
+      
+      return updatedTicket;
+    });
+  }
+
+  async updateTicketStatus(
+    id: string, 
+    tenantId: string, 
+    status: string, 
+    resolution?: string, 
+    resolutionNotes?: string
+  ): Promise<Ticket | undefined> {
+    return await db.transaction(async (tx) => {
+      // Verify ticket exists and belongs to tenant
+      const [existingTicket] = await tx
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)));
+      
+      if (!existingTicket) {
+        throw new Error("Ticket not found or access denied");
+      }
+
+      const updateData: any = {
+        status,
+        updatedAt: new Date(),
+      };
+
+      if (status === "resolved") {
+        updateData.resolvedAt = new Date();
+        if (resolution) updateData.resolution = resolution;
+        if (resolutionNotes) updateData.resolutionNotes = resolutionNotes;
+      } else if (status === "closed") {
+        updateData.closedAt = new Date();
+      }
+
+      const [updatedTicket] = await tx
+        .update(tickets)
+        .set(updateData)
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)))
+        .returning();
+
+      // Log activity
+      await tx.insert(ticketActivities).values({
+        ticketId: id,
+        activityType: "status_changed",
+        description: `Ticket status changed to ${status}`,
+        actorId: existingTicket.assignedToId || existingTicket.requestorId,
+        actorName: existingTicket.assignedToName || existingTicket.requestorName,
+        actorRole: existingTicket.assignedToId ? "technician" : "employee",
+        tenantId,
+      });
+      
+      return updatedTicket;
+    });
+  }
+
+  async deleteTicket(id: string, tenantId: string): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      // Verify ticket exists and belongs to tenant
+      const [existingTicket] = await tx
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)));
+      
+      if (!existingTicket) {
+        return false; // Ticket not found or access denied
+      }
+
+      // Delete dependent records first (activities and comments)
+      await tx
+        .delete(ticketActivities)
+        .where(and(eq(ticketActivities.ticketId, id), eq(ticketActivities.tenantId, tenantId)));
+
+      await tx
+        .delete(ticketComments)
+        .where(and(eq(ticketComments.ticketId, id), eq(ticketComments.tenantId, tenantId)));
+
+      // Delete the ticket
+      const result = await tx
+        .delete(tickets)
+        .where(and(eq(tickets.id, id), eq(tickets.tenantId, tenantId)));
+      
+      return result.rowCount !== null && result.rowCount > 0;
+    });
+  }
+
+  // Ticket Comments
+  async addTicketComment(comment: InsertTicketComment): Promise<TicketComment> {
+    return await db.transaction(async (tx) => {
+      // Verify ticket exists and belongs to the same tenant
+      const [ticket] = await tx
+        .select({ tenantId: tickets.tenantId })
+        .from(tickets)
+        .where(and(eq(tickets.id, comment.ticketId), eq(tickets.tenantId, comment.tenantId)));
+      
+      if (!ticket) {
+        throw new Error("Ticket not found or access denied");
+      }
+
+      // Use ticket's tenantId, not payload tenantId
+      const [newComment] = await tx
+        .insert(ticketComments)
+        .values({ ...comment, tenantId: ticket.tenantId })
+        .returning();
+
+      // Log activity with verified tenantId
+      await tx.insert(ticketActivities).values({
+        ticketId: comment.ticketId,
+        activityType: "commented",
+        description: `${comment.authorName} added a comment`,
+        actorId: comment.authorId,
+        actorName: comment.authorName,
+        actorRole: comment.authorRole,
+        tenantId: ticket.tenantId, // Use verified tenantId
+      });
+
+      return newComment;
+    });
+  }
+
+  async getTicketComments(ticketId: string, tenantId: string): Promise<TicketComment[]> {
+    return await db
+      .select()
+      .from(ticketComments)
+      .where(and(eq(ticketComments.ticketId, ticketId), eq(ticketComments.tenantId, tenantId)))
+      .orderBy(ticketComments.createdAt);
+  }
+
+  async updateTicketComment(id: string, tenantId: string, content: string): Promise<TicketComment | undefined> {
+    return await db.transaction(async (tx) => {
+      // Verify comment exists and belongs to tenant
+      const [existingComment] = await tx
+        .select({ ticketId: ticketComments.ticketId })
+        .from(ticketComments)
+        .where(and(eq(ticketComments.id, id), eq(ticketComments.tenantId, tenantId)));
+      
+      if (!existingComment) {
+        throw new Error("Comment not found or access denied");
+      }
+
+      // Verify the associated ticket belongs to the same tenant
+      const [ticket] = await tx
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, existingComment.ticketId), eq(tickets.tenantId, tenantId)));
+      
+      if (!ticket) {
+        throw new Error("Associated ticket not found or access denied");
+      }
+
+      const [updatedComment] = await tx
+        .update(ticketComments)
+        .set({ content })
+        .where(and(eq(ticketComments.id, id), eq(ticketComments.tenantId, tenantId)))
+        .returning();
+      
+      return updatedComment;
+    });
+  }
+
+  async deleteTicketComment(id: string, tenantId: string): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      // Verify comment exists and belongs to tenant
+      const [existingComment] = await tx
+        .select({ ticketId: ticketComments.ticketId })
+        .from(ticketComments)
+        .where(and(eq(ticketComments.id, id), eq(ticketComments.tenantId, tenantId)));
+      
+      if (!existingComment) {
+        return false; // Comment not found or access denied
+      }
+
+      // Verify the associated ticket belongs to the same tenant
+      const [ticket] = await tx
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, existingComment.ticketId), eq(tickets.tenantId, tenantId)));
+      
+      if (!ticket) {
+        return false; // Associated ticket not found or access denied
+      }
+
+      const result = await tx
+        .delete(ticketComments)
+        .where(and(eq(ticketComments.id, id), eq(ticketComments.tenantId, tenantId)));
+      
+      return result.rowCount !== null && result.rowCount > 0;
+    });
+  }
+
+  // Ticket Activities
+  async logTicketActivity(activity: InsertTicketActivity): Promise<TicketActivity> {
+    return await db.transaction(async (tx) => {
+      // Verify ticket exists and belongs to the same tenant
+      const [ticket] = await tx
+        .select({ tenantId: tickets.tenantId })
+        .from(tickets)
+        .where(and(eq(tickets.id, activity.ticketId), eq(tickets.tenantId, activity.tenantId)));
+      
+      if (!ticket) {
+        throw new Error("Ticket not found or access denied");
+      }
+
+      // Use ticket's tenantId, not payload tenantId
+      const [newActivity] = await tx
+        .insert(ticketActivities)
+        .values({ ...activity, tenantId: ticket.tenantId })
+        .returning();
+
+      return newActivity;
+    });
+  }
+
+  async getTicketActivities(ticketId: string, tenantId: string): Promise<TicketActivity[]> {
+    return await db
+      .select()
+      .from(ticketActivities)
+      .where(and(eq(ticketActivities.ticketId, ticketId), eq(ticketActivities.tenantId, tenantId)))
+      .orderBy(ticketActivities.createdAt);
   }
 }
 
