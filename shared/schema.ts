@@ -273,7 +273,7 @@ export const insertAssetSchema = createInsertSchema(assets).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
-  purchaseCost: z.number().positive().optional().or(z.undefined()),
+  purchaseCost: z.string().optional().or(z.undefined()),
 });
 
 export const insertSoftwareLicenseSchema = createInsertSchema(softwareLicenses).omit({
