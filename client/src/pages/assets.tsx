@@ -22,6 +22,7 @@ export default function Assets() {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
+  const [committedSearchTerm, setCommittedSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -108,12 +109,13 @@ export default function Assets() {
 
   // Fetch assets
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
+    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter, committedSearchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter !== "all") params.append("category", categoryFilter);
+      if (committedSearchTerm.trim()) params.append("search", committedSearchTerm.trim());
       
       const response = await authenticatedRequest("GET", `/api/assets?${params}`);
       return response.json();
@@ -260,7 +262,8 @@ export default function Assets() {
 
   // Handle search functionality
   const handleSearch = () => {
-    // Focus the input for better UX
+    // Read the input value and call the search API
+    setCommittedSearchTerm(searchTerm);
     searchInputRef.current?.focus();
   };
 
@@ -273,6 +276,7 @@ export default function Assets() {
   // Clear search
   const handleClearSearch = () => {
     setSearchTerm("");
+    setCommittedSearchTerm("");
     searchInputRef.current?.focus();
   };
 
@@ -431,32 +435,8 @@ export default function Assets() {
     }
   };
 
-  // Real-time filtered assets based on search term
-  const filteredAssets = useMemo(() => {
-    return assets.filter((asset: Asset) => {
-      // If no search term, show all assets
-      if (!searchTerm.trim()) {
-        return true;
-      }
-      
-      const searchLower = searchTerm.toLowerCase().trim();
-      
-      // Search across all relevant asset fields
-      return (
-        asset.name.toLowerCase().includes(searchLower) ||
-        (asset.serialNumber && asset.serialNumber.toLowerCase().includes(searchLower)) ||
-        (asset.manufacturer && asset.manufacturer.toLowerCase().includes(searchLower)) ||
-        (asset.model && asset.model.toLowerCase().includes(searchLower)) ||
-        (asset.vendorName && asset.vendorName.toLowerCase().includes(searchLower)) ||
-        (asset.companyName && asset.companyName.toLowerCase().includes(searchLower)) ||
-        (asset.location && asset.location.toLowerCase().includes(searchLower)) ||
-        (asset.assignedUserName && asset.assignedUserName.toLowerCase().includes(searchLower)) ||
-        asset.status.toLowerCase().includes(searchLower) ||
-        asset.type.toLowerCase().includes(searchLower) ||
-        (asset.category && asset.category.toLowerCase().includes(searchLower))
-      );
-    });
-  }, [assets, searchTerm]);
+  // Assets are already filtered by the backend, no need for client-side filtering
+  const filteredAssets = assets;
 
   if (isLoading) {
     return (
@@ -481,10 +461,10 @@ export default function Assets() {
         
         <div className="p-6">
           {/* Active Search Indicator */}
-          {searchTerm && (
+          {committedSearchTerm && (
             <div className="mb-4">
               <div className="inline-flex items-center bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
-                <span>Searching for: "{searchTerm}"</span>
+                <span>Searching for: "{committedSearchTerm}"</span>
                 <button
                   type="button"
                   onClick={handleClearSearch}
@@ -521,7 +501,7 @@ export default function Assets() {
                   className="pl-10"
                   data-testid="input-search-assets"
                 />
-                {searchTerm && (
+                {(searchTerm || committedSearchTerm) && (
                   <button
                     type="button"
                     onClick={handleClearSearch}
@@ -674,7 +654,7 @@ export default function Assets() {
                           <Monitor className="h-12 w-12 text-muted-foreground/50" />
                           <p>No assets found</p>
                           <p className="text-sm">
-                            {searchTerm || typeFilter !== "all" || statusFilter !== "all" || categoryFilter !== "all"
+                            {committedSearchTerm || typeFilter !== "all" || statusFilter !== "all" || categoryFilter !== "all"
                               ? "Try adjusting your filters"
                               : "Add your first asset to get started"
                             }

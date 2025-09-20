@@ -89,7 +89,7 @@ export interface IStorage {
   updateOrgSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined>;
 
   // Assets
-  getAllAssets(tenantId: string, filters?: { type?: string; status?: string; category?: string }): Promise<Asset[]>;
+  getAllAssets(tenantId: string, filters?: { type?: string; status?: string; category?: string; search?: string }): Promise<Asset[]>;
   getAsset(id: string, tenantId: string): Promise<Asset | undefined>;
   createAsset(asset: InsertAsset): Promise<Asset>;
   createAssetsBulk(assets: InsertAsset[]): Promise<Asset[]>;
@@ -363,7 +363,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Assets
-  async getAllAssets(tenantId: string, filters?: { type?: string; status?: string; category?: string }): Promise<Asset[]> {
+  async getAllAssets(tenantId: string, filters?: { type?: string; status?: string; category?: string; search?: string }): Promise<Asset[]> {
     const conditions = [eq(assets.tenantId, tenantId)];
     
     if (filters?.type) {
@@ -376,6 +376,25 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.category) {
       conditions.push(eq(assets.category, filters.category));
+    }
+    
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        sql`(
+          ${assets.name} ILIKE ${searchTerm} OR
+          ${assets.serialNumber} ILIKE ${searchTerm} OR
+          ${assets.manufacturer} ILIKE ${searchTerm} OR
+          ${assets.model} ILIKE ${searchTerm} OR
+          ${assets.vendorName} ILIKE ${searchTerm} OR
+          ${assets.companyName} ILIKE ${searchTerm} OR
+          ${assets.location} ILIKE ${searchTerm} OR
+          ${assets.assignedUserName} ILIKE ${searchTerm} OR
+          ${assets.status} ILIKE ${searchTerm} OR
+          ${assets.type} ILIKE ${searchTerm} OR
+          ${assets.category} ILIKE ${searchTerm}
+        )`
+      );
     }
     
     return await db.select().from(assets).where(and(...conditions));
