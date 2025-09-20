@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -22,7 +22,7 @@ export default function Assets() {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
-  const [committedSearchTerm, setCommittedSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -108,14 +108,23 @@ export default function Assets() {
   };
 
   // Fetch assets
+  // Debounce search term to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter, committedSearchTerm],
+    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter, debouncedSearchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter !== "all") params.append("category", categoryFilter);
-      if (committedSearchTerm.trim()) params.append("search", committedSearchTerm.trim());
+      if (debouncedSearchTerm.trim()) params.append("search", debouncedSearchTerm.trim());
       
       const response = await authenticatedRequest("GET", `/api/assets?${params}`);
       return response.json();
@@ -260,10 +269,8 @@ export default function Assets() {
     }
   };
 
-  // Handle search functionality
+  // Handle search functionality - now just focuses input for UX
   const handleSearch = () => {
-    // Read the input value and call the search API
-    setCommittedSearchTerm(searchTerm);
     searchInputRef.current?.focus();
   };
 
@@ -276,7 +283,6 @@ export default function Assets() {
   // Clear search
   const handleClearSearch = () => {
     setSearchTerm("");
-    setCommittedSearchTerm("");
     searchInputRef.current?.focus();
   };
 
@@ -435,7 +441,7 @@ export default function Assets() {
     }
   };
 
-  // Assets are already filtered by the backend, no need for client-side filtering
+  // Assets are already filtered by the backend with real-time search
   const filteredAssets = assets;
 
   if (isLoading) {
@@ -461,10 +467,10 @@ export default function Assets() {
         
         <div className="p-6">
           {/* Active Search Indicator */}
-          {committedSearchTerm && (
+          {debouncedSearchTerm && (
             <div className="mb-4">
               <div className="inline-flex items-center bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
-                <span>Searching for: "{committedSearchTerm}"</span>
+                <span>Searching for: "{debouncedSearchTerm}"</span>
                 <button
                   type="button"
                   onClick={handleClearSearch}
@@ -501,7 +507,7 @@ export default function Assets() {
                   className="pl-10"
                   data-testid="input-search-assets"
                 />
-                {(searchTerm || committedSearchTerm) && (
+                {searchTerm && (
                   <button
                     type="button"
                     onClick={handleClearSearch}
@@ -654,7 +660,7 @@ export default function Assets() {
                           <Monitor className="h-12 w-12 text-muted-foreground/50" />
                           <p>No assets found</p>
                           <p className="text-sm">
-                            {committedSearchTerm || typeFilter !== "all" || statusFilter !== "all" || categoryFilter !== "all"
+                            {debouncedSearchTerm || typeFilter !== "all" || statusFilter !== "all" || categoryFilter !== "all"
                               ? "Try adjusting your filters"
                               : "Add your first asset to get started"
                             }

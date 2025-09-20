@@ -392,7 +392,8 @@ export class DatabaseStorage implements IStorage {
           ${assets.assignedUserName} ILIKE ${searchTerm} OR
           ${assets.status} ILIKE ${searchTerm} OR
           ${assets.type} ILIKE ${searchTerm} OR
-          ${assets.category} ILIKE ${searchTerm}
+          ${assets.category} ILIKE ${searchTerm} OR
+          CAST(${assets.purchaseCost} AS TEXT) ILIKE ${searchTerm}
         )`
       );
     }
