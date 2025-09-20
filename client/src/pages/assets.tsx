@@ -24,6 +24,7 @@ export default function Assets() {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadResults, setUploadResults] = useState<any>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -35,11 +36,18 @@ export default function Assets() {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.split('?')[1] || '');
     const typeParam = urlParams.get('type');
+    const categoryParam = urlParams.get('category');
     
     if (typeParam && ['hardware', 'software', 'peripheral', 'others'].includes(typeParam)) {
       setTypeFilter(typeParam);
     } else {
       setTypeFilter("all");
+    }
+    
+    if (categoryParam) {
+      setCategoryFilter(categoryParam);
+    } else {
+      setCategoryFilter("all");
     }
   }, [location]);
 
@@ -99,11 +107,12 @@ export default function Assets() {
 
   // Fetch assets
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ["/api/assets", typeFilter, statusFilter],
+    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (categoryFilter !== "all") params.append("category", categoryFilter);
       
       const response = await authenticatedRequest("GET", `/api/assets?${params}`);
       return response.json();
