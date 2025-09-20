@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -25,6 +25,7 @@ export default function Assets() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadResults, setUploadResults] = useState<any>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -257,6 +258,24 @@ export default function Assets() {
     }
   };
 
+  // Handle search functionality
+  const handleSearch = () => {
+    // Focus the input for better UX
+    searchInputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  // Clear search
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    searchInputRef.current?.focus();
+  };
+
   // Bulk upload functions
   const handleBulkUpload = () => {
     setIsBulkUploadOpen(true);
@@ -412,16 +431,32 @@ export default function Assets() {
     }
   };
 
-  // Filter assets based on search term
-  const filteredAssets = assets.filter((asset: Asset) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      asset.name.toLowerCase().includes(searchLower) ||
-      asset.serialNumber?.toLowerCase().includes(searchLower) ||
-      asset.manufacturer?.toLowerCase().includes(searchLower) ||
-      asset.model?.toLowerCase().includes(searchLower)
-    );
-  });
+  // Real-time filtered assets based on search term
+  const filteredAssets = useMemo(() => {
+    return assets.filter((asset: Asset) => {
+      // If no search term, show all assets
+      if (!searchTerm.trim()) {
+        return true;
+      }
+      
+      const searchLower = searchTerm.toLowerCase().trim();
+      
+      // Search across all relevant asset fields
+      return (
+        asset.name.toLowerCase().includes(searchLower) ||
+        (asset.serialNumber && asset.serialNumber.toLowerCase().includes(searchLower)) ||
+        (asset.manufacturer && asset.manufacturer.toLowerCase().includes(searchLower)) ||
+        (asset.model && asset.model.toLowerCase().includes(searchLower)) ||
+        (asset.vendorName && asset.vendorName.toLowerCase().includes(searchLower)) ||
+        (asset.companyName && asset.companyName.toLowerCase().includes(searchLower)) ||
+        (asset.location && asset.location.toLowerCase().includes(searchLower)) ||
+        (asset.assignedUserName && asset.assignedUserName.toLowerCase().includes(searchLower)) ||
+        asset.status.toLowerCase().includes(searchLower) ||
+        asset.type.toLowerCase().includes(searchLower) ||
+        (asset.category && asset.category.toLowerCase().includes(searchLower))
+      );
+    });
+  }, [assets, searchTerm]);
 
   if (isLoading) {
     return (
@@ -445,19 +480,59 @@ export default function Assets() {
         />
         
         <div className="p-6">
+          {/* Active Search Indicator */}
+          {searchTerm && (
+            <div className="mb-4">
+              <div className="inline-flex items-center bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
+                <span>Searching for: "{searchTerm}"</span>
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="ml-2 text-primary hover:text-primary/80 focus:outline-none"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+          
           {/* Filters */}
           <div className="mb-6 space-y-4">
             <div className="flex items-center space-x-4">
               <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors bg-transparent border-none p-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded"
+                  data-testid="button-search"
+                  title="Search assets"
+                  aria-label="Search assets"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
                 <Input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Search assets..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className="pl-10"
                   data-testid="input-search-assets"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors bg-transparent border-none p-1 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded"
+                    data-testid="button-clear-search"
+                    title="Clear search"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -599,7 +674,7 @@ export default function Assets() {
                           <Monitor className="h-12 w-12 text-muted-foreground/50" />
                           <p>No assets found</p>
                           <p className="text-sm">
-                            {searchTerm || typeFilter !== "all" || statusFilter !== "all"
+                            {searchTerm || typeFilter !== "all" || statusFilter !== "all" || categoryFilter !== "all"
                               ? "Try adjusting your filters"
                               : "Add your first asset to get started"
                             }
