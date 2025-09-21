@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,7 +24,8 @@ import {
   type UpdateUserPreferences, 
   type UpdateOrgSettings,
   type User as UserType,
-  type UserPreferences
+  type UserPreferences,
+  changePasswordSchema
 } from "@shared/schema";
 import { 
   Settings, 
@@ -98,6 +103,19 @@ export default function SettingsPage() {
     dateFormat: "MM/DD/YYYY",
     autoRecommendations: false,
     dataRetentionDays: 365,
+  });
+
+  // Change password dialog state
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  
+  // Change password form
+  const changePasswordForm = useForm({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
   });
 
   // Update local state when API data loads
@@ -210,6 +228,39 @@ export default function SettingsPage() {
     },
   });
 
+  // Change password mutation
+  const changePasswordMutation = useMutation({
+    mutationFn: async (data: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+      // Map frontend field name to backend expected field name
+      const requestData = {
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+        confirmNewPassword: data.confirmPassword, // Backend expects confirmNewPassword
+      };
+      const response = await authenticatedRequest("POST", "/api/users/me/change-password", requestData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to change password");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      changePasswordForm.reset();
+      setIsChangePasswordOpen(false);
+      toast({
+        title: "Password changed",
+        description: "Your password has been changed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to change password. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveProfile = () => {
     updateProfileMutation.mutate(profileForm);
   };
@@ -220,6 +271,10 @@ export default function SettingsPage() {
 
   const handleSaveOrgSettings = () => {
     updateOrgSettingsMutation.mutate(orgForm);
+  };
+
+  const handleChangePassword = (data: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+    changePasswordMutation.mutate(data);
   };
 
   return (
@@ -563,10 +618,94 @@ export default function SettingsPage() {
                             Update your account password
                           </p>
                         </div>
-                        <Button variant="outline" data-testid="button-change-password">
-                          <Key className="h-4 w-4 mr-2" />
-                          Change Password
-                        </Button>
+                        <Dialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen}>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" data-testid="button-change-password">
+                              <Key className="h-4 w-4 mr-2" />
+                              Change Password
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle>Change Password</DialogTitle>
+                            </DialogHeader>
+                            <Form {...changePasswordForm}>
+                              <form onSubmit={changePasswordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+                                <FormField
+                                  control={changePasswordForm.control}
+                                  name="currentPassword"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Current Password</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Enter your current password"
+                                          {...field}
+                                          data-testid="input-current-password"
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={changePasswordForm.control}
+                                  name="newPassword"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>New Password</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Enter your new password"
+                                          {...field}
+                                          data-testid="input-new-password"
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={changePasswordForm.control}
+                                  name="confirmPassword"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Confirm New Password</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="password"
+                                          placeholder="Confirm your new password"
+                                          {...field}
+                                          data-testid="input-confirm-password"
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <div className="flex justify-end space-x-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsChangePasswordOpen(false)}
+                                    data-testid="button-cancel-password-change"
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type="submit"
+                                    disabled={changePasswordMutation.isPending}
+                                    data-testid="button-submit-password-change"
+                                  >
+                                    {changePasswordMutation.isPending ? "Changing..." : "Change Password"}
+                                  </Button>
+                                </div>
+                              </form>
+                            </Form>
+                          </DialogContent>
+                        </Dialog>
                       </div>
 
                       <div className="flex items-center justify-between p-4 border rounded-lg">
