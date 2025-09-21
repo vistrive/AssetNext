@@ -636,20 +636,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const assets = await storage.getAllAssets(req.user!.tenantId);
       
+      // Validate that assets were retrieved successfully
+      if (!Array.isArray(assets)) {
+        return res.status(500).json({ message: "Failed to retrieve asset data" });
+      }
+      
       // Filter assets by type if specified
       let filteredAssets = assets;
       if (type && type !== 'all') {
         filteredAssets = assets.filter(asset => asset.type === type);
       }
       
-      // Helper function to sanitize values for Excel (prevent formula injection)
-      const sanitizeExcelValue = (value: any): string => {
+      // Check if we have any assets after filtering
+      if (filteredAssets.length === 0) {
+        return res.json([]); // Return empty array for frontend to handle
+      }
+      
+      // Helper function to sanitize and format values for Excel
+      const sanitizeExcelValue = (value: any, fieldType?: string): string => {
         if (value === null || value === undefined) return '';
+        
+        // Format dates properly
+        if (fieldType === 'date' && value instanceof Date) {
+          return value.toISOString().split('T')[0]; // YYYY-MM-DD format
+        }
+        if (fieldType === 'date' && typeof value === 'string' && value.includes('T')) {
+          return value.split('T')[0]; // Convert ISO string to date
+        }
+        
+        // Format currency values
+        if (fieldType === 'currency' && (typeof value === 'number' || !isNaN(parseFloat(value)))) {
+          return `$${parseFloat(value).toFixed(2)}`;
+        }
+        
         const stringValue = String(value);
-        // If value starts with risky characters, prefix with single quote
+        
+        // If value starts with risky characters, prefix with single quote to prevent formula injection
         if (/^[=+\-@]/.test(stringValue)) {
           return `'${stringValue}`;
         }
+        
         return stringValue;
       };
 
@@ -687,19 +713,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               reportRecord['Assigned To'] = sanitizeExcelValue(asset.assignedUserName || '');
               break;
             case 'assignedDate':
-              reportRecord['Assigned Date'] = sanitizeExcelValue(asset.assignedDate || '');
+              reportRecord['Assigned Date'] = sanitizeExcelValue(asset.assignedDate || '', 'date');
               break;
             case 'purchaseDate':
-              reportRecord['Purchase Date'] = sanitizeExcelValue(asset.purchaseDate || '');
+              reportRecord['Purchase Date'] = sanitizeExcelValue(asset.purchaseDate || '', 'date');
               break;
             case 'purchasePrice':
-              reportRecord['Purchase Price'] = sanitizeExcelValue(asset.purchasePrice || '');
+              reportRecord['Purchase Price'] = sanitizeExcelValue(asset.purchasePrice || '', 'currency');
               break;
             case 'warrantyExpiry':
-              reportRecord['Warranty Expiry'] = sanitizeExcelValue(asset.warrantyExpiry || '');
+              reportRecord['Warranty Expiry'] = sanitizeExcelValue(asset.warrantyExpiry || '', 'date');
               break;
             case 'amcExpiry':
-              reportRecord['AMC Expiry'] = sanitizeExcelValue(asset.amcExpiry || '');
+              reportRecord['AMC Expiry'] = sanitizeExcelValue(asset.amcExpiry || '', 'date');
               break;
             case 'specifications':
               reportRecord['Specifications'] = sanitizeExcelValue(
@@ -712,10 +738,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               reportRecord['Notes'] = sanitizeExcelValue(asset.notes || '');
               break;
             case 'createdAt':
-              reportRecord['Created Date'] = sanitizeExcelValue(asset.createdAt || '');
+              reportRecord['Created Date'] = sanitizeExcelValue(asset.createdAt || '', 'date');
               break;
             case 'updatedAt':
-              reportRecord['Last Updated'] = sanitizeExcelValue(asset.updatedAt || '');
+              reportRecord['Last Updated'] = sanitizeExcelValue(asset.updatedAt || '', 'date');
               break;
             default:
               // Skip unknown fields
@@ -727,13 +753,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Log report generation activity
-      await storage.createAuditLog({
+      await storage.logActivity({
         action: "report_generation",
         resourceType: "asset",
         resourceId: null,
         details: `Generated report with fields: ${selectedFields.join(', ')}, type: ${type || 'all'}, records: ${reportData.length}`,
         userId: req.user!.userId,
-        tenantId: req.user!.tenantId
+        tenantId: req.user!.tenantId,
+        userEmail: req.user!.email || "",
+        userRole: req.user!.role || "read-only",
+        description: `Generated asset report with ${reportData.length} records`
       });
       
       res.json(reportData);
