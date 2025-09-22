@@ -441,7 +441,8 @@ export default function Users() {
                       <SelectItem value="all">All Roles</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="it-manager">IT Manager</SelectItem>
-                      <SelectItem value="read-only">Read Only</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="technician">Technician</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
