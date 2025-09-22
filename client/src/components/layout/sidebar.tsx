@@ -132,11 +132,17 @@ export function Sidebar() {
         {navigation.map((item) => {
           // Hide links based on role hierarchy
           if (item.requiredRole && user) {
-            const roleHierarchy = ["employee", "technician", "manager", "admin"];
+            const roleHierarchy = ["technician", "it-manager", "admin", "super-admin"];
             const userRoleIndex = roleHierarchy.indexOf(user.role);
             const requiredRoleIndex = roleHierarchy.indexOf(item.requiredRole);
             
-            if (userRoleIndex < requiredRoleIndex) {
+            // Both super-admin and admin should have access to admin-required items
+            const hasAdminAccess = user.role === "super-admin" || user.role === "admin";
+            const isAdminRequired = item.requiredRole === "admin";
+            
+            if (isAdminRequired && hasAdminAccess) {
+              // Allow access for both super-admin and admin
+            } else if (userRoleIndex < requiredRoleIndex) {
               return null;
             }
           }
