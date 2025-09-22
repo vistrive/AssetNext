@@ -2274,7 +2274,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
-        trim: true
+        trim: true,
+        bom: true
       });
       
       // Transform headers to lowercase with underscores
@@ -2400,7 +2401,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const records = parse(csvData, {
         columns: true,
         skip_empty_lines: true,
-        trim: true
+        trim: true,
+        bom: true
       });
       
       // Transform headers to lowercase with underscores
