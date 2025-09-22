@@ -1998,8 +1998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // TODO: Send email with credentials (implement in next step)
-      // For now, we'll log the credentials for testing
-      console.log(`User created: ${inviteData.email}, Username: ${username}, Temporary Password: ${temporaryPassword}`);
+      // Note: Temporary password is set to fixed value as requested by user
 
       // Return success response (don't include sensitive data)
       res.status(201).json({
