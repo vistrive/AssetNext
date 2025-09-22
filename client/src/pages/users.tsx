@@ -106,7 +106,7 @@ export default function Users() {
       email: "",
       firstName: "",
       lastName: "",
-      role: "employee",
+      role: "technician",
     },
   });
 
@@ -114,7 +114,7 @@ export default function Users() {
   const roleForm = useForm<UpdateUserRole>({
     resolver: zodResolver(updateUserRoleSchema),
     defaultValues: {
-      role: "employee",
+      role: "technician",
     },
   });
 
@@ -381,9 +381,10 @@ export default function Users() {
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
+      case "super-admin": return "destructive";
       case "admin": return "destructive";
       case "it-manager": return "default";
-      case "read-only": return "secondary";
+      case "technician": return "secondary";
       default: return "outline";
     }
   };
@@ -516,10 +517,11 @@ export default function Users() {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="employee">Employee</SelectItem>
+                          {currentUser?.role === 'super-admin' && (
+                            <SelectItem value="admin">Admin</SelectItem>
+                          )}
+                          <SelectItem value="it-manager">IT Manager</SelectItem>
                           <SelectItem value="technician">Technician</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
                       {inviteForm.formState.errors.role && (
@@ -572,9 +574,9 @@ export default function Users() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="super-admin">Super Admin</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="it-manager">IT Manager</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
                       <SelectItem value="technician">Technician</SelectItem>
                     </SelectContent>
                   </Select>
@@ -856,10 +858,11 @@ export default function Users() {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="employee">Employee</SelectItem>
+                    {currentUser?.role === 'super-admin' && (
+                      <SelectItem value="admin">Admin</SelectItem>
+                    )}
+                    <SelectItem value="it-manager">IT Manager</SelectItem>
                     <SelectItem value="technician">Technician</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
                 {roleForm.formState.errors.role && (
