@@ -125,7 +125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       
-      const { email, password, firstName, lastName, tenantName, role }: RegisterRequest = 
+      const { email, password, firstName, lastName, tenantName }: RegisterRequest = 
         registerSchema.parse(req.body);
 
       const existingUser = await storage.getUserByEmail(email);
@@ -196,10 +196,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         tenant: { id: tenant.id, name: tenant.name },
         roleAssignment: {
-          requested: role,
+          requested: "admin",
           assigned: "admin",
           isFirstUser: true,
-          wasElevated: role !== "admin",
+          wasElevated: false,
           wasDowngraded: false
         }
       });

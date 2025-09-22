@@ -204,7 +204,7 @@ export default function Login() {
                   data-testid="input-tenant-name"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Enter the exact company name. If it exists, you'll join as a member.
+                  You will become the administrator for this company. Additional team members must be invited later.
                 </p>
                 {registerForm.formState.errors.tenantName && (
                   <p className="text-red-500 text-sm mt-1">
@@ -212,28 +212,6 @@ export default function Login() {
                   </p>
                 )}
               </div>
-              
-              <div>
-                <Label htmlFor="role">Role</Label>
-                <select
-                  id="role"
-                  {...registerForm.register("role")}
-                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  data-testid="select-role"
-                >
-                  <option value="">Select your role</option>
-                  <option value="employee">Employee</option>
-                  <option value="technician">Technician</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
-                </select>
-                {registerForm.formState.errors.role && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {registerForm.formState.errors.role.message}
-                  </p>
-                )}
-              </div>
-              
               
               <Button 
                 type="submit" 
