@@ -269,7 +269,7 @@ export default function Assets() {
     }
   };
 
-  // Handle search functionality - now just focuses input for UX
+  // Handle search functionality - triggers immediate search and focuses input
   const handleSearch = () => {
     // If there's a search term, immediately trigger the search by updating debounced term
     if (searchTerm.trim()) {
@@ -286,9 +286,10 @@ export default function Assets() {
     }
   };
 
-  // Clear search
+  // Clear search - immediately clear both terms for instant UX
   const handleClearSearch = () => {
     setSearchTerm("");
+    setDebouncedSearchTerm(""); // Immediately clear search results
     searchInputRef.current?.focus();
   };
 
