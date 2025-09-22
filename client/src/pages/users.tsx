@@ -113,7 +113,7 @@ export default function Users() {
   // Invite user mutation
   const inviteUserMutation = useMutation({
     mutationFn: async (inviteData: InviteUser) => {
-      const response = await apiRequest("POST", "/api/users/invite", inviteData);
+      const response = await authenticatedRequest("POST", "/api/users/invite", inviteData);
       return response.json();
     },
     onSuccess: () => {
@@ -137,7 +137,7 @@ export default function Users() {
   // Update user role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, roleData }: { userId: string; roleData: UpdateUserRole }) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/role`, roleData);
+      const response = await authenticatedRequest("PATCH", `/api/users/${userId}/role`, roleData);
       return response.json();
     },
     onSuccess: () => {
@@ -161,7 +161,7 @@ export default function Users() {
   // Deactivate user mutation
   const deactivateUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/deactivate`);
+      const response = await authenticatedRequest("PATCH", `/api/users/${userId}/deactivate`);
       return response.json();
     },
     onSuccess: () => {
@@ -183,7 +183,7 @@ export default function Users() {
   // Activate user mutation
   const activateUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/activate`);
+      const response = await authenticatedRequest("PATCH", `/api/users/${userId}/activate`);
       return response.json();
     },
     onSuccess: () => {
