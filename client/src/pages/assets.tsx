@@ -271,11 +271,17 @@ export default function Assets() {
 
   // Handle search functionality - now just focuses input for UX
   const handleSearch = () => {
+    // If there's a search term, immediately trigger the search by updating debounced term
+    if (searchTerm.trim()) {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }
     searchInputRef.current?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      // Prevent form submission and immediately trigger search
+      e.preventDefault();
       handleSearch();
     }
   };
