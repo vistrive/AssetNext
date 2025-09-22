@@ -83,7 +83,7 @@ Return a JSON array with this structure:
         }
       ],
       response_format: { type: "json_object" },
-      temperature: 0.7,
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -149,6 +149,7 @@ Provide analysis in JSON format:
         }
       ],
       response_format: { type: "json_object" },
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -220,7 +221,7 @@ Please provide a comprehensive response that directly addresses the user's quest
           content: userPrompt
         }
       ],
-      temperature: 0.7,
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
       max_tokens: 2000,
     });
 
