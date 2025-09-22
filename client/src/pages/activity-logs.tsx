@@ -81,19 +81,25 @@ export default function ActivityLogs() {
         ...(filters.endDate && { endDate: filters.endDate }),
       });
       
-      return authenticatedRequest(`/api/audit-logs?${params}`);
+      const response = await authenticatedRequest("GET", `/api/audit-logs?${params}`);
+      return response.json();
     },
   });
 
   // Fetch audit log statistics
   const { data: statsData, isLoading: statsLoading } = useQuery<AuditLogStats>({
     queryKey: ["/api/audit-logs/stats"],
-    queryFn: () => authenticatedRequest("/api/audit-logs/stats"),
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/audit-logs/stats");
+      return response.json();
+    },
     enabled: showStats,
   });
 
   const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    // Convert "all" back to empty string for API filtering
+    const filterValue = value === "all" ? "" : value;
+    setFilters(prev => ({ ...prev, [key]: filterValue }));
     setCurrentPage(1); // Reset to first page when filters change
   };
 
@@ -224,12 +230,12 @@ export default function ActivityLogs() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="action-filter">Action</Label>
-                  <Select value={filters.action} onValueChange={(value) => handleFilterChange("action", value)}>
+                  <Select value={filters.action || "all"} onValueChange={(value) => handleFilterChange("action", value)}>
                     <SelectTrigger data-testid="filter-action">
                       <SelectValue placeholder="All actions" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All actions</SelectItem>
+                      <SelectItem value="all">All actions</SelectItem>
                       <SelectItem value="login">Login</SelectItem>
                       <SelectItem value="signup">Signup</SelectItem>
                       <SelectItem value="asset_create">Asset Create</SelectItem>
@@ -244,12 +250,12 @@ export default function ActivityLogs() {
 
                 <div>
                   <Label htmlFor="resource-filter">Resource Type</Label>
-                  <Select value={filters.resourceType} onValueChange={(value) => handleFilterChange("resourceType", value)}>
+                  <Select value={filters.resourceType || "all"} onValueChange={(value) => handleFilterChange("resourceType", value)}>
                     <SelectTrigger data-testid="filter-resource-type">
                       <SelectValue placeholder="All resources" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All resources</SelectItem>
+                      <SelectItem value="all">All resources</SelectItem>
                       <SelectItem value="user">User</SelectItem>
                       <SelectItem value="asset">Asset</SelectItem>
                       <SelectItem value="software_license">Software License</SelectItem>
