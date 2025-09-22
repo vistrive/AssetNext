@@ -1,10 +1,57 @@
 import OpenAI from "openai";
 import { type Asset, type SoftwareLicense, type AssetUtilization } from "@shared/schema";
 
+// LLM Provider configuration
+const LLM_PROVIDER = process.env.LLM_PROVIDER || "openai";
+const HUGGING_FACE_API_URL = "https://api-inference.huggingface.co/models/google/gemma-2-9b-it";
+
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API || "sk-fake-key" 
 });
+
+// Hugging Face API helper
+async function callHuggingFaceAPI(prompt: string, systemPrompt?: string): Promise<string> {
+  const fullPrompt = systemPrompt 
+    ? `<|im_start|>system\n${systemPrompt}<|im_end|>\n<|im_start|>user\n${prompt}<|im_end|>\n<|im_start|>assistant\n`
+    : `<|im_start|>user\n${prompt}<|im_end|>\n<|im_start|>assistant\n`;
+
+  try {
+    const response = await fetch(HUGGING_FACE_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.HUGGING_FACE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: fullPrompt,
+        parameters: {
+          max_new_tokens: 2000,
+          temperature: 0.7,
+          do_sample: true,
+          top_p: 0.9,
+          return_full_text: false
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Hugging Face API error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (Array.isArray(result) && result[0]?.generated_text) {
+      return result[0].generated_text.trim();
+    } else if (result.generated_text) {
+      return result.generated_text.trim();
+    } else {
+      throw new Error("Unexpected response format from Hugging Face API");
+    }
+  } catch (error) {
+    console.error("Hugging Face API error:", error);
+    throw error;
+  }
+}
 
 export interface RecommendationInput {
   assets: Asset[];
@@ -209,23 +256,29 @@ ${JSON.stringify(context.utilization.slice(0, 5), null, 2)} ${context.utilizatio
 
 Please provide a comprehensive response that directly addresses the user's question with specific insights based on this real data.`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-5",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: userPrompt
-        }
-      ],
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
-      max_tokens: 2000,
-    });
+    if (LLM_PROVIDER === "huggingface") {
+      console.log("Using Hugging Face LLM provider");
+      return await callHuggingFaceAPI(userPrompt, systemPrompt);
+    } else {
+      console.log("Using OpenAI LLM provider");
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user",
+            content: userPrompt
+          }
+        ],
+        // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
+        max_tokens: 2000,
+      });
 
-    return response.choices[0].message.content || "I'm sorry, I couldn't generate a response to your query. Please try rephrasing your question.";
+      return response.choices[0].message.content || "I'm sorry, I couldn't generate a response to your query. Please try rephrasing your question.";
+    }
   } catch (error) {
     console.error("Error processing ITAM query:", error);
     return "I'm experiencing technical difficulties. Please try your question again in a moment.";
