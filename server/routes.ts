@@ -11,6 +11,8 @@ import {
   hashPassword, 
   comparePassword, 
   checkPermission,
+  canAssignRole,
+  getAllowedRolesForAssignment,
   type JWTPayload 
 } from "./services/auth";
 import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext } from "./services/openai";
@@ -1955,21 +1957,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const inviteData: InviteUser = inviteUserSchema.parse(req.body);
       
-      // Define allowed roles based on current user's role
-      const getAllowedRolesForUser = (userRole: string): string[] => {
-        switch (userRole) {
-          case 'super-admin':
-            return ['admin', 'it-manager', 'technician'];
-          case 'admin':
-            return ['it-manager', 'technician'];
-          default:
-            return []; // Other roles cannot create users
-        }
-      };
-      
-      const allowedRoles = getAllowedRolesForUser(req.user!.role);
-      
-      if (!allowedRoles.includes(inviteData.role)) {
+      // Validate role assignment permissions using centralized function
+      if (!canAssignRole(req.user!.role, inviteData.role)) {
+        const allowedRoles = getAllowedRolesForAssignment(req.user!.role);
         return res.status(403).json({ 
           message: `Insufficient permissions to create user with role '${inviteData.role}'. You can only create users with roles: ${allowedRoles.join(', ')}` 
         });
@@ -2114,6 +2104,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Prevent self-role modification
       if (userId === req.user!.userId) {
         return res.status(400).json({ message: "Cannot modify your own role" });
+      }
+
+      // Validate role assignment permissions
+      if (!canAssignRole(req.user!.role, roleData.role)) {
+        const allowedRoles = getAllowedRolesForAssignment(req.user!.role);
+        return res.status(403).json({ 
+          message: `Insufficient permissions to assign role '${roleData.role}'. You can only assign roles: ${allowedRoles.join(', ')}` 
+        });
       }
 
       const updatedUser = await storage.updateUserRole(userId, req.user!.tenantId, roleData);
@@ -2313,19 +2311,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const warnings: any[] = [];
       const requiredFields = ['first_name', 'last_name', 'email', 'role'];
       
-      // Define allowed roles based on current user's role
-      const getAllowedRolesForUser = (userRole: string): string[] => {
-        switch (userRole) {
-          case 'super-admin':
-            return ['admin', 'it-manager', 'technician'];
-          case 'admin':
-            return ['it-manager', 'technician'];
-          default:
-            return []; // Other roles cannot create users
-        }
-      };
-      
-      const validRoles = getAllowedRolesForUser(req.user!.role);
+      // Get allowed roles using centralized function
+      const validRoles = getAllowedRolesForAssignment(req.user!.role);
       
       if (validRoles.length === 0) {
         return res.status(403).json({ message: 'Insufficient permissions to create users' });
@@ -2457,19 +2444,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const skipped: any[] = [];
       const requiredFields = ['first_name', 'last_name', 'email', 'role'];
       
-      // Define allowed roles based on current user's role
-      const getAllowedRolesForUser = (userRole: string): string[] => {
-        switch (userRole) {
-          case 'super-admin':
-            return ['admin', 'it-manager', 'technician'];
-          case 'admin':
-            return ['it-manager', 'technician'];
-          default:
-            return []; // Other roles cannot create users
-        }
-      };
-      
-      const validRoles = getAllowedRolesForUser(req.user!.role);
+      // Get allowed roles using centralized function
+      const validRoles = getAllowedRolesForAssignment(req.user!.role);
       
       if (validRoles.length === 0) {
         return res.status(403).json({ message: 'Insufficient permissions to create users' });

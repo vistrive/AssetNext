@@ -69,10 +69,44 @@ export function checkPermission(userRole: string, requiredRole: string): boolean
 // Helper function to migrate old roles to new roles
 export function migrateRole(oldRole: string): string {
   const roleMigration: Record<string, string> = {
-    "read-only": "employee",
-    "it-manager": "manager",
-    "admin": "admin"
+    "read-only": "technician",
+    "employee": "technician", 
+    "manager": "it-manager"
   };
   
   return roleMigration[oldRole] || oldRole;
+}
+
+// Helper function to check if a user can assign a specific role
+export function canAssignRole(currentUserRole: string, targetRole: string): boolean {
+  const migratedCurrentRole = migrateRole(currentUserRole);
+  const migratedTargetRole = migrateRole(targetRole);
+  
+  // Super admin can assign any role except super-admin (only one per tenant)
+  if (migratedCurrentRole === ROLES.SUPER_ADMIN) {
+    return [ROLES.ADMIN, ROLES.IT_MANAGER, ROLES.TECHNICIAN].includes(migratedTargetRole);
+  }
+  
+  // Admin can assign only IT Manager and Technician roles
+  if (migratedCurrentRole === ROLES.ADMIN) {
+    return [ROLES.IT_MANAGER, ROLES.TECHNICIAN].includes(migratedTargetRole);
+  }
+  
+  // IT Managers and Technicians cannot assign roles
+  return false;
+}
+
+// Helper function to get allowed roles for a user to assign
+export function getAllowedRolesForAssignment(currentUserRole: string): string[] {
+  const migratedCurrentRole = migrateRole(currentUserRole);
+  
+  if (migratedCurrentRole === ROLES.SUPER_ADMIN) {
+    return [ROLES.ADMIN, ROLES.IT_MANAGER, ROLES.TECHNICIAN];
+  }
+  
+  if (migratedCurrentRole === ROLES.ADMIN) {
+    return [ROLES.IT_MANAGER, ROLES.TECHNICIAN];
+  }
+  
+  return [];
 }
