@@ -2233,7 +2233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'jane.smith@company.com',
         'it-manager',
         'IT Department',
-        'Senior Technician'
+        'Senior IT Manager'
       ],
       [
         'Mike',
@@ -2242,22 +2242,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'technician',
         'IT Support',
         'IT Technician'
-      ],
-      [
-        'Sarah',
-        'Williams',
-        'sarah.williams@company.com',
-        'employee',
-        'HR Department',
-        'HR Specialist'
-      ],
-      [
-        'David',
-        'Brown',
-        'david.brown@company.com',
-        'employee',
-        'Finance Department',
-        'Accountant'
       ]
     ];
 
