@@ -1348,6 +1348,7 @@ export async function seedDatabase() {
       isActive: true,
       tenantId: tenant.id,
       invitedBy: null,
+      mustChangePassword: false, // Demo admin doesn't need to change password
     });
 
     // Create sample users with different roles for testing
@@ -1367,6 +1368,7 @@ export async function seedDatabase() {
       isActive: true,
       tenantId: tenant.id,
       invitedBy: adminUser.id,
+      mustChangePassword: false, // Demo user
     });
 
     const technicianUser = await storage.createUser({
@@ -1385,6 +1387,7 @@ export async function seedDatabase() {
       isActive: true,
       tenantId: tenant.id,
       invitedBy: managerUser.id,
+      mustChangePassword: false, // Demo user
     });
 
     const employeeUser = await storage.createUser({
@@ -1403,6 +1406,7 @@ export async function seedDatabase() {
       isActive: true,
       tenantId: tenant.id,
       invitedBy: adminUser.id,
+      mustChangePassword: false, // Demo user
     });
 
     // Seed sample master data

@@ -17,6 +17,7 @@ import {
 } from "./services/auth";
 import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext } from "./services/openai";
 import { generateTempPassword } from "./utils/password-generator";
+import { sendEmail, generateSecurePassword, createWelcomeEmailTemplate } from "./services/email";
 import { 
   loginSchema, 
   registerSchema, 
@@ -1972,7 +1973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate secure temporary password
-      const temporaryPassword = "admin123"; // Using fixed password as requested
+      const temporaryPassword = generateSecurePassword(12); // Generate secure random password
       const hashedPassword = await hashPassword(temporaryPassword);
 
       // Generate unique username from email (before @ symbol)
@@ -2012,8 +2013,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: `Created user account for ${inviteData.email} with role ${inviteData.role}`,
       });
 
-      // TODO: Send email with credentials (implement in next step)
-      // Note: Temporary password is set to fixed value as requested by user
+      // Get organization name for email
+      const adminUser = await storage.getUser(req.user!.userId);
+      const organizationName = adminUser?.firstName ? `${adminUser.firstName}'s Organization` : "Your Organization";
+      
+      // Send welcome email with credentials
+      const emailTemplate = createWelcomeEmailTemplate(
+        inviteData.firstName,
+        inviteData.lastName,
+        username,
+        temporaryPassword,
+        organizationName
+      );
+      
+      // Attempt to send email (non-blocking)
+      const emailSent = await sendEmail({
+        to: inviteData.email,
+        from: process.env.SENDGRID_FROM_EMAIL || "noreply@assetvault.com",
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+        text: emailTemplate.text
+      });
+      
+      if (!emailSent) {
+        console.warn(`Failed to send welcome email to ${inviteData.email}`);
+      }
 
       // Return success response (don't include sensitive data)
       res.status(201).json({
@@ -2026,7 +2050,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: newUser.isActive,
         mustChangePassword: newUser.mustChangePassword,
         createdAt: newUser.createdAt,
-        message: "User account created successfully. Credentials will be sent via email."
+        message: emailSent 
+          ? "User account created successfully. Login credentials have been sent via email." 
+          : "User account created successfully. Please contact your administrator for login credentials."
       });
     } catch (error) {
       console.error("User creation error:", error);
@@ -2516,7 +2542,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const userData of usersToCreate) {
         try {
           const username = generateUsername(userData.email);
-          const hashedPassword = await hashPassword('admin123');
+          const temporaryPassword = generateSecurePassword(12);
+          const hashedPassword = await hashPassword(temporaryPassword);
 
           const newUser = await storage.createUser({
             email: userData.email,
@@ -2540,6 +2567,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: newUser.role,
             rowNumber: userData.rowNumber
           });
+
+          // Get organization name for email
+          const adminUser = await storage.getUser(req.user!.userId);
+          const organizationName = adminUser?.firstName ? `${adminUser.firstName}'s Organization` : "Your Organization";
+          
+          // Send welcome email with credentials
+          const emailTemplate = createWelcomeEmailTemplate(
+            userData.firstName,
+            userData.lastName,
+            username,
+            temporaryPassword,
+            organizationName
+          );
+          
+          // Attempt to send email (non-blocking)
+          const emailSent = await sendEmail({
+            to: userData.email,
+            from: process.env.SENDGRID_FROM_EMAIL || "noreply@assetvault.com",
+            subject: emailTemplate.subject,
+            html: emailTemplate.html,
+            text: emailTemplate.text
+          });
+          
+          if (!emailSent) {
+            console.warn(`Failed to send welcome email to ${userData.email}`);
+          }
 
           // Log user creation in audit log
           await storage.logActivity({
