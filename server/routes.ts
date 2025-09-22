@@ -127,6 +127,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Check if user must change password on first login
+      if (user.mustChangePassword) {
+        // Log login attempt with password change required
+        await auditLogger.logAuthActivity(
+          AuditActions.LOGIN,
+          email,
+          user.tenantId,
+          req,
+          false,
+          { reason: "password_change_required" },
+          user.id,
+          user.role
+        );
+        return res.status(401).json({ 
+          message: "Password change required",
+          requirePasswordChange: true,
+          userId: user.id
+        });
+      }
+
       const token = generateToken(user);
       const tenant = await storage.getTenant(user.tenantId);
 
@@ -538,6 +558,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(500).json({ message: "Failed to update password" });
       }
+
+      // Clear the mustChangePassword flag since user has changed password
+      await storage.updateUser(req.user!.userId, { mustChangePassword: false });
 
       // Log the activity
       await storage.logActivity({

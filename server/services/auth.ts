@@ -2,7 +2,10 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { type User } from "@shared/schema";
 
-const JWT_SECRET = process.env.SESSION_SECRET || "fallback-secret";
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET environment variable must be set for JWT token signing");
+}
+const JWT_SECRET = process.env.SESSION_SECRET;
 
 export interface JWTPayload {
   userId: string;

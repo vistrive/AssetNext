@@ -39,6 +39,8 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
 }
 
 export function generateSecurePassword(length: number = 12): string {
+  const crypto = require('crypto');
+  
   const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const lowercase = 'abcdefghijklmnopqrstuvwxyz';
   const numbers = '0123456789';
@@ -48,19 +50,25 @@ export function generateSecurePassword(length: number = 12): string {
   
   let password = '';
   
-  // Ensure at least one character from each category
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-  password += symbols[Math.floor(Math.random() * symbols.length)];
+  // Ensure at least one character from each category using cryptographically secure random
+  password += uppercase[crypto.randomInt(0, uppercase.length)];
+  password += lowercase[crypto.randomInt(0, lowercase.length)];
+  password += numbers[crypto.randomInt(0, numbers.length)];
+  password += symbols[crypto.randomInt(0, symbols.length)];
   
-  // Fill the rest with random characters
+  // Fill the rest with cryptographically secure random characters
   for (let i = 4; i < length; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
+    password += allChars[crypto.randomInt(0, allChars.length)];
   }
   
-  // Shuffle the password to avoid predictable patterns
-  return password.split('').sort(() => Math.random() - 0.5).join('');
+  // Shuffle the password using Fisher-Yates algorithm with cryptographically secure random
+  const passwordArray = password.split('');
+  for (let i = passwordArray.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [passwordArray[i], passwordArray[j]] = [passwordArray[j], passwordArray[i]];
+  }
+  
+  return passwordArray.join('');
 }
 
 export function createWelcomeEmailTemplate(
