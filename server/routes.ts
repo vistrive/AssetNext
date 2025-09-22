@@ -191,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
         firstName,
         lastName,
-        role: "admin", // Will be forced to admin by the method
+        role: "super-admin", // Will be forced to super-admin by the method
         tenantId: tenant.id,
       }, tenant.id);
       
@@ -1955,6 +1955,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const inviteData: InviteUser = inviteUserSchema.parse(req.body);
       
+      // Define allowed roles based on current user's role
+      const getAllowedRolesForUser = (userRole: string): string[] => {
+        switch (userRole) {
+          case 'super-admin':
+            return ['admin', 'it-manager', 'technician'];
+          case 'admin':
+            return ['it-manager', 'technician'];
+          default:
+            return []; // Other roles cannot create users
+        }
+      };
+      
+      const allowedRoles = getAllowedRolesForUser(req.user!.role);
+      
+      if (!allowedRoles.includes(inviteData.role)) {
+        return res.status(403).json({ 
+          message: `Insufficient permissions to create user with role '${inviteData.role}'. You can only create users with roles: ${allowedRoles.join(', ')}` 
+        });
+      }
+      
       // Check if user already exists (same tenant)
       const existingUser = await storage.getUserByEmail(inviteData.email);
       if (existingUser && existingUser.tenantId === req.user!.tenantId) {
@@ -2292,7 +2312,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errors: any[] = [];
       const warnings: any[] = [];
       const requiredFields = ['first_name', 'last_name', 'email', 'role'];
-      const validRoles = ['admin', 'it-manager', 'technician', 'employee'];
+      
+      // Define allowed roles based on current user's role
+      const getAllowedRolesForUser = (userRole: string): string[] => {
+        switch (userRole) {
+          case 'super-admin':
+            return ['admin', 'it-manager', 'technician'];
+          case 'admin':
+            return ['it-manager', 'technician'];
+          default:
+            return []; // Other roles cannot create users
+        }
+      };
+      
+      const validRoles = getAllowedRolesForUser(req.user!.role);
+      
+      if (validRoles.length === 0) {
+        return res.status(403).json({ message: 'Insufficient permissions to create users' });
+      }
 
       // Validate each row
       for (let i = 0; i < results.length; i++) {
@@ -2419,7 +2456,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errors: any[] = [];
       const skipped: any[] = [];
       const requiredFields = ['first_name', 'last_name', 'email', 'role'];
-      const validRoles = ['admin', 'it-manager', 'technician', 'employee'];
+      
+      // Define allowed roles based on current user's role
+      const getAllowedRolesForUser = (userRole: string): string[] => {
+        switch (userRole) {
+          case 'super-admin':
+            return ['admin', 'it-manager', 'technician'];
+          case 'admin':
+            return ['it-manager', 'technician'];
+          default:
+            return []; // Other roles cannot create users
+        }
+      };
+      
+      const validRoles = getAllowedRolesForUser(req.user!.role);
+      
+      if (validRoles.length === 0) {
+        return res.status(403).json({ message: 'Insufficient permissions to create users' });
+      }
 
       // Validate and prepare users for creation
       for (let i = 0; i < results.length; i++) {

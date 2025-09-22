@@ -40,13 +40,13 @@ export async function comparePassword(password: string, hash: string): Promise<b
 
 // Role constants to ensure consistency across the application
 export const ROLES = {
-  EMPLOYEE: "employee",
-  TECHNICIAN: "technician", 
-  MANAGER: "manager",
-  ADMIN: "admin"
+  TECHNICIAN: "technician",
+  IT_MANAGER: "it-manager", 
+  ADMIN: "admin",
+  SUPER_ADMIN: "super-admin"
 } as const;
 
-export const ROLE_HIERARCHY = [ROLES.EMPLOYEE, ROLES.TECHNICIAN, ROLES.MANAGER, ROLES.ADMIN];
+export const ROLE_HIERARCHY = [ROLES.TECHNICIAN, ROLES.IT_MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN];
 
 export function checkPermission(userRole: string, requiredRole: string): boolean {
   

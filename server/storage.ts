@@ -238,7 +238,7 @@ export class DatabaseStorage implements IStorage {
         // Successfully claimed the lock, now create the first admin user
         const userData = {
           ...user,
-          role: "admin", // Force admin role for first user
+          role: "super-admin", // Force super-admin role for first user
           tenantId: tenantId,
         };
 
