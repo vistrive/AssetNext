@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   manager: text("manager"),
   lastLoginAt: timestamp("last_login_at"),
   isActive: boolean("is_active").default(true),
+  mustChangePassword: boolean("must_change_password").default(false),
   tenantId: varchar("tenant_id").notNull(),
   invitedBy: varchar("invited_by"), // User who invited this user
   createdAt: timestamp("created_at").defaultNow(),
