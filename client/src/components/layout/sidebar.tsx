@@ -146,26 +146,43 @@ export function Sidebar() {
           return (
             <div key={item.name}>
               {hasSubItems ? (
-                // Parent menu with submenu
+                // Parent menu with submenu - separate text link and dropdown button
                 <div>
-                  <button
-                    onClick={() => toggleMenu(item.name)}
-                    className={`sidebar-link w-full text-left ${isActive ? 'active' : ''}`}
-                    data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
-                  >
-                    <item.icon className="w-5 h-5 mr-3" />
-                    {item.name}
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 ml-auto" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 ml-auto" />
-                    )}
-                    {item.name === "AI Recommendations" && (
-                      <span className="ml-2 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-full">
-                        3
-                      </span>
-                    )}
-                  </button>
+                  <div className="flex items-center">
+                    {/* Main text/icon - clicks to navigate */}
+                    <Link href={item.href} className="flex-1">
+                      <div 
+                        className={`sidebar-link ${isActive ? 'active' : ''}`}
+                        data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
+                      >
+                        <item.icon className="w-5 h-5 mr-3" />
+                        {item.name}
+                        {item.name === "AI Recommendations" && (
+                          <span className="ml-2 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-full">
+                            3
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                    
+                    {/* Separate dropdown button - only toggles expansion */}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleMenu(item.name);
+                      }}
+                      className="p-2 hover:bg-muted rounded-md transition-colors"
+                      data-testid={`dropdown-${item.name.toLowerCase().replace(' ', '-')}`}
+                      title={`${isExpanded ? 'Collapse' : 'Expand'} ${item.name} menu`}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                   
                   {isExpanded && (
                     <div className="ml-8 mt-2 space-y-1">
