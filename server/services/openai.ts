@@ -5,9 +5,9 @@ import { type Asset, type SoftwareLicense, type AssetUtilization } from "@shared
 const LLM_PROVIDER = process.env.LLM_PROVIDER || "openai";
 const HUGGING_FACE_API_URL = "https://api-inference.huggingface.co/models/google/gemma-2-9b-it";
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+// Using gpt-4o-mini for OpenAI integration
 const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API || "sk-fake-key" 
+  apiKey: process.env.OPENAI_API_KEY || "sk-fake-key" 
 });
 
 // Hugging Face API helper
@@ -118,7 +118,7 @@ Return a JSON array with this structure:
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -130,7 +130,7 @@ Return a JSON array with this structure:
         }
       ],
       response_format: { type: "json_object" },
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
+      // Using gpt-4o-mini model which supports temperature parameter
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -184,7 +184,7 @@ Provide analysis in JSON format:
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -196,7 +196,7 @@ Provide analysis in JSON format:
         }
       ],
       response_format: { type: "json_object" },
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
+      // Using gpt-4o-mini model which supports temperature parameter
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -261,8 +261,14 @@ Please provide a comprehensive response that directly addresses the user's quest
       return await callHuggingFaceAPI(userPrompt, systemPrompt);
     } else {
       console.log("Using OpenAI LLM provider");
+      
+      // Check if OpenAI API key is available
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error("OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment variables.");
+      }
+      
       const response = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -273,8 +279,8 @@ Please provide a comprehensive response that directly addresses the user's quest
             content: userPrompt
           }
         ],
-        // the newest OpenAI model is "gpt-5" which was released August 7, 2025. gpt-5 doesn't support temperature parameter, do not use it.
         max_tokens: 2000,
+        temperature: 0.7,
       });
 
       return response.choices[0].message.content || "I'm sorry, I couldn't generate a response to your query. Please try rephrasing your question.";
