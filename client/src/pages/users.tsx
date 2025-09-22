@@ -17,6 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { authenticatedRequest } from "@/lib/auth";
 import { 
   Users as UsersIcon, 
   UserPlus, 
@@ -75,11 +76,19 @@ export default function Users() {
   // Fetch team members
   const { data: teamMembers = [], isLoading: teamLoading, error: teamError } = useQuery<TeamMember[]>({
     queryKey: ["/api/users"],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/users");
+      return response.json();
+    },
   });
 
   // Fetch invitations
   const { data: allInvitations = [], isLoading: invitationsLoading, error: invitationsError } = useQuery<Invitation[]>({
     queryKey: ["/api/users/invitations"],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/users/invitations");
+      return response.json();
+    },
   });
 
   // Invite user form
@@ -89,7 +98,7 @@ export default function Users() {
       email: "",
       firstName: "",
       lastName: "",
-      role: "read-only",
+      role: "employee",
     },
   });
 
@@ -97,7 +106,7 @@ export default function Users() {
   const roleForm = useForm<UpdateUserRole>({
     resolver: zodResolver(updateUserRoleSchema),
     defaultValues: {
-      role: "read-only",
+      role: "employee",
     },
   });
 
@@ -344,8 +353,9 @@ export default function Users() {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="read-only">Read Only</SelectItem>
-                          <SelectItem value="it-manager">IT Manager</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="technician">Technician</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
@@ -670,8 +680,9 @@ export default function Users() {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="read-only">Read Only</SelectItem>
-                    <SelectItem value="it-manager">IT Manager</SelectItem>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
