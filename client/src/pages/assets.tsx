@@ -35,20 +35,26 @@ export default function Assets() {
   const { toast } = useToast();
 
   // Initialize filters based on URL parameters
+  // Main /assets route shows ALL assets, only subsection routes filter by type
   useEffect(() => {
     const urlParams = new URLSearchParams(location.split('?')[1] || '');
     const typeParam = urlParams.get('type');
     const categoryParam = urlParams.get('category');
     
+    // Only apply type filtering if a valid type parameter is explicitly provided
+    // This ensures /assets shows all items, while /assets?type=hardware filters to hardware
     if (typeParam && ['hardware', 'software', 'peripheral', 'others'].includes(typeParam)) {
       setTypeFilter(typeParam);
     } else {
+      // Default to showing all assets (no type filtering)
       setTypeFilter("all");
     }
     
-    if (categoryParam) {
+    // Only apply category filtering if a category parameter is explicitly provided
+    if (categoryParam && categoryParam.trim()) {
       setCategoryFilter(categoryParam);
     } else {
+      // Default to showing all categories
       setCategoryFilter("all");
     }
   }, [location]);
