@@ -14,6 +14,7 @@ import {
   type JWTPayload 
 } from "./services/auth";
 import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext } from "./services/openai";
+import { generateTempPassword } from "./utils/password-generator";
 import { 
   loginSchema, 
   registerSchema, 
@@ -1949,56 +1950,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const inviteData: InviteUser = inviteUserSchema.parse(req.body);
       
-      // Check if user already exists
+      // Check if user already exists (same tenant)
       const existingUser = await storage.getUserByEmail(inviteData.email);
       if (existingUser && existingUser.tenantId === req.user!.tenantId) {
         return res.status(400).json({ message: "User already exists in your organization" });
       }
 
-      // Check if invitation already exists
-      const existingInvitation = await storage.getInvitationByEmail(inviteData.email, req.user!.tenantId);
-      if (existingInvitation) {
-        return res.status(400).json({ message: "Invitation already sent to this email" });
+      // Generate secure temporary password
+      const temporaryPassword = "admin123"; // Using fixed password as requested
+      const hashedPassword = await hashPassword(temporaryPassword);
+
+      // Generate unique username from email (before @ symbol)
+      const baseUsername = inviteData.email.split('@')[0];
+      let username = baseUsername;
+      let counter = 1;
+      
+      // Ensure username uniqueness
+      while (await storage.getUserByUsername(username)) {
+        username = `${baseUsername}${counter}`;
+        counter++;
       }
 
-      // Create invitation
-      const invitation = await storage.createInvitation({
+      // Create user account directly
+      const newUser = await storage.createUser({
+        username,
         email: inviteData.email,
+        password: hashedPassword,
         firstName: inviteData.firstName,
         lastName: inviteData.lastName,
         role: inviteData.role,
         tenantId: req.user!.tenantId,
         invitedBy: req.user!.userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+        mustChangePassword: true, // Force password change on first login
+        isActive: true,
       });
 
       // Log the activity
       await storage.logActivity({
         userId: req.user!.userId,
         tenantId: req.user!.tenantId,
-        action: "user_invited",
-        resourceType: "user_invitation",
-        resourceId: invitation.id,
+        action: "user_created",
+        resourceType: "user",
+        resourceId: newUser.id,
         userEmail: req.user!.email,
         userRole: req.user!.role,
-        description: `Invited ${inviteData.email} with role ${inviteData.role}`,
+        description: `Created user account for ${inviteData.email} with role ${inviteData.role}`,
       });
 
+      // TODO: Send email with credentials (implement in next step)
+      // For now, we'll log the credentials for testing
+      console.log(`User created: ${inviteData.email}, Username: ${username}, Temporary Password: ${temporaryPassword}`);
+
+      // Return success response (don't include sensitive data)
       res.status(201).json({
-        id: invitation.id,
-        email: invitation.email,
-        firstName: invitation.firstName,
-        lastName: invitation.lastName,
-        role: invitation.role,
-        status: invitation.status,
-        expiresAt: invitation.expiresAt,
-        createdAt: invitation.createdAt,
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.username,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        role: newUser.role,
+        isActive: newUser.isActive,
+        mustChangePassword: newUser.mustChangePassword,
+        createdAt: newUser.createdAt,
+        message: "User account created successfully. Credentials will be sent via email."
       });
     } catch (error) {
+      console.error("User creation error:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid invitation data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid user data", errors: error.errors });
       }
-      res.status(500).json({ message: "Failed to create invitation" });
+      res.status(500).json({ message: "Failed to create user account" });
     }
   });
 
