@@ -16,6 +16,7 @@ import Software from "@/pages/software";
 import Settings from "@/pages/settings";
 import Users from "@/pages/users";
 import Tickets from "@/pages/tickets";
+import ActivityLogs from "@/pages/activity-logs";
 
 function Router() {
   return (
@@ -64,6 +65,11 @@ function Router() {
       <Route path="/users">
         <ProtectedRoute requiredRole="admin">
           <Users />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/activity-logs">
+        <ProtectedRoute requiredRole="admin">
+          <ActivityLogs />
         </ProtectedRoute>
       </Route>
       <Route component={NotFound} />
