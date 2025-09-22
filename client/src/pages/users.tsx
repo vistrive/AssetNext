@@ -32,7 +32,8 @@ import {
   XCircle,
   MoreHorizontal,
   Edit,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { inviteUserSchema, updateUserRoleSchema, type InviteUser, type UpdateUserRole } from "@shared/schema";
 
@@ -202,6 +203,32 @@ export default function Users() {
     },
   });
 
+  // Cancel invitation mutation
+  const cancelInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const response = await authenticatedRequest("DELETE", `/api/users/invitations/${invitationId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to cancel invitation");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/invitations"] });
+      toast({
+        title: "Invitation cancelled",
+        description: "The invitation has been cancelled successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to cancel invitation",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleInviteSubmit = (data: InviteUser) => {
     inviteUserMutation.mutate(data);
   };
@@ -224,6 +251,10 @@ export default function Users() {
     } else {
       activateUserMutation.mutate(user.id);
     }
+  };
+
+  const handleCancelInvitation = (invitationId: string) => {
+    cancelInvitationMutation.mutate(invitationId);
   };
 
   const getRoleBadgeVariant = (role: string) => {
@@ -636,6 +667,17 @@ export default function Users() {
                                 <Clock className="h-3 w-3 mr-1" />
                                 {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
                               </Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCancelInvitation(invitation.id)}
+                                disabled={cancelInvitationMutation.isPending}
+                                data-testid={`button-cancel-invitation-${invitation.id}`}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                                Cancel
+                              </Button>
                             </div>
                           </div>
                         </CardContent>
