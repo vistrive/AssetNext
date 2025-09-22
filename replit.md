@@ -12,6 +12,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**September 22, 2025**
+- **Enhanced Team Management with Direct User Creation**: Updated Team Management system to create user accounts directly instead of sending invitations
+  - **Auto-User Creation**: When admin creates a team member (name, email, role), system automatically creates user account with fixed password "admin123" (hashed server-side)
+  - **Security Features**: Added mustChangePassword field to users schema, forcing password change on first login
+  - **Duplicate Email Prevention**: Added comprehensive duplicate email checks within same tenant
+  - **Audit Logging**: All user creation actions are logged in Activity Logs system
+  - **Username Generation**: Automatically generates unique usernames from email addresses
+  - **Email Integration Note**: Outlook integration was dismissed - future email functionality will require manual SMTP configuration or alternative email service
+  - **Database Schema**: Added mustChangePassword boolean field to users table with proper migration
+
 **September 19, 2025**
 - **Enhanced Dashboard with Comprehensive Asset Category Tiles**: Implemented detailed tile-based dashboard replacing basic metrics grid
   - **Overview Cards**: Total Assets, Active Licenses, Compliance Score, Pending Actions with clickable navigation
