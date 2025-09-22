@@ -348,6 +348,12 @@ export const userInvitations = pgTable("user_invitations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Tenant Admin Lock - Sentinel table for atomic first admin creation
+export const tenantAdminLock = pgTable("tenant_admin_lock", {
+  tenantId: varchar("tenant_id").primaryKey(), // Unique constraint prevents race conditions
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Authentication schemas
 export const loginSchema = z.object({
   email: z.string().email(),

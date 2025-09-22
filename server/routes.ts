@@ -73,6 +73,20 @@ const requireRole = (role: string) => (req: Request, res: Response, next: Functi
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Development/maintenance route - Backfill admin locks
+  app.post("/api/dev/backfill-admin-locks", async (req: Request, res: Response) => {
+    try {
+      const result = await storage.backfillTenantAdminLocks();
+      res.json({
+        message: "Backfill completed",
+        result
+      });
+    } catch (error) {
+      console.error("Backfill error:", error);
+      res.status(500).json({ message: "Backfill failed", error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
@@ -131,31 +145,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Check if this is the first user in the organization
-      const existingUsers = await storage.getTenantUsers(tenant.id);
-      const isFirstUser = existingUsers.length === 0;
-      
-      // Create user with proper role assignment
+      // SECURITY RESTRICTION: Atomic first admin user creation to prevent race conditions
       const hashedPassword = await hashPassword(password);
-      let effectiveRole = role;
       
-      if (isFirstUser) {
-        // First user becomes admin regardless of selected role
-        effectiveRole = "admin";
-      } else {
-        // Restrict self-registration roles for security - only allow employee/technician
-        effectiveRole = role === "admin" || role === "manager" ? "employee" : role;
-      }
-      
-      const user = await storage.createUser({
+      const result = await storage.createFirstAdminUser({
         username: email,
         email,
         password: hashedPassword,
         firstName,
         lastName,
-        role: effectiveRole,
+        role: "admin", // Will be forced to admin by the method
         tenantId: tenant.id,
-      });
+      }, tenant.id);
+      
+      if (!result.success) {
+        if (result.alreadyExists) {
+          // Admin already exists - block direct signup and redirect to invitation flow
+          return res.status(403).json({ 
+            message: "Direct signup is not allowed for this organization",
+            code: "SIGNUP_RESTRICTED",
+            details: {
+              organizationName: tenant.name,
+              adminExists: true,
+              invitationRequired: true,
+              message: "An administrator already exists for this organization. Please contact your admin to receive an invitation, or check your email for an existing invitation."
+            }
+          });
+        } else {
+          // Unexpected error during first admin creation
+          return res.status(500).json({ 
+            message: "Unable to create account due to a server error. Please try again later.",
+            code: "SERVER_ERROR"
+          });
+        }
+      }
+      
+      const user = result.user!;
 
       const token = generateToken(user);
 
@@ -172,10 +197,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenant: { id: tenant.id, name: tenant.name },
         roleAssignment: {
           requested: role,
-          assigned: effectiveRole,
-          isFirstUser,
-          wasElevated: isFirstUser && role !== "admin",
-          wasDowngraded: !isFirstUser && (role === "admin" || role === "manager")
+          assigned: "admin",
+          isFirstUser: true,
+          wasElevated: role !== "admin",
+          wasDowngraded: false
         }
       });
     } catch (error) {

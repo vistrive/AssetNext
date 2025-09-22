@@ -71,10 +71,40 @@ export default function Login() {
         title: "Account created!",
         description,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      
+      // Handle restricted signup error specifically
+      if (error?.status === 403 && error?.data?.code === "SIGNUP_RESTRICTED") {
+        const details = error.data.details;
+        toast({
+          title: "Signup Restricted",
+          description: details.message || "An administrator already exists for this organization. Please contact your admin to receive an invitation.",
+          variant: "destructive",
+        });
+        
+        // Optionally show additional information about the organization
+        if (details.organizationName) {
+          setTimeout(() => {
+            toast({
+              title: `Organization: ${details.organizationName}`,
+              description: "Contact your administrator for access, or check your email for an existing invitation.",
+              variant: "default",
+            });
+          }, 2000);
+        }
+        return;
+      }
+      
+      // Handle other registration errors
+      let errorMessage = "Unable to create account. Please try again.";
+      if (error?.data?.message) {
+        errorMessage = error.data.message;
+      }
+      
       toast({
         title: "Registration failed",
-        description: "Unable to create account. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -94,7 +124,7 @@ export default function Login() {
           </CardTitle>
           {isRegistering && (
             <p className="text-sm text-muted-foreground mt-2">
-              Join your company or create a new one. First user becomes the administrator.
+              Create a new company account. Only one admin signup is allowed per company. Additional team members must be invited by the admin.
             </p>
           )}
         </CardHeader>

@@ -44,6 +44,7 @@ import {
   userPreferences,
   auditLogs,
   userInvitations,
+  tenantAdminLock,
   tickets,
   ticketComments,
   ticketActivities
@@ -64,6 +65,7 @@ export interface IStorage {
   
   // User Management
   getTenantUsers(tenantId: string): Promise<User[]>;
+  createFirstAdminUser(user: InsertUser, tenantId: string): Promise<{ success: boolean; user?: User; alreadyExists?: boolean }>;
   updateUserRole(userId: string, tenantId: string, role: UpdateUserRole): Promise<User | undefined>;
   deactivateUser(userId: string, tenantId: string): Promise<boolean>;
   activateUser(userId: string, tenantId: string): Promise<boolean>;
@@ -87,6 +89,9 @@ export interface IStorage {
   createTenant(tenant: InsertTenant): Promise<Tenant>;
   updateTenant(id: string, tenant: Partial<InsertTenant>): Promise<Tenant | undefined>;
   updateOrgSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined>;
+  
+  // Backfill admin locks for existing tenants
+  backfillTenantAdminLocks(): Promise<{ processed: number; locked: number; errors: number }>;
 
   // Assets
   getAllAssets(tenantId: string, filters?: { type?: string; status?: string; category?: string; search?: string }): Promise<Asset[]>;
@@ -204,6 +209,48 @@ export class DatabaseStorage implements IStorage {
   // User Management
   async getTenantUsers(tenantId: string): Promise<User[]> {
     return await db.select().from(users).where(eq(users.tenantId, tenantId));
+  }
+
+  async createFirstAdminUser(user: InsertUser, tenantId: string): Promise<{ success: boolean; user?: User; alreadyExists?: boolean }> {
+    try {
+      return await db.transaction(async (tx) => {
+        // Atomic first-admin protection: Try to claim the lock for this tenant
+        try {
+          await tx.insert(tenantAdminLock).values({ tenantId });
+        } catch (lockError: any) {
+          // If insert fails due to unique constraint violation, admin already exists
+          if (lockError.code === "23505" || lockError.message?.includes("UNIQUE constraint failed") || lockError.message?.includes("duplicate key")) {
+            return { 
+              success: false, 
+              alreadyExists: true 
+            };
+          }
+          // Re-throw unexpected errors
+          throw lockError;
+        }
+
+        // Successfully claimed the lock, now create the first admin user
+        const userData = {
+          ...user,
+          role: "admin", // Force admin role for first user
+          tenantId: tenantId,
+        };
+
+        const [newUser] = await tx.insert(users).values(userData).returning();
+        
+        return { 
+          success: true, 
+          user: newUser, 
+          alreadyExists: false 
+        };
+      });
+    } catch (error) {
+      console.error("Error creating first admin user:", error);
+      return { 
+        success: false, 
+        alreadyExists: false 
+      };
+    }
   }
 
   async updateUserRole(userId: string, tenantId: string, role: UpdateUserRole): Promise<User | undefined> {
@@ -368,6 +415,47 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tenants.id, tenantId))
       .returning();
     return updatedTenant || undefined;
+  }
+
+  async backfillTenantAdminLocks(): Promise<{ processed: number; locked: number; errors: number }> {
+    let processed = 0;
+    let locked = 0;
+    let errors = 0;
+
+    try {
+      // Get all tenants that have users
+      const tenantsWithUsers = await db
+        .select({ tenantId: users.tenantId })
+        .from(users)
+        .groupBy(users.tenantId);
+
+      console.log(`Found ${tenantsWithUsers.length} tenants with users to backfill`);
+
+      for (const tenant of tenantsWithUsers) {
+        processed++;
+        try {
+          // Try to insert admin lock (idempotent - ignore if already exists)
+          await db.insert(tenantAdminLock).values({ 
+            tenantId: tenant.tenantId 
+          });
+          locked++;
+          console.log(`Created admin lock for tenant: ${tenant.tenantId}`);
+        } catch (error: any) {
+          // Ignore unique constraint violations (lock already exists)
+          if (error.code === "23505" || error.message?.includes("UNIQUE constraint failed") || error.message?.includes("duplicate key")) {
+            console.log(`Admin lock already exists for tenant: ${tenant.tenantId}`);
+          } else {
+            errors++;
+            console.error(`Error creating admin lock for tenant ${tenant.tenantId}:`, error);
+          }
+        }
+      }
+
+      return { processed, locked, errors };
+    } catch (error) {
+      console.error("Error during tenant admin lock backfill:", error);
+      return { processed, locked, errors };
+    }
   }
 
   // Assets
