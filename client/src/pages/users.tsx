@@ -111,24 +111,25 @@ export default function Users() {
     },
   });
 
-  // Invite user mutation
+  // Create user mutation (previously invite user)
   const inviteUserMutation = useMutation({
     mutationFn: async (inviteData: InviteUser) => {
       const response = await authenticatedRequest("POST", "/api/users/invite", inviteData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/invitations"] });
       setIsInviteDialogOpen(false);
       inviteForm.reset();
       toast({
-        title: "Invitation sent",
-        description: "Team member invitation has been sent successfully.",
+        title: "User created successfully",
+        description: `Account created for ${data.email}. Login credentials will be provided separately.`,
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to send invitation",
+        title: "Failed to create user",
         description: error.message || "Please try again.",
         variant: "destructive",
       });
@@ -319,12 +320,12 @@ export default function Users() {
                 <DialogTrigger asChild>
                   <Button data-testid="button-invite-user">
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Invite Team Member
+                    Create Team Member
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Invite Team Member</DialogTitle>
+                    <DialogTitle>Create Team Member</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={inviteForm.handleSubmit(handleInviteSubmit)} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
