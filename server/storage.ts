@@ -268,6 +268,14 @@ export class DatabaseStorage implements IStorage {
     return updatedInvitation || undefined;
   }
 
+  async cancelInvitation(invitationId: string, tenantId: string): Promise<UserInvitation | undefined> {
+    const [deletedInvitation] = await db
+      .delete(userInvitations)
+      .where(and(eq(userInvitations.id, invitationId), eq(userInvitations.tenantId, tenantId)))
+      .returning();
+    return deletedInvitation || undefined;
+  }
+
   async acceptInvitation(token: string, password: string): Promise<{ user: User; invitation: UserInvitation } | undefined> {
     const invitation = await this.getInvitation(token);
     if (!invitation || invitation.status !== "pending" || invitation.expiresAt < new Date()) {
