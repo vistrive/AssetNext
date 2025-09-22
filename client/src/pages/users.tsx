@@ -242,7 +242,7 @@ export default function Users() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      const response = await authenticatedRequest("POST", "/api/users/bulk/validate", formData, true);
+      const response = await authenticatedRequest("POST", "/api/users/bulk/validate", formData);
       return response.json();
     },
     onSuccess: (data) => {
@@ -264,7 +264,7 @@ export default function Users() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('onlyValid', onlyValid.toString());
-      const response = await authenticatedRequest("POST", "/api/users/bulk/import", formData, true);
+      const response = await authenticatedRequest("POST", "/api/users/bulk/import", formData);
       return response.json();
     },
     onSuccess: (data) => {

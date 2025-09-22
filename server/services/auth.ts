@@ -56,11 +56,11 @@ export function checkPermission(userRole: string, requiredRole: string): boolean
   
   // Special case: Both super-admin and admin have identical privileges across all features
   // The only difference is in admin creation, which is handled by canAssignRole()
-  const normalizedUserRole = (migratedUserRole === ROLES.SUPER_ADMIN) ? ROLES.ADMIN : migratedUserRole;
-  const normalizedRequiredRole = (migratedRequiredRole === ROLES.SUPER_ADMIN) ? ROLES.ADMIN : migratedRequiredRole;
+  const normalizedUserRole = (migratedUserRole === ROLES.SUPER_ADMIN) ? ROLES.ADMIN : migratedUserRole as any;
+  const normalizedRequiredRole = (migratedRequiredRole === ROLES.SUPER_ADMIN) ? ROLES.ADMIN : migratedRequiredRole as any;
   
-  const userLevel = ROLE_HIERARCHY.indexOf(normalizedUserRole);
-  const requiredLevel = ROLE_HIERARCHY.indexOf(normalizedRequiredRole);
+  const userLevel = ROLE_HIERARCHY.indexOf(normalizedUserRole as any);
+  const requiredLevel = ROLE_HIERARCHY.indexOf(normalizedRequiredRole as any);
   
   // Security guard: reject unknown roles to prevent privilege escalation
   if (userLevel === -1 || requiredLevel === -1) {
@@ -89,12 +89,12 @@ export function canAssignRole(currentUserRole: string, targetRole: string): bool
   
   // Super admin can assign any role except super-admin (only one per tenant)
   if (migratedCurrentRole === ROLES.SUPER_ADMIN) {
-    return [ROLES.ADMIN, ROLES.IT_MANAGER, ROLES.TECHNICIAN].includes(migratedTargetRole);
+    return [ROLES.ADMIN, ROLES.IT_MANAGER, ROLES.TECHNICIAN].includes(migratedTargetRole as any);
   }
   
   // Admin can assign only IT Manager and Technician roles
   if (migratedCurrentRole === ROLES.ADMIN) {
-    return [ROLES.IT_MANAGER, ROLES.TECHNICIAN].includes(migratedTargetRole);
+    return [ROLES.IT_MANAGER, ROLES.TECHNICIAN].includes(migratedTargetRole as any);
   }
   
   // IT Managers and Technicians cannot assign roles
