@@ -1002,6 +1002,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return value;
   };
 
+  // Helper function to generate username from email
+  const generateUsername = (email: string): string => {
+    return email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  };
+
 
   // Download comprehensive CSV template with sample data
   app.get("/api/assets/bulk/template", authenticateToken, requireRole("manager"), (req: Request, res: Response) => {
@@ -2180,6 +2185,381 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "User activated successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to activate user" });
+    }
+  });
+
+  // Bulk User Upload Routes
+  // Download comprehensive CSV template with sample data
+  app.get("/api/users/bulk/template", authenticateToken, requireRole("admin"), (req: Request, res: Response) => {
+    const headers = [
+      'first_name',
+      'last_name',
+      'email',
+      'role',
+      'department',
+      'job_title'
+    ];
+
+    const sampleData = [
+      [
+        'John',
+        'Doe',
+        'john.doe@company.com',
+        'admin',
+        'IT Department',
+        'IT Manager'
+      ],
+      [
+        'Jane',
+        'Smith', 
+        'jane.smith@company.com',
+        'it-manager',
+        'IT Department',
+        'Senior Technician'
+      ],
+      [
+        'Mike',
+        'Johnson',
+        'mike.johnson@company.com',
+        'technician',
+        'IT Support',
+        'IT Technician'
+      ],
+      [
+        'Sarah',
+        'Williams',
+        'sarah.williams@company.com',
+        'employee',
+        'HR Department',
+        'HR Specialist'
+      ],
+      [
+        'David',
+        'Brown',
+        'david.brown@company.com',
+        'employee',
+        'Finance Department',
+        'Accountant'
+      ]
+    ];
+
+    // Sanitize all values for CSV safety
+    const sanitizedData = sampleData.map(row => 
+      row.map(cell => sanitizeCsvValue(cell.toString()))
+    );
+
+    // Generate CSV content
+    const csvContent = [headers, ...sanitizedData]
+      .map(row => row.map(field => `"${field.replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    // Set response headers for file download
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="users_template.csv"');
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    // Add UTF-8 BOM for better Excel compatibility
+    const bom = '\uFEFF';
+    res.send(bom + csvContent);
+  });
+
+  // Validate bulk user upload CSV file
+  app.post("/api/users/bulk/validate", authenticateToken, requireRole("admin"), upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const csvData = req.file.buffer.toString('utf-8');
+      const results: { data: any[], errors: any[], meta: any } = await new Promise((resolve, reject) => {
+        Papa.parse(csvData, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => header.toLowerCase().replace(/\s+/g, '_'),
+          complete: (results) => resolve(results),
+          error: (error) => reject(error)
+        });
+      });
+
+      const validUsers: any[] = [];
+      const errors: any[] = [];
+      const warnings: any[] = [];
+      const requiredFields = ['first_name', 'last_name', 'email', 'role'];
+      const validRoles = ['admin', 'it-manager', 'technician', 'employee'];
+
+      // Validate each row
+      for (let i = 0; i < results.data.length; i++) {
+        const row = results.data[i];
+        const rowNumber = i + 2; // +2 because index starts at 0 and we have header
+        let hasErrors = false;
+
+        // Check required fields
+        for (const field of requiredFields) {
+          if (!row[field] || row[field].toString().trim() === '') {
+            errors.push({
+              row: rowNumber,
+              field: field,
+              message: `${field.replace('_', ' ')} is required`
+            });
+            hasErrors = true;
+          }
+        }
+
+        if (!hasErrors) {
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(row.email)) {
+            errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: 'Invalid email format'
+            });
+            hasErrors = true;
+          }
+
+          // Validate role
+          if (!validRoles.includes(row.role.toLowerCase())) {
+            errors.push({
+              row: rowNumber,
+              field: 'role',
+              message: `Invalid role. Must be one of: ${validRoles.join(', ')}`
+            });
+            hasErrors = true;
+          }
+
+          // Check for duplicate emails in the file
+          const duplicateInFile = validUsers.find(user => user.email.toLowerCase() === row.email.toLowerCase());
+          if (duplicateInFile) {
+            errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: 'Duplicate email found in file'
+            });
+            hasErrors = true;
+          }
+
+          // Check if email already exists in database
+          try {
+            const existingUser = await storage.getUserByEmail(row.email, req.user!.tenantId);
+            if (existingUser) {
+              warnings.push({
+                row: rowNumber,
+                field: 'email',
+                message: 'User with this email already exists and will be skipped'
+              });
+            }
+          } catch (error) {
+            // User doesn't exist, which is good
+          }
+        }
+
+        if (!hasErrors) {
+          validUsers.push({
+            firstName: row.first_name.trim(),
+            lastName: row.last_name.trim(),
+            email: row.email.trim().toLowerCase(),
+            role: row.role.toLowerCase(),
+            department: row.department ? row.department.trim() : null,
+            jobTitle: row.job_title ? row.job_title.trim() : null,
+            rowNumber
+          });
+        }
+      }
+
+      res.json({
+        totalRows: results.data.length,
+        validCount: validUsers.length,
+        errorCount: errors.length,
+        warningCount: warnings.length,
+        errors,
+        warnings,
+        validUsers: validUsers.slice(0, 5) // Only send first 5 for preview
+      });
+
+    } catch (error) {
+      console.error('Bulk upload validation error:', error);
+      res.status(500).json({ message: 'Failed to validate file' });
+    }
+  });
+
+  // Import bulk users from validated CSV
+  app.post("/api/users/bulk/import", authenticateToken, requireRole("admin"), upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const onlyValid = req.body.onlyValid === 'true';
+      const csvData = req.file.buffer.toString('utf-8');
+      
+      const results: { data: any[], errors: any[], meta: any } = await new Promise((resolve, reject) => {
+        Papa.parse(csvData, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => header.toLowerCase().replace(/\s+/g, '_'),
+          complete: (results) => resolve(results),
+          error: (error) => reject(error)
+        });
+      });
+
+      const usersToCreate: any[] = [];
+      const errors: any[] = [];
+      const skipped: any[] = [];
+      const requiredFields = ['first_name', 'last_name', 'email', 'role'];
+      const validRoles = ['admin', 'it-manager', 'technician', 'employee'];
+
+      // Validate and prepare users for creation
+      for (let i = 0; i < results.data.length; i++) {
+        const row = results.data[i];
+        const rowNumber = i + 2;
+        let hasErrors = false;
+
+        // Check required fields
+        for (const field of requiredFields) {
+          if (!row[field] || row[field].toString().trim() === '') {
+            if (!onlyValid) {
+              errors.push({
+                row: rowNumber,
+                message: `${field.replace('_', ' ')} is required`
+              });
+            }
+            hasErrors = true;
+            break;
+          }
+        }
+
+        if (!hasErrors) {
+          // Validate email and role
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(row.email) || !validRoles.includes(row.role.toLowerCase())) {
+            if (!onlyValid) {
+              errors.push({
+                row: rowNumber,
+                message: 'Invalid email or role format'
+              });
+            }
+            hasErrors = true;
+          }
+
+          // Check if user already exists
+          try {
+            const existingUser = await storage.getUserByEmail(row.email, req.user!.tenantId);
+            if (existingUser) {
+              skipped.push({
+                row: rowNumber,
+                email: row.email,
+                message: 'User already exists'
+              });
+              hasErrors = true;
+            }
+          } catch (error) {
+            // User doesn't exist, continue
+          }
+        }
+
+        if (!hasErrors) {
+          usersToCreate.push({
+            firstName: row.first_name.trim(),
+            lastName: row.last_name.trim(),
+            email: row.email.trim().toLowerCase(),
+            role: row.role.toLowerCase(),
+            department: row.department ? row.department.trim() : null,
+            jobTitle: row.job_title ? row.job_title.trim() : null,
+            rowNumber
+          });
+        }
+      }
+
+      // If not onlyValid mode and there are errors, return error
+      if (!onlyValid && errors.length > 0) {
+        return res.status(400).json({
+          message: 'Validation errors found. Please fix them or import valid users only.',
+          errors,
+          totalRows: results.data.length,
+          validCount: usersToCreate.length,
+          errorCount: errors.length,
+          skippedCount: skipped.length
+        });
+      }
+
+      // Create users
+      const createdUsers: any[] = [];
+      const createErrors: any[] = [];
+
+      for (const userData of usersToCreate) {
+        try {
+          const username = generateUsername(userData.email);
+          const hashedPassword = await bcrypt.hash('admin123', 10);
+
+          const newUser = await storage.createUser({
+            email: userData.email,
+            password: hashedPassword,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            role: userData.role as any,
+            username: username,
+            isActive: true,
+            mustChangePassword: true,
+            tenantId: req.user!.tenantId,
+            department: userData.department,
+            jobTitle: userData.jobTitle
+          });
+
+          createdUsers.push({
+            id: newUser.id,
+            email: newUser.email,
+            firstName: newUser.firstName,
+            lastName: newUser.lastName,
+            role: newUser.role,
+            rowNumber: userData.rowNumber
+          });
+
+          // Log user creation in audit log
+          await auditLogger.log({
+            tenantId: req.user!.tenantId,
+            action: 'bulk_user_created',
+            resourceType: 'user',
+            resourceId: newUser.id,
+            userId: req.user!.userId,
+            userEmail: req.user!.email,
+            userRole: req.user!.role,
+            description: `Bulk created user account for ${newUser.email} with role ${newUser.role}`,
+          });
+
+        } catch (error) {
+          console.error(`Error creating user for row ${userData.rowNumber}:`, error);
+          createErrors.push({
+            row: userData.rowNumber,
+            email: userData.email,
+            message: 'Failed to create user account'
+          });
+        }
+      }
+
+      // Log bulk import action
+      await auditLogger.log({
+        tenantId: req.user!.tenantId,
+        action: 'bulk_user_import',
+        resourceType: 'user',
+        userId: req.user!.userId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Bulk imported ${createdUsers.length} users from CSV file`,
+      });
+
+      res.json({
+        message: 'Bulk import completed',
+        imported: createdUsers.length,
+        errors: createErrors.length,
+        skipped: skipped.length,
+        createdUsers: createdUsers,
+        createErrors,
+        skipped
+      });
+
+    } catch (error) {
+      console.error('Bulk import error:', error);
+      res.status(500).json({ message: 'Failed to import users' });
     }
   });
 
