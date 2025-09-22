@@ -77,7 +77,6 @@ const navigation = [
       },
     ]
   },
-  { name: "AI Recommendations", href: "/recommendations", icon: Bot, requiredRole: "it-manager" },
   { name: "Team Management", href: "/users", icon: Users, requiredRole: "admin" },
   { name: "Activity Logs", href: "/activity-logs", icon: FileText, requiredRole: "admin" },
   { name: "Settings", href: "/settings", icon: Settings },

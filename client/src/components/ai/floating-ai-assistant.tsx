@@ -32,8 +32,8 @@ export function FloatingAIAssistant() {
     localStorage.setItem('ai-assistant-position', positionOffset.toString());
   }, [positionOffset]);
 
-  // Only show to admin users
-  if (!user || user.role !== "admin") {
+  // Only show to admin-level users (admin and super-admin)
+  if (!user || (user.role !== "admin" && user.role !== "super-admin")) {
     return null;
   }
 
