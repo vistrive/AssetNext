@@ -18,7 +18,7 @@ import {
 import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext } from "./services/openai";
 import { generateTempPassword } from "./utils/password-generator";
 import { sendEmail, generateSecurePassword, createWelcomeEmailTemplate } from "./services/email";
-import { processEmailToTicket, validateEmailData } from "./services/email-to-ticket";
+import { processEmailToTicket, validateEmailData, validateWebhookAuth } from "./services/email-to-ticket";
 import { 
   loginSchema, 
   registerSchema, 
@@ -3133,6 +3133,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         to: req.body.to,
         subject: req.body.subject
       });
+      
+      // Basic webhook validation
+      if (!validateWebhookAuth(req)) {
+        console.warn("Unauthorized webhook request blocked");
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       // Validate email data
       const emailData = validateEmailData(req.body);

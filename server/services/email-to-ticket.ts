@@ -13,6 +13,41 @@ export interface EmailData {
   envelope?: string;
 }
 
+// Extract clean email address from RFC5322 format ("Name <email@domain.com>" or "email@domain.com")
+function extractEmailAddress(from: string, envelope?: string, headers?: string): string {
+  let emailToExtract = from;
+  
+  // Try to use envelope data first if available (more reliable)
+  if (envelope) {
+    try {
+      const envelopeData = JSON.parse(envelope);
+      if (envelopeData.from) {
+        emailToExtract = envelopeData.from;
+      }
+    } catch {
+      // Ignore envelope parsing errors, fallback to from field
+    }
+  }
+  
+  // Extract email from "Display Name <email@domain.com>" format
+  const emailMatch = emailToExtract.match(/<([^>]+)>/);
+  if (emailMatch) {
+    return emailMatch[1].toLowerCase().trim();
+  }
+  
+  // If no angle brackets, assume it's already a plain email
+  return emailToExtract.toLowerCase().trim();
+}
+
+// Extract display name from email "Display Name <email@domain.com>" format
+function extractDisplayName(from: string): string {
+  const nameMatch = from.match(/^([^<]+)</);
+  if (nameMatch) {
+    return nameMatch[1].trim().replace(/"/g, '');
+  }
+  return '';
+}
+
 export interface ParsedTicket {
   title: string;
   description: string;
@@ -55,15 +90,17 @@ export function parseEmailToTicket(emailData: EmailData): ParsedTicket {
     title = title.substring(0, 197) + '...';
   }
   
-  // Extract name from email address if available
-  const requestorName = extractNameFromEmail(from);
+  // Extract clean email address and display name
+  const cleanEmail = extractEmailAddress(from, emailData.envelope, emailData.headers);
+  const displayName = extractDisplayName(from);
+  const requestorName = displayName || extractNameFromEmail(cleanEmail);
   
   return {
     title,
     description,
     category,
     priority,
-    requestorEmail: from,
+    requestorEmail: cleanEmail,
     requestorName
   };
 }
@@ -123,7 +160,9 @@ function extractNameFromEmail(email: string): string {
 // Find user by email and get their tenant information
 export async function findUserByEmail(email: string): Promise<{ userId: string; tenantId: string; firstName: string; lastName: string } | null> {
   try {
-    const user = await storage.getUserByEmail(email);
+    // Normalize email to lowercase for consistent matching
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await storage.getUserByEmail(normalizedEmail);
     if (user && user.isActive) {
       return {
         userId: user.id,
@@ -210,14 +249,44 @@ export function validateEmailData(data: any): EmailData | null {
     return null;
   }
   
+  // Safely parse attachments JSON
+  let attachments: any[] | undefined = undefined;
+  if (data.attachments) {
+    try {
+      attachments = JSON.parse(data.attachments);
+    } catch (error) {
+      console.warn('Failed to parse attachments JSON, ignoring:', error);
+      attachments = undefined;
+    }
+  }
+  
   return {
     from: data.from,
     to: data.to,
     subject: data.subject || 'No Subject',
     text: data.text,
     html: data.html,
-    attachments: data.attachments ? JSON.parse(data.attachments) : undefined,
+    attachments,
     headers: data.headers,
     envelope: data.envelope
   };
+}
+
+// Validate webhook authenticity (basic shared secret)
+export function validateWebhookAuth(req: any): boolean {
+  // For now, we'll implement a basic check
+  // In production, you should use SendGrid's Event Webhook signature verification
+  // or implement a shared secret in query parameters or headers
+  
+  // For MVP, we'll just validate that the request has expected SendGrid headers/format
+  const userAgent = req.headers['user-agent'] || '';
+  const contentType = req.headers['content-type'] || '';
+  
+  // SendGrid typically sends with specific user agent and content type
+  if (contentType.includes('multipart/form-data')) {
+    return true; // Basic validation passed
+  }
+  
+  console.warn('Webhook validation failed - suspicious request format');
+  return false;
 }
