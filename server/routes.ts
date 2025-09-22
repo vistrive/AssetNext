@@ -18,6 +18,7 @@ import {
 import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext } from "./services/openai";
 import { generateTempPassword } from "./utils/password-generator";
 import { sendEmail, generateSecurePassword, createWelcomeEmailTemplate } from "./services/email";
+import { processEmailToTicket, validateEmailData } from "./services/email-to-ticket";
 import { 
   loginSchema, 
   registerSchema, 
@@ -3121,6 +3122,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch ticket activities:", error);
       res.status(500).json({ message: "Failed to fetch ticket activities" });
+    }
+  });
+
+  // Email-to-ticket webhook endpoint (SendGrid Inbound Parse)
+  app.post("/api/webhook/email-to-ticket", upload.any(), async (req: Request, res: Response) => {
+    try {
+      console.log("Received email webhook:", {
+        from: req.body.from,
+        to: req.body.to,
+        subject: req.body.subject
+      });
+      
+      // Validate email data
+      const emailData = validateEmailData(req.body);
+      if (!emailData) {
+        console.error("Invalid email data received");
+        return res.status(400).json({ message: "Invalid email data" });
+      }
+      
+      // Process email to create ticket
+      const result = await processEmailToTicket(emailData);
+      
+      if (result.success) {
+        console.log(`Successfully created ticket ${result.ticketId} from email`);
+        res.status(200).json({ 
+          message: "Ticket created successfully",
+          ticketId: result.ticketId 
+        });
+      } else {
+        console.warn(`Failed to create ticket from email: ${result.error}`);
+        // Still return 200 to prevent SendGrid retries for user errors
+        res.status(200).json({ 
+          message: "Email received but ticket creation failed",
+          error: result.error 
+        });
+      }
+      
+    } catch (error) {
+      console.error("Error processing email webhook:", error);
+      // Return 500 to trigger SendGrid retry for system errors
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
