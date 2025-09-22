@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
   requiredRole?: string;
 }
 
-const roleHierarchy = ["employee", "technician", "manager", "admin"];
+const roleHierarchy = ["technician", "it-manager", "admin", "super-admin"];
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -36,7 +36,13 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     const userRoleIndex = roleHierarchy.indexOf(user.role);
     const requiredRoleIndex = roleHierarchy.indexOf(requiredRole);
     
-    if (userRoleIndex < requiredRoleIndex) {
+    // Both super-admin and admin should have access to admin-required routes
+    const hasAdminAccess = user.role === "super-admin" || user.role === "admin";
+    const isAdminRequired = requiredRole === "admin";
+    
+    if (isAdminRequired && hasAdminAccess) {
+      // Allow access for both super-admin and admin
+    } else if (userRoleIndex < requiredRoleIndex) {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
