@@ -2271,14 +2271,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const csvData = req.file.buffer.toString('utf-8');
-      const results: { data: any[], errors: any[], meta: any } = await new Promise((resolve, reject) => {
-        Papa.parse(csvData, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header) => header.toLowerCase().replace(/\s+/g, '_'),
-          complete: (results) => resolve(results),
-          error: (error) => reject(error)
+      const records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true
+      });
+      
+      // Transform headers to lowercase with underscores
+      const results = records.map((record: any) => {
+        const transformedRecord: any = {};
+        Object.keys(record).forEach(key => {
+          const transformedKey = key.toLowerCase().replace(/\s+/g, '_');
+          transformedRecord[transformedKey] = record[key];
         });
+        return transformedRecord;
       });
 
       const validUsers: any[] = [];
@@ -2288,8 +2294,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validRoles = ['admin', 'it-manager', 'technician', 'employee'];
 
       // Validate each row
-      for (let i = 0; i < results.data.length; i++) {
-        const row = results.data[i];
+      for (let i = 0; i < results.length; i++) {
+        const row = results[i];
         const rowNumber = i + 2; // +2 because index starts at 0 and we have header
         let hasErrors = false;
 
@@ -2367,7 +2373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({
-        totalRows: results.data.length,
+        totalRows: results.length,
         validCount: validUsers.length,
         errorCount: errors.length,
         warningCount: warnings.length,
@@ -2391,15 +2397,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const onlyValid = req.body.onlyValid === 'true';
       const csvData = req.file.buffer.toString('utf-8');
+      const records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true
+      });
       
-      const results: { data: any[], errors: any[], meta: any } = await new Promise((resolve, reject) => {
-        Papa.parse(csvData, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header) => header.toLowerCase().replace(/\s+/g, '_'),
-          complete: (results) => resolve(results),
-          error: (error) => reject(error)
+      // Transform headers to lowercase with underscores
+      const results = records.map((record: any) => {
+        const transformedRecord: any = {};
+        Object.keys(record).forEach(key => {
+          const transformedKey = key.toLowerCase().replace(/\s+/g, '_');
+          transformedRecord[transformedKey] = record[key];
         });
+        return transformedRecord;
       });
 
       const usersToCreate: any[] = [];
@@ -2409,8 +2420,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validRoles = ['admin', 'it-manager', 'technician', 'employee'];
 
       // Validate and prepare users for creation
-      for (let i = 0; i < results.data.length; i++) {
-        const row = results.data[i];
+      for (let i = 0; i < results.length; i++) {
+        const row = results[i];
         const rowNumber = i + 2;
         let hasErrors = false;
 
@@ -2475,7 +2486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({
           message: 'Validation errors found. Please fix them or import valid users only.',
           errors,
-          totalRows: results.data.length,
+          totalRows: results.length,
           validCount: usersToCreate.length,
           errorCount: errors.length,
           skippedCount: skipped.length
@@ -2489,7 +2500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const userData of usersToCreate) {
         try {
           const username = generateUsername(userData.email);
-          const hashedPassword = await bcrypt.hash('admin123', 10);
+          const hashedPassword = await hashPassword('admin123');
 
           const newUser = await storage.createUser({
             email: userData.email,
@@ -2515,7 +2526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           // Log user creation in audit log
-          await auditLogger.log({
+          await storage.logActivity({
             tenantId: req.user!.tenantId,
             action: 'bulk_user_created',
             resourceType: 'user',
@@ -2537,7 +2548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Log bulk import action
-      await auditLogger.log({
+      await storage.logActivity({
         tenantId: req.user!.tenantId,
         action: 'bulk_user_import',
         resourceType: 'user',
