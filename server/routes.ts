@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { auditLogger, AuditActions, ResourceTypes } from "./audit-logger";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
@@ -94,16 +95,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        // Log failed login attempt
+        await auditLogger.logAuthActivity(
+          AuditActions.LOGIN,
+          email,
+          null, // Don't know tenant yet
+          req,
+          false,
+          { reason: "user_not_found" }
+        );
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isValidPassword = await comparePassword(password, user.password);
       if (!isValidPassword) {
+        // Log failed login attempt with known user
+        await auditLogger.logAuthActivity(
+          AuditActions.LOGIN,
+          email,
+          user.tenantId,
+          req,
+          false,
+          { reason: "invalid_password" },
+          user.id,
+          user.role
+        );
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const token = generateToken(user);
       const tenant = await storage.getTenant(user.tenantId);
+
+      // Log successful login
+      await auditLogger.logAuthActivity(
+        AuditActions.LOGIN,
+        email,
+        user.tenantId,
+        req,
+        true,
+        { 
+          tenantName: tenant?.name 
+        },
+        user.id,
+        user.role
+      );
 
       res.json({
         token,
@@ -118,6 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenant: tenant ? { id: tenant.id, name: tenant.name } : null,
       });
     } catch (error) {
+      console.error("Login error:", error);
       res.status(400).json({ message: "Invalid request data" });
     }
   });
@@ -160,6 +196,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!result.success) {
         if (result.alreadyExists) {
+          // Log failed signup attempt - admin already exists
+          await auditLogger.logAuthActivity(
+            AuditActions.SIGNUP,
+            email,
+            tenant.id,
+            req,
+            false,
+            { 
+              reason: "admin_already_exists", 
+              tenantName: tenant.name,
+              attemptedRole: "admin"
+            }
+          );
+          
           // Admin already exists - block direct signup and redirect to invitation flow
           return res.status(403).json({ 
             message: "Direct signup is not allowed for this organization",
@@ -172,6 +222,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
         } else {
+          // Log failed signup attempt - server error
+          await auditLogger.logAuthActivity(
+            AuditActions.SIGNUP,
+            email,
+            tenant.id,
+            req,
+            false,
+            { reason: "server_error", tenantName: tenant.name }
+          );
+          
           // Unexpected error during first admin creation
           return res.status(500).json({ 
             message: "Unable to create account due to a server error. Please try again later.",
@@ -181,6 +241,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const user = result.user!;
+
+      // Log successful signup
+      await auditLogger.logAuthActivity(
+        AuditActions.SIGNUP,
+        email,
+        tenant.id,
+        req,
+        true,
+        { 
+          tenantName: tenant.name,
+          isFirstAdmin: true
+        },
+        user.id,
+        user.role
+      );
 
       const token = generateToken(user);
 
@@ -817,14 +892,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const asset = await storage.createAsset(assetData);
+      
+      // Log asset creation
+      await auditLogger.logActivity(
+        auditLogger.createUserContext(req),
+        {
+          action: AuditActions.ASSET_CREATE,
+          resourceType: ResourceTypes.ASSET,
+          resourceId: asset.id,
+          description: `Created asset: ${asset.name} (${asset.assetTag})`,
+          afterState: auditLogger.sanitizeForLogging(asset)
+        },
+        req
+      );
+      
       res.status(201).json(asset);
     } catch (error) {
+      console.error("Asset creation error:", error);
       res.status(400).json({ message: "Invalid asset data" });
     }
   });
 
   app.put("/api/assets/:id", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {
+      // Get original asset for audit logging
+      const originalAsset = await storage.getAsset(req.params.id, req.user!.tenantId);
+      
       const assetData = insertAssetSchema.partial().parse(req.body);
       const asset = await storage.updateAsset(req.params.id, req.user!.tenantId, assetData);
       
@@ -832,20 +925,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Asset not found" });
       }
       
+      // Log asset update
+      await auditLogger.logActivity(
+        auditLogger.createUserContext(req),
+        {
+          action: AuditActions.ASSET_UPDATE,
+          resourceType: ResourceTypes.ASSET,
+          resourceId: asset.id,
+          description: `Updated asset: ${asset.name} (${asset.assetTag})`,
+          beforeState: originalAsset ? auditLogger.sanitizeForLogging(originalAsset) : null,
+          afterState: auditLogger.sanitizeForLogging(asset)
+        },
+        req
+      );
+      
       res.json(asset);
     } catch (error) {
+      console.error("Asset update error:", error);
       res.status(400).json({ message: "Invalid asset data" });
     }
   });
 
   app.delete("/api/assets/:id", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
     try {
+      // Get asset before deletion for audit logging
+      const asset = await storage.getAsset(req.params.id, req.user!.tenantId);
+      
       const deleted = await storage.deleteAsset(req.params.id, req.user!.tenantId);
       if (!deleted) {
         return res.status(404).json({ message: "Asset not found" });
       }
+      
+      // Log asset deletion
+      if (asset) {
+        await auditLogger.logActivity(
+          auditLogger.createUserContext(req),
+          {
+            action: AuditActions.ASSET_DELETE,
+            resourceType: ResourceTypes.ASSET,
+            resourceId: req.params.id,
+            description: `Deleted asset: ${asset.name} (${asset.assetTag})`,
+            beforeState: auditLogger.sanitizeForLogging(asset)
+          },
+          req
+        );
+      }
+      
       res.status(204).send();
     } catch (error) {
+      console.error("Asset deletion error:", error);
       res.status(500).json({ message: "Failed to delete asset" });
     }
   });
@@ -1504,9 +1632,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const license = await storage.createSoftwareLicense(licenseData);
+      
+      // Log license creation
+      await auditLogger.logActivity(
+        auditLogger.createUserContext(req),
+        {
+          action: AuditActions.LICENSE_CREATE,
+          resourceType: ResourceTypes.LICENSE,
+          resourceId: license.id,
+          description: `Created software license: ${license.softwareName} (${license.licenseType})`,
+          afterState: auditLogger.sanitizeForLogging(license)
+        },
+        req
+      );
+      
       res.status(201).json(license);
     } catch (error) {
+      console.error("License creation error:", error);
       res.status(400).json({ message: "Invalid license data" });
+    }
+  });
+
+  // Audit Logs routes
+  app.get("/api/audit-logs", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const { 
+        action, 
+        resourceType, 
+        userId, 
+        limit = "100", 
+        offset = "0",
+        startDate,
+        endDate 
+      } = req.query;
+
+      // Get basic audit logs
+      let logs = await storage.getAuditLogs(req.user!.tenantId);
+
+      // Apply filters
+      if (action) {
+        logs = logs.filter(log => log.action === action);
+      }
+      if (resourceType) {
+        logs = logs.filter(log => log.resourceType === resourceType);
+      }
+      if (userId) {
+        logs = logs.filter(log => log.userId === userId);
+      }
+      if (startDate) {
+        const start = new Date(startDate as string);
+        logs = logs.filter(log => log.createdAt >= start);
+      }
+      if (endDate) {
+        const end = new Date(endDate as string);
+        logs = logs.filter(log => log.createdAt <= end);
+      }
+
+      // Apply pagination
+      const limitNum = Math.min(parseInt(limit as string) || 100, 1000); // Max 1000
+      const offsetNum = parseInt(offset as string) || 0;
+      const paginatedLogs = logs.slice(offsetNum, offsetNum + limitNum);
+
+      // Log the audit log viewing activity
+      await auditLogger.logActivity(
+        auditLogger.createUserContext(req),
+        {
+          action: "audit_logs_viewed",
+          resourceType: "audit_log",
+          description: `Viewed audit logs with filters: ${JSON.stringify({ action, resourceType, userId, startDate, endDate })}`,
+          metadata: { 
+            resultCount: paginatedLogs.length,
+            totalCount: logs.length,
+            filters: { action, resourceType, userId, startDate, endDate }
+          }
+        },
+        req
+      );
+
+      res.json({
+        logs: paginatedLogs,
+        pagination: {
+          total: logs.length,
+          limit: limitNum,
+          offset: offsetNum,
+          hasMore: offsetNum + limitNum < logs.length
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
+    }
+  });
+
+  // Get audit log statistics
+  app.get("/api/audit-logs/stats", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const logs = await storage.getAuditLogs(req.user!.tenantId);
+      
+      // Calculate statistics
+      const stats = {
+        totalLogs: logs.length,
+        actionBreakdown: logs.reduce((acc, log) => {
+          acc[log.action] = (acc[log.action] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        resourceTypeBreakdown: logs.reduce((acc, log) => {
+          acc[log.resourceType] = (acc[log.resourceType] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        userActivityBreakdown: logs.reduce((acc, log) => {
+          const userKey = `${log.userEmail} (${log.userRole})`;
+          acc[userKey] = (acc[userKey] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        recentActivity: logs.slice(0, 10), // Last 10 activities
+        dailyActivity: logs.reduce((acc, log) => {
+          const date = log.createdAt.toISOString().split('T')[0];
+          acc[date] = (acc[date] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>)
+      };
+
+      // Log the statistics viewing
+      await auditLogger.logActivity(
+        auditLogger.createUserContext(req),
+        {
+          action: "audit_stats_viewed",
+          resourceType: "audit_log",
+          description: "Viewed audit log statistics",
+          metadata: { statsGenerated: true, totalLogs: stats.totalLogs }
+        },
+        req
+      );
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error generating audit log stats:", error);
+      res.status(500).json({ message: "Failed to generate audit log statistics" });
     }
   });
 
