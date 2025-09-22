@@ -10,7 +10,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
-  role: text("role").notNull().default("employee"), // admin, manager, technician, employee
+  role: text("role").notNull().default("technician"), // super-admin, admin, it-manager, technician
   avatar: text("avatar"), // URL to profile picture
   phone: text("phone"),
   department: text("department"),
@@ -338,7 +338,7 @@ export const userInvitations = pgTable("user_invitations", {
   email: text("email").notNull(),
   firstName: text("first_name"),
   lastName: text("last_name"),
-  role: text("role").notNull().default("employee"), // admin, manager, technician, employee
+  role: text("role").notNull().default("technician"), // super-admin, admin, it-manager, technician
   tenantId: varchar("tenant_id").notNull(),
   invitedBy: varchar("invited_by").notNull(),
   token: text("token").notNull().unique(), // Invitation token
@@ -445,7 +445,7 @@ export const inviteUserSchema = z.object({
   email: z.string().email("Valid email address is required"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  role: z.enum(["employee", "technician", "manager", "admin"]),
+  role: z.enum(["technician", "it-manager", "admin"]), // super-admin excluded from invitations
 });
 
 export const acceptInvitationSchema = z.object({
@@ -454,7 +454,7 @@ export const acceptInvitationSchema = z.object({
 });
 
 export const updateUserRoleSchema = z.object({
-  role: z.enum(["employee", "technician", "manager", "admin"]),
+  role: z.enum(["technician", "it-manager", "admin", "super-admin"]),
 });
 
 export const insertUserInvitationSchema = createInsertSchema(userInvitations).omit({
