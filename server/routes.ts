@@ -1736,6 +1736,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel invitation
+  app.delete("/api/users/invitations/:id", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const invitationId = req.params.id;
+      
+      // Verify the invitation belongs to the admin's tenant
+      const cancelledInvitation = await storage.cancelInvitation(invitationId, req.user!.tenantId);
+      
+      if (!cancelledInvitation) {
+        return res.status(404).json({ message: "Invitation not found or already canceled" });
+      }
+
+      // Log the activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "invitation_cancelled",
+        resourceType: "user_invitation",
+        resourceId: cancelledInvitation.id,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Cancelled invitation for ${cancelledInvitation.email}`,
+      });
+
+      res.json({ 
+        message: "Invitation cancelled successfully",
+        invitation: {
+          id: cancelledInvitation.id,
+          email: cancelledInvitation.email,
+          firstName: cancelledInvitation.firstName,
+          lastName: cancelledInvitation.lastName,
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to cancel invitation" });
+    }
+  });
+
   app.patch("/api/users/:userId/role", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
     try {
       const userId = req.params.userId;
