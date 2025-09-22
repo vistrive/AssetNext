@@ -118,13 +118,12 @@ export default function Assets() {
   }, [searchTerm]);
 
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter, debouncedSearchTerm],
+    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter !== "all") params.append("category", categoryFilter);
-      if (debouncedSearchTerm.trim()) params.append("search", debouncedSearchTerm.trim());
       
       const response = await authenticatedRequest("GET", `/api/assets?${params}`);
       return response.json();
@@ -448,8 +447,38 @@ export default function Assets() {
     }
   };
 
-  // Assets are already filtered by the backend with real-time search
-  const filteredAssets = assets;
+  // Apply client-side search filter across all columns
+  const filteredAssets = useMemo(() => {
+    if (!debouncedSearchTerm.trim()) {
+      return assets;
+    }
+
+    const searchTerm = debouncedSearchTerm.toLowerCase();
+    return assets.filter((asset: Asset) => {
+      // Search across all visible columns in the table
+      const searchableFields = [
+        asset.name,
+        asset.serialNumber,
+        asset.manufacturer,
+        asset.model,
+        asset.type,
+        asset.status,
+        asset.vendorName,
+        asset.vendorEmail,
+        asset.vendorPhone,
+        asset.companyName,
+        asset.companyGstNumber,
+        asset.location,
+        asset.assignedUserName,
+        asset.purchaseCost?.toString()
+      ];
+
+      // Check if any field contains the search term
+      return searchableFields.some(field => 
+        field && field.toLowerCase().includes(searchTerm)
+      );
+    });
+  }, [assets, debouncedSearchTerm]);
 
   if (isLoading) {
     return (
