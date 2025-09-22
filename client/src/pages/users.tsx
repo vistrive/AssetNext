@@ -33,7 +33,10 @@ import {
   MoreHorizontal,
   Edit,
   Trash2,
-  X
+  X,
+  Upload,
+  Download,
+  FileSpreadsheet
 } from "lucide-react";
 import { inviteUserSchema, updateUserRoleSchema, type InviteUser, type UpdateUserRole } from "@shared/schema";
 
@@ -70,6 +73,10 @@ export default function Users() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadResults, setUploadResults] = useState<any>(null);
+  const [isValidating, setIsValidating] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -230,6 +237,56 @@ export default function Users() {
     },
   });
 
+  // Bulk upload mutations
+  const validateBulkUploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await authenticatedRequest("POST", "/api/users/bulk/validate", formData, true);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setUploadResults(data);
+      setIsValidating(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Validation failed",
+        description: error.message || "Failed to validate CSV file",
+        variant: "destructive",
+      });
+      setIsValidating(false);
+    },
+  });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: async ({ file, onlyValid }: { file: File; onlyValid: boolean }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('onlyValid', onlyValid.toString());
+      const response = await authenticatedRequest("POST", "/api/users/bulk/import", formData, true);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/invitations"] });
+      setIsBulkUploadOpen(false);
+      setUploadFile(null);
+      setUploadResults(null);
+      toast({
+        title: "Users imported successfully",
+        description: `${data.imported} user(s) have been created successfully.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Import failed",
+        description: error.message || "Failed to import users",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleInviteSubmit = (data: InviteUser) => {
     inviteUserMutation.mutate(data);
   };
@@ -256,6 +313,70 @@ export default function Users() {
 
   const handleCancelInvitation = (invitationId: string) => {
     cancelInvitationMutation.mutate(invitationId);
+  };
+
+  // Bulk upload helper functions
+  const downloadTemplate = async () => {
+    try {
+      const response = await authenticatedRequest("GET", "/api/users/bulk/template");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'users_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({
+        title: "Template downloaded",
+        description: "Users template has been downloaded successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download failed",
+        description: error.message || "Failed to download template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({
+          title: "File too large",
+          description: "Please select a file smaller than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select a CSV file",
+          variant: "destructive",
+        });
+        return;
+      }
+      setUploadFile(file);
+      setUploadResults(null);
+    }
+  };
+
+  const handleValidateFile = () => {
+    if (uploadFile) {
+      setIsValidating(true);
+      validateBulkUploadMutation.mutate(uploadFile);
+    }
+  };
+
+  const handleBulkImport = (onlyValid: boolean) => {
+    if (uploadFile) {
+      bulkImportMutation.mutate({ file: uploadFile, onlyValid });
+    }
   };
 
   const getRoleBadgeVariant = (role: string) => {
@@ -316,13 +437,23 @@ export default function Users() {
                 </p>
               </div>
               
-              <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button data-testid="button-invite-user">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Create Team Member
-                  </Button>
-                </DialogTrigger>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  data-testid="button-bulk-upload-users"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Bulk Upload
+                </Button>
+                
+                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button data-testid="button-invite-user">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Create Team Member
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>Create Team Member</DialogTitle>
@@ -418,6 +549,7 @@ export default function Users() {
                   </form>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             {/* Filters */}
@@ -756,6 +888,241 @@ export default function Users() {
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Bulk Upload Modal */}
+      <Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Upload Users</DialogTitle>
+          </DialogHeader>
+
+          <Tabs defaultValue="download" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="download">Download Template</TabsTrigger>
+              <TabsTrigger value="upload">Upload CSV</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="download" className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Step 1: Download Template</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Download a comprehensive CSV template with sample data showing different user roles and types.
+                  </p>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={downloadTemplate}
+                    data-testid="button-download-template"
+                    className="w-full"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Template with Samples
+                  </Button>
+                </div>
+
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium mb-2">Step 2: Customize Your Data</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Template includes sample data for:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• <strong>Admin users:</strong> Full system access and management</li>
+                      <li>• <strong>IT Managers:</strong> Manage assets and generate reports</li>
+                      <li>• <strong>Technicians:</strong> Handle maintenance and support</li>
+                      <li>• <strong>Employees:</strong> View assigned assets and basic access</li>
+                    </ul>
+                    
+                    <h4 className="font-medium mb-2 mt-4">Key Guidelines:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Replace sample data with your actual user information</li>
+                      <li>• Keep the same column headers (do not modify)</li>
+                      <li>• Required fields: <strong>first_name, last_name, email, role</strong></li>
+                      <li>• All users will be created with default password "admin123"</li>
+                      <li>• Users must change password on first login</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Important Security Note</h3>
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                        All users will be created with the default password "admin123" and will be required to change it upon first login.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="upload" className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Step 1: Select CSV File</h3>
+                  <div className="border-2 border-dashed border-muted rounded-lg p-6">
+                    <div className="text-center">
+                      <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground" />
+                      <div className="mt-4">
+                        <label htmlFor="file-upload" className="cursor-pointer">
+                          <span className="mt-2 block text-sm font-medium text-foreground">Choose a CSV file</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">Maximum file size: 5MB</span>
+                        </label>
+                        <input
+                          id="file-upload"
+                          name="file-upload"
+                          type="file"
+                          accept=".csv"
+                          className="sr-only"
+                          onChange={handleFileSelect}
+                          data-testid="input-file-upload"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {uploadFile && (
+                    <div className="mt-4 p-4 bg-muted rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <FileSpreadsheet className="h-6 w-6 text-green-600" />
+                          <div>
+                            <p className="text-sm font-medium">{uploadFile.name}</p>
+                            <p className="text-xs text-muted-foreground">{(uploadFile.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setUploadFile(null)}
+                          data-testid="button-remove-file"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {uploadFile && (
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Step 2: Validate File</h3>
+                    <div className="space-y-4">
+                      <Button
+                        onClick={handleValidateFile}
+                        disabled={isValidating}
+                        className="w-full"
+                        data-testid="button-validate-file"
+                      >
+                        {isValidating ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Validating...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Validate File
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {uploadResults && (
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Step 3: Review Results</h3>
+                    <div className="space-y-4">
+                      {/* Validation Summary */}
+                      <div className="bg-muted rounded-lg p-4">
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <div className="text-2xl font-bold text-green-600">{uploadResults.validCount || 0}</div>
+                            <div className="text-xs text-muted-foreground">Valid Users</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-red-600">{uploadResults.errorCount || 0}</div>
+                            <div className="text-xs text-muted-foreground">Errors</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-yellow-600">{uploadResults.warningCount || 0}</div>
+                            <div className="text-xs text-muted-foreground">Warnings</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Import Options */}
+                      {uploadResults.validCount > 0 && (
+                        <div className="space-y-2">
+                          <Button
+                            onClick={() => handleBulkImport(false)}
+                            disabled={bulkImportMutation.isPending}
+                            className="w-full"
+                            data-testid="button-import-all"
+                          >
+                            {bulkImportMutation.isPending ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Importing...
+                              </>
+                            ) : (
+                              <>Create All Users ({uploadResults.validCount} valid)</>
+                            )}
+                          </Button>
+                          {uploadResults.errorCount > 0 && (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleBulkImport(true)}
+                              disabled={bulkImportMutation.isPending}
+                              className="w-full"
+                              data-testid="button-import-valid-only"
+                            >
+                              Create Valid Users Only ({uploadResults.validCount})
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Error/Warning Details */}
+                      {uploadResults.errors && uploadResults.errors.length > 0 && (
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-destructive mb-2">Errors Found:</h4>
+                          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3 max-h-40 overflow-y-auto">
+                            {uploadResults.errors.map((error: any, index: number) => (
+                              <div key={index} className="text-sm text-red-700 dark:text-red-300">
+                                Row {error.row}: {error.message}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {uploadResults.warnings && uploadResults.warnings.length > 0 && (
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-yellow-700 dark:text-yellow-300 mb-2">Warnings:</h4>
+                          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-3 max-h-40 overflow-y-auto">
+                            {uploadResults.warnings.map((warning: any, index: number) => (
+                              <div key={index} className="text-sm text-yellow-700 dark:text-yellow-300">
+                                Row {warning.row}: {warning.message}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
