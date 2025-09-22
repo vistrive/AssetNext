@@ -33,17 +33,17 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/tickets">
-        <ProtectedRoute requiredRole="employee">
+        <ProtectedRoute requiredRole="technician">
           <Tickets />
         </ProtectedRoute>
       </Route>
       <Route path="/assets">
-        <ProtectedRoute requiredRole="employee">
+        <ProtectedRoute requiredRole="technician">
           <Assets />
         </ProtectedRoute>
       </Route>
       <Route path="/recommendations">
-        <ProtectedRoute requiredRole="manager">
+        <ProtectedRoute requiredRole="it-manager">
           <Recommendations />
         </ProtectedRoute>
       </Route>
@@ -53,12 +53,12 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/software">
-        <ProtectedRoute requiredRole="employee">
+        <ProtectedRoute requiredRole="technician">
           <Software />
         </ProtectedRoute>
       </Route>
       <Route path="/settings">
-        <ProtectedRoute requiredRole="employee">
+        <ProtectedRoute requiredRole="technician">
           <Settings />
         </ProtectedRoute>
       </Route>
