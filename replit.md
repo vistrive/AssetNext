@@ -13,6 +13,14 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 **September 23, 2025**
+- **Asset Creation Review Step Implementation**: Added comprehensive review confirmation before asset creation with robust validation
+  - **Review Flow**: When creating new assets, users now see a detailed review dialog after clicking "Create Asset" but before the asset is actually created
+  - **Two-Button Navigation**: "Back to Edit" (returns to form with data preserved) and "Proceed with Creation" (completes asset creation)
+  - **Comprehensive Summary Display**: Organized sections showing Basic Information, Financial Information, Software Details (conditional), Vendor & Company Information, and Notes
+  - **Robust Numeric Validation**: Fixed edge cases with empty numeric inputs (purchase cost, used licenses) preventing NaN validation errors
+  - **Edit Mode Exception**: Existing asset editing bypasses review and submits directly for streamlined workflow
+  - **Field Formatting**: Proper date formatting, currency display ($X.XX), and "Not specified" for empty optional fields
+  - **Test Coverage**: Added data-testid attributes for automated testing of review functionality
 - **Comprehensive Enhanced Assets Table Implementation**: Completed major overhaul of assets management interface with enterprise-grade functionality
   - **All 13 Asset Columns**: Asset Name, Serial Number, Model, Manufacturer, Category, Type, Status, Location, Assigned To, Purchase Date, Warranty Expiry, Purchase Cost, Actions
   - **Advanced Table Features**: Column visibility controls, proper numeric/date sorting, column-specific filtering, date range calendars for purchase and warranty dates
