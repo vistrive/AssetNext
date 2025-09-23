@@ -243,6 +243,9 @@ interface AssetFormProps {
 }
 
 export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: AssetFormProps) {
+  const [showReview, setShowReview] = useState(false);
+  const [reviewData, setReviewData] = useState<AssetFormData | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -375,30 +378,241 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
     console.log("Form submission data:", data);
     console.log("Form errors:", errors);
     
-    const { tenantId: _, ...restData } = data; // Remove tenantId from form data
+    // For edit mode, skip review and submit directly
+    if (asset) {
+      const { tenantId: _, ...restData } = data;
+      const submitData: Omit<InsertAsset, 'tenantId'> = {
+        ...restData,
+        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
+        warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : undefined,
+        renewalDate: data.renewalDate ? new Date(data.renewalDate) : undefined,
+      };
+      console.log("Submitting asset data:", submitData);
+      onSubmit(submitData);
+      return;
+    }
+    
+    // For create mode, show review step first
+    setReviewData(data);
+    setShowReview(true);
+  };
+
+  const handleProceedWithCreation = () => {
+    if (!reviewData) return;
+    
+    const { tenantId: _, ...restData } = reviewData;
     const submitData: Omit<InsertAsset, 'tenantId'> = {
       ...restData,
-      purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-      warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : undefined,
-      renewalDate: data.renewalDate ? new Date(data.renewalDate) : undefined,
-      // tenantId will be set by the API from authentication context
+      purchaseDate: reviewData.purchaseDate ? new Date(reviewData.purchaseDate) : undefined,
+      warrantyExpiry: reviewData.warrantyExpiry ? new Date(reviewData.warrantyExpiry) : undefined,
+      renewalDate: reviewData.renewalDate ? new Date(reviewData.renewalDate) : undefined,
     };
     
-    console.log("Submitting asset data:", submitData);
+    console.log("Creating asset after review:", submitData);
     onSubmit(submitData);
+    setShowReview(false);
+    setReviewData(null);
+  };
+
+  const handleBackToEdit = () => {
+    setShowReview(false);
+    setReviewData(null);
   };
 
   const handleClose = () => {
     reset();
+    setShowReview(false);
+    setReviewData(null);
     onClose();
   };
 
+  const formatFieldValue = (value: any, fieldType?: string): string => {
+    if (value === null || value === undefined || value === "") return "Not specified";
+    
+    if (fieldType === "date" && typeof value === "string") {
+      const date = new Date(value);
+      return date.toLocaleDateString();
+    }
+    
+    if (fieldType === "currency" && typeof value === "number") {
+      return `$${value.toFixed(2)}`;
+    }
+    
+    return String(value);
+  };
+
+  const renderReviewDialog = () => (
+    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>Review Asset Details</DialogTitle>
+        <p className="text-sm text-muted-foreground mt-2">
+          Please review the asset information below before creating the asset.
+        </p>
+      </DialogHeader>
+      
+      {reviewData && (
+        <div className="space-y-6">
+          {/* Basic Information */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold text-lg mb-3 text-foreground border-b pb-2">Basic Information</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="font-medium text-muted-foreground">Asset Name:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.name)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Type:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.type)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Serial Number:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.serialNumber)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Category:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.category)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Model:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.model)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Manufacturer:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.manufacturer)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Status:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.status)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Location:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.location)}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="font-medium text-muted-foreground">Assigned User:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.assignedUserName)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Financial Information */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold text-lg mb-3 text-foreground border-b pb-2">Financial Information</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="font-medium text-muted-foreground">Purchase Date:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.purchaseDate, "date")}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Purchase Cost:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.purchaseCost, "currency")}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="font-medium text-muted-foreground">Warranty Expiry:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.warrantyExpiry, "date")}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Software Details - only show if type is Software */}
+          {reviewData.type === "Software" && (
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold text-lg mb-3 text-foreground border-b pb-2">Software Details</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="font-medium text-muted-foreground">Software Name:</span>
+                  <p className="text-foreground">{formatFieldValue(reviewData.softwareName)}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-muted-foreground">Version:</span>
+                  <p className="text-foreground">{formatFieldValue(reviewData.version)}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-muted-foreground">License Type:</span>
+                  <p className="text-foreground">{formatFieldValue(reviewData.licenseType)}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-muted-foreground">Used Licenses:</span>
+                  <p className="text-foreground">{formatFieldValue(reviewData.usedLicenses)}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-muted-foreground">License Key:</span>
+                  <p className="text-foreground">{formatFieldValue(reviewData.licenseKey)}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-muted-foreground">Renewal Date:</span>
+                  <p className="text-foreground">{formatFieldValue(reviewData.renewalDate, "date")}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Vendor & Company Information */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold text-lg mb-3 text-foreground border-b pb-2">Vendor & Company Information</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="font-medium text-muted-foreground">Vendor Name:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.vendorName)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Vendor Email:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.vendorEmail)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Vendor Phone:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.vendorPhone)}</p>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">Company Name:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.companyName)}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="font-medium text-muted-foreground">GST Number:</span>
+                <p className="text-foreground">{formatFieldValue(reviewData.companyGstNumber)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {reviewData.notes && (
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold text-lg mb-3 text-foreground border-b pb-2">Notes</h3>
+              <p className="text-sm text-foreground">{reviewData.notes}</p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-4 pt-4 border-t">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleBackToEdit}
+              data-testid="button-back-to-edit"
+            >
+              Back to Edit
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleProceedWithCreation}
+              disabled={isLoading}
+              data-testid="button-proceed-creation"
+            >
+              {isLoading ? "Creating..." : "Proceed with Creation"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </DialogContent>
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{asset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
-        </DialogHeader>
+      {showReview ? renderReviewDialog() : (
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{asset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
+          </DialogHeader>
         
         <form onSubmit={(e) => {
           console.log("Form onSubmit event triggered!");
@@ -773,7 +987,8 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             </Button>
           </div>
         </form>
-      </DialogContent>
+        </DialogContent>
+      )}
     </Dialog>
   );
 }
