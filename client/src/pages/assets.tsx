@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "@/hooks/use-search";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -13,9 +13,776 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, FileText, AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, FileText, AlertCircle, CheckCircle, XCircle, ArrowUpDown, ArrowUp, ArrowDown, Settings, Calendar, DollarSign, Package, MapPin, User, Hash, Building, Wrench } from "lucide-react";
 import type { Asset, InsertAsset } from "@shared/schema";
 import { AssetTypeEnum } from "@shared/schema";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+
+// Column visibility state
+interface ColumnVisibility {
+  name: boolean;
+  serialNumber: boolean;
+  model: boolean;
+  manufacturer: boolean;
+  category: boolean;
+  type: boolean;
+  status: boolean;
+  location: boolean;
+  assignedUserName: boolean;
+  purchaseDate: boolean;
+  warrantyExpiry: boolean;
+  purchaseCost: boolean;
+  actions: boolean;
+}
+
+// Enhanced Assets Table Component
+interface EnhancedAssetsTableProps {
+  assets: Asset[];
+  isLoading: boolean;
+  onEditAsset: (asset: Asset) => void;
+  onDeleteAsset: (id: string) => void;
+}
+
+function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: EnhancedAssetsTableProps) {
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+  const [dateRanges, setDateRanges] = useState<Record<string, { from?: Date; to?: Date }>>({});
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
+    name: true,
+    serialNumber: true,
+    model: true,
+    manufacturer: true,
+    category: true,
+    type: true,
+    status: true,
+    location: true,
+    assignedUserName: true,
+    purchaseDate: true,
+    warrantyExpiry: true,
+    purchaseCost: true,
+    actions: true,
+  });
+
+  // Sort and filter assets
+  const processedAssets = useMemo(() => {
+    let filtered = [...assets];
+
+    // Apply column-specific searches
+    Object.entries(columnSearch).forEach(([field, searchTerm]) => {
+      if (searchTerm.trim()) {
+        filtered = filtered.filter((asset: any) => {
+          const value = asset[field];
+          if (value === null || value === undefined) return false;
+          
+          // Handle numeric filtering for purchase cost
+          if (field === 'purchaseCost') {
+            const minCost = parseFloat(searchTerm);
+            if (!isNaN(minCost)) {
+              const assetCost = typeof value === 'string' ? parseFloat(value) : value;
+              return !isNaN(assetCost) && assetCost >= minCost;
+            }
+          }
+          
+          // Handle string matching for all other fields
+          return String(value).toLowerCase().includes(searchTerm.toLowerCase());
+        });
+      }
+    });
+
+    // Apply date range filters
+    Object.entries(dateRanges).forEach(([field, range]) => {
+      if (range.from || range.to) {
+        filtered = filtered.filter((asset: any) => {
+          const assetDate = asset[field] ? new Date(asset[field]) : null;
+          if (!assetDate) return false;
+          
+          if (range.from && assetDate < range.from) return false;
+          if (range.to && assetDate > range.to) return false;
+          return true;
+        });
+      }
+    });
+
+    // Sort assets
+    filtered.sort((a: any, b: any) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+      
+      let comparison = 0;
+      
+      // Handle numeric fields
+      if (sortField === 'purchaseCost') {
+        const aNum = typeof aValue === 'string' ? parseFloat(aValue) : aValue;
+        const bNum = typeof bValue === 'string' ? parseFloat(bValue) : bValue;
+        comparison = (isNaN(aNum) ? 0 : aNum) - (isNaN(bNum) ? 0 : bNum);
+      }
+      // Handle date fields
+      else if (sortField === 'purchaseDate' || sortField === 'warrantyExpiry' || sortField === 'createdAt' || sortField === 'updatedAt') {
+        const aDate = new Date(aValue);
+        const bDate = new Date(bValue);
+        comparison = aDate.getTime() - bDate.getTime();
+      }
+      // Handle other numeric fields like usedLicenses
+      else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        comparison = aValue - bValue;
+      }
+      // Handle dates that are already Date objects
+      else if (aValue instanceof Date && bValue instanceof Date) {
+        comparison = aValue.getTime() - bValue.getTime();
+      }
+      // Handle strings
+      else if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue);
+      }
+      // Fallback to string comparison
+      else {
+        comparison = String(aValue).localeCompare(String(bValue));
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [assets, sortField, sortDirection, columnSearch, dateRanges]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const handleColumnSearch = (field: string, value: string) => {
+    setColumnSearch(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleDateRangeChange = (field: string, from?: Date, to?: Date) => {
+    setDateRanges(prev => ({ ...prev, [field]: { from, to } }));
+  };
+
+  const getAssetIcon = (type: string, category?: string) => {
+    if (type === 'Hardware') {
+      switch (category?.toLowerCase()) {
+        case 'laptop': return Laptop;
+        case 'desktop': case 'pc': return Monitor;
+        case 'server': return Building;
+        case 'tablet': return Laptop;
+        case 'mobile phone': case 'phone': return Laptop;
+        default: return Monitor;
+      }
+    }
+    if (type === 'Software') return Code;
+    if (type === 'Peripherals') return Wrench;
+    return Package;
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'deployed': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100';
+      case 'in-stock': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-100';
+      case 'in-repair': return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-100';
+      case 'disposed': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-100';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-900 dark:text-gray-100';
+    }
+  };
+
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) return ArrowUpDown;
+    return sortDirection === 'asc' ? ArrowUp : ArrowDown;
+  };
+
+  const formatCurrency = (value: string | number | null) => {
+    if (!value) return 'N/A';
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    return isNaN(numValue) ? 'N/A' : `$${numValue.toLocaleString()}`;
+  };
+
+  const formatDate = (date: string | Date | null) => {
+    if (!date) return 'N/A';
+    try {
+      return format(new Date(date), 'MMM dd, yyyy');
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  const visibleColumns = Object.entries(columnVisibility).filter(([_, visible]) => visible).map(([key, _]) => key);
+  const columnCount = visibleColumns.length;
+
+  if (isLoading) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-8">
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2 text-muted-foreground">Loading assets...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Column Visibility Controls */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Showing {processedAssets.length} of {assets.length} assets
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" data-testid="button-column-settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Columns
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64" align="end">
+            <div className="space-y-2">
+              <h4 className="font-medium">Show/Hide Columns</h4>
+              {Object.entries(columnVisibility).map(([key, visible]) => (
+                <div key={key} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`column-${key}`}
+                    checked={visible}
+                    onCheckedChange={(checked) =>
+                      setColumnVisibility(prev => ({ ...prev, [key]: !!checked }))
+                    }
+                    data-testid={`checkbox-column-${key}`}
+                  />
+                  <label htmlFor={`column-${key}`} className="text-sm capitalize">
+                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Enhanced Assets Table */}
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                {columnVisibility.name && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[200px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('name')}
+                        data-testid="sort-name"
+                      >
+                        <User className="h-4 w-4 mr-1" />
+                        Asset Name
+                        {React.createElement(getSortIcon('name'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search names..."
+                      value={columnSearch.name || ''}
+                      onChange={(e) => handleColumnSearch('name', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-name"
+                    />
+                  </th>
+                )}
+                
+                {columnVisibility.serialNumber && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('serialNumber')}
+                        data-testid="sort-serialNumber"
+                      >
+                        <Hash className="h-4 w-4 mr-1" />
+                        Serial Number
+                        {React.createElement(getSortIcon('serialNumber'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search serial..."
+                      value={columnSearch.serialNumber || ''}
+                      onChange={(e) => handleColumnSearch('serialNumber', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-serialNumber"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.model && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('model')}
+                        data-testid="sort-model"
+                      >
+                        <Package className="h-4 w-4 mr-1" />
+                        Model
+                        {React.createElement(getSortIcon('model'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search model..."
+                      value={columnSearch.model || ''}
+                      onChange={(e) => handleColumnSearch('model', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-model"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.manufacturer && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[130px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('manufacturer')}
+                        data-testid="sort-manufacturer"
+                      >
+                        <Building className="h-4 w-4 mr-1" />
+                        Manufacturer
+                        {React.createElement(getSortIcon('manufacturer'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search manufacturer..."
+                      value={columnSearch.manufacturer || ''}
+                      onChange={(e) => handleColumnSearch('manufacturer', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-manufacturer"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.category && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[100px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('category')}
+                        data-testid="sort-category"
+                      >
+                        <Package className="h-4 w-4 mr-1" />
+                        Category
+                        {React.createElement(getSortIcon('category'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search category..."
+                      value={columnSearch.category || ''}
+                      onChange={(e) => handleColumnSearch('category', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-category"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.type && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[100px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('type')}
+                        data-testid="sort-type"
+                      >
+                        <Package className="h-4 w-4 mr-1" />
+                        Type
+                        {React.createElement(getSortIcon('type'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Select value={columnSearch.type || 'all'} onValueChange={(value) => handleColumnSearch('type', value === 'all' ? '' : value)}>
+                      <SelectTrigger className="mt-1 h-7 text-xs" data-testid="filter-type">
+                        <SelectValue placeholder="Filter type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="Hardware">Hardware</SelectItem>
+                        <SelectItem value="Software">Software</SelectItem>
+                        <SelectItem value="Peripherals">Peripherals</SelectItem>
+                        <SelectItem value="Others">Others</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </th>
+                )}
+
+                {columnVisibility.status && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('status')}
+                        data-testid="sort-status"
+                      >
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        Status
+                        {React.createElement(getSortIcon('status'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Select value={columnSearch.status || 'all'} onValueChange={(value) => handleColumnSearch('status', value === 'all' ? '' : value)}>
+                      <SelectTrigger className="mt-1 h-7 text-xs" data-testid="filter-status">
+                        <SelectValue placeholder="Filter status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="deployed">Deployed</SelectItem>
+                        <SelectItem value="in-stock">In Stock</SelectItem>
+                        <SelectItem value="in-repair">In Repair</SelectItem>
+                        <SelectItem value="disposed">Disposed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </th>
+                )}
+
+                {columnVisibility.location && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('location')}
+                        data-testid="sort-location"
+                      >
+                        <MapPin className="h-4 w-4 mr-1" />
+                        Location
+                        {React.createElement(getSortIcon('location'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search location..."
+                      value={columnSearch.location || ''}
+                      onChange={(e) => handleColumnSearch('location', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-location"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.assignedUserName && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('assignedUserName')}
+                        data-testid="sort-assignedUserName"
+                      >
+                        <User className="h-4 w-4 mr-1" />
+                        Assigned To
+                        {React.createElement(getSortIcon('assignedUserName'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search assigned..."
+                      value={columnSearch.assignedUserName || ''}
+                      onChange={(e) => handleColumnSearch('assignedUserName', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-assignedUserName"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.purchaseDate && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('purchaseDate')}
+                        data-testid="sort-purchaseDate"
+                      >
+                        <Calendar className="h-4 w-4 mr-1" />
+                        Purchase Date
+                        {React.createElement(getSortIcon('purchaseDate'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="mt-1 h-7 text-xs justify-start" data-testid="filter-purchaseDate">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Date Range
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="range"
+                          selected={{
+                            from: dateRanges.purchaseDate?.from,
+                            to: dateRanges.purchaseDate?.to,
+                          }}
+                          onSelect={(range) => 
+                            handleDateRangeChange('purchaseDate', range?.from, range?.to)
+                          }
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </th>
+                )}
+
+                {columnVisibility.warrantyExpiry && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('warrantyExpiry')}
+                        data-testid="sort-warrantyExpiry"
+                      >
+                        <Calendar className="h-4 w-4 mr-1" />
+                        Warranty Expiry
+                        {React.createElement(getSortIcon('warrantyExpiry'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="mt-1 h-7 text-xs justify-start" data-testid="filter-warrantyExpiry">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Date Range
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="range"
+                          selected={{
+                            from: dateRanges.warrantyExpiry?.from,
+                            to: dateRanges.warrantyExpiry?.to,
+                          }}
+                          onSelect={(range) => 
+                            handleDateRangeChange('warrantyExpiry', range?.from, range?.to)
+                          }
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </th>
+                )}
+
+                {columnVisibility.purchaseCost && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('purchaseCost')}
+                        data-testid="sort-purchaseCost"
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        Purchase Cost
+                        {React.createElement(getSortIcon('purchaseCost'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Min cost..."
+                      type="number"
+                      value={columnSearch.purchaseCost || ''}
+                      onChange={(e) => handleColumnSearch('purchaseCost', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-purchaseCost"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.actions && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm w-24">
+                    Actions
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {processedAssets.map((asset: Asset) => {
+                const Icon = getAssetIcon(asset.type, asset.category || undefined);
+                
+                return (
+                  <tr 
+                    key={asset.id}
+                    className="border-b border-border hover:bg-muted/25 transition-colors"
+                    data-testid={`asset-row-${asset.id}`}
+                  >
+                    {columnVisibility.name && (
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Icon className="text-muted-foreground h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-foreground truncate" title={asset.name}>{asset.name}</p>
+                          </div>
+                        </div>
+                      </td>
+                    )}
+                    
+                    {columnVisibility.serialNumber && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground font-mono text-sm" data-testid={`text-serial-${asset.id}`}>
+                          {asset.serialNumber || "N/A"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.model && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground" data-testid={`text-model-${asset.id}`}>
+                          {asset.model || "N/A"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.manufacturer && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground" data-testid={`text-manufacturer-${asset.id}`}>
+                          {asset.manufacturer || "N/A"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.category && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground capitalize" data-testid={`text-category-${asset.id}`}>
+                          {asset.category || "N/A"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.type && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground" data-testid={`text-type-${asset.id}`}>
+                          {asset.type}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.status && (
+                      <td className="py-3 px-4">
+                        <Badge className={`${getStatusBadgeClass(asset.status)} border`} data-testid={`badge-status-${asset.id}`}>
+                          {asset.status.replace('-', ' ')}
+                        </Badge>
+                      </td>
+                    )}
+
+                    {columnVisibility.location && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground" data-testid={`text-location-${asset.id}`}>
+                          {asset.location || "N/A"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.assignedUserName && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
+                          {asset.assignedUserName || "Unassigned"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.purchaseDate && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground text-sm" data-testid={`text-purchase-date-${asset.id}`}>
+                          {formatDate(asset.purchaseDate)}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.warrantyExpiry && (
+                      <td className="py-3 px-4">
+                        <span 
+                          className={`text-sm ${
+                            asset.warrantyExpiry && new Date(asset.warrantyExpiry) < new Date() 
+                              ? 'text-red-600' 
+                              : 'text-foreground'
+                          }`}
+                          data-testid={`text-warranty-${asset.id}`}
+                        >
+                          {formatDate(asset.warrantyExpiry)}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.purchaseCost && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground font-medium" data-testid={`text-cost-${asset.id}`}>
+                          {formatCurrency(asset.purchaseCost)}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.actions && (
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEditAsset(asset)}
+                            data-testid={`button-edit-${asset.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDeleteAsset(asset.id)}
+                            data-testid={`button-delete-${asset.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              
+              {processedAssets.length === 0 && (
+                <tr>
+                  <td colSpan={columnCount} className="py-12 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center space-y-2">
+                      <Monitor className="h-12 w-12 text-muted-foreground/50" />
+                      <p>No assets found</p>
+                      <p className="text-sm">
+                        Try adjusting your search filters or column filters
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Assets() {
   const search = useSearch();
@@ -593,130 +1360,13 @@ export default function Assets() {
             </div>
           </div>
 
-          {/* Assets Table */}
-          <div className="bg-card rounded-lg border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Asset</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Type</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Status</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Vendor</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Company</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Location</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Assigned To</th>
-                    <th className="text-left py-4 px-6 font-medium text-muted-foreground text-sm">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAssets.map((asset: Asset) => {
-                    const Icon = getAssetIcon(asset.type, asset.category || undefined);
-                    
-                    return (
-                      <tr 
-                        key={asset.id}
-                        className="border-b border-border hover:bg-muted/25 transition-colors"
-                        data-testid={`asset-row-${asset.id}`}
-                      >
-                        <td className="py-4 px-6">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
-                              <Icon className="text-muted-foreground h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-foreground">{asset.name}</p>
-                              <p className="text-muted-foreground text-sm">
-                                {asset.serialNumber || "No Serial Number"}
-                              </p>
-                              {asset.manufacturer && asset.model && (
-                                <p className="text-muted-foreground text-xs">
-                                  {asset.manufacturer} {asset.model}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className="capitalize text-foreground">{asset.type}</span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <Badge className={`asset-status-badge ${getStatusBadgeClass(asset.status)}`}>
-                            {asset.status.replace('-', ' ')}
-                          </Badge>
-                        </td>
-                        <td className="py-4 px-6 text-muted-foreground">
-                          <div>
-                            <p className="font-medium text-foreground">{asset.vendorName || "Not specified"}</p>
-                            {asset.vendorEmail && (
-                              <p className="text-xs text-muted-foreground">{asset.vendorEmail}</p>
-                            )}
-                            {asset.vendorPhone && (
-                              <p className="text-xs text-muted-foreground">{asset.vendorPhone}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-muted-foreground">
-                          <div>
-                            <p className="font-medium text-foreground">{asset.companyName || "Not specified"}</p>
-                            {asset.companyGstNumber && (
-                              <p className="text-xs text-muted-foreground">GST: {asset.companyGstNumber}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-muted-foreground">
-                          {asset.location || "Not specified"}
-                        </td>
-                        <td className="py-4 px-6 text-muted-foreground">
-                          {asset.assignedUserName || "Unassigned"}
-                        </td>
-                        <td className="py-4 px-6 text-muted-foreground">
-                          {asset.purchaseCost ? `$${parseFloat(asset.purchaseCost).toLocaleString()}` : "N/A"}
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditAsset(asset)}
-                              data-testid={`button-edit-${asset.id}`}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteAsset(asset.id)}
-                              data-testid={`button-delete-${asset.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  
-                  {filteredAssets.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center space-y-2">
-                          <Monitor className="h-12 w-12 text-muted-foreground/50" />
-                          <p>No assets found</p>
-                          <p className="text-sm">
-                            {debouncedSearchTerm || typeFilter !== "all" || statusFilter !== "all" || categoryFilter !== "all"
-                              ? "Try adjusting your filters"
-                              : "Add your first asset to get started"
-                            }
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* Enhanced Assets Table */}
+          <EnhancedAssetsTable
+            assets={filteredAssets}
+            isLoading={isLoading}
+            onEditAsset={handleEditAsset}
+            onDeleteAsset={handleDeleteAsset}
+          />
         </div>
       </main>
       
