@@ -1160,11 +1160,11 @@ export class DatabaseStorage implements IStorage {
       // Process results
       const assetsByType = assetTypesCounts.reduce((acc: any, item) => {
         acc[item.type] = {
-          total: item.total,
-          deployed: item.deployed,
-          inStock: item.inStock,
-          inRepair: item.inRepair,
-          disposed: item.disposed
+          total: Number(item.total),
+          deployed: Number(item.deployed),
+          inStock: Number(item.inStock),
+          inRepair: Number(item.inRepair),
+          disposed: Number(item.disposed)
         };
         return acc;
       }, {});
@@ -1172,10 +1172,10 @@ export class DatabaseStorage implements IStorage {
       const hardwareBreakdown = hardwareCounts.reduce((acc: any, item) => {
         if (item.category) {
           acc[item.category] = {
-            total: item.total,
-            deployed: item.deployed,
-            inStock: item.inStock,
-            inRepair: item.inRepair
+            total: Number(item.total),
+            deployed: Number(item.deployed),
+            inStock: Number(item.inStock),
+            inRepair: Number(item.inRepair)
           };
         }
         return acc;
@@ -1184,10 +1184,10 @@ export class DatabaseStorage implements IStorage {
       const peripheralBreakdown = peripheralCounts.reduce((acc: any, item) => {
         if (item.category) {
           acc[item.category] = {
-            total: item.total,
-            deployed: item.deployed,
-            inStock: item.inStock,
-            inRepair: item.inRepair
+            total: Number(item.total),
+            deployed: Number(item.deployed),
+            inStock: Number(item.inStock),
+            inRepair: Number(item.inRepair)
           };
         }
         return acc;
@@ -1196,10 +1196,10 @@ export class DatabaseStorage implements IStorage {
       const othersBreakdown = othersCounts.reduce((acc: any, item) => {
         if (item.category) {
           acc[item.category] = {
-            total: item.total,
-            deployed: item.deployed,
-            inStock: item.inStock,
-            inRepair: item.inRepair,
+            total: Number(item.total),
+            deployed: Number(item.deployed),
+            inStock: Number(item.inStock),
+            inRepair: Number(item.inRepair),
             type: item.type
           };
         }
@@ -1218,7 +1218,7 @@ export class DatabaseStorage implements IStorage {
         total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 
       };
 
-      const totalAssets = assetTypesCounts.reduce((sum, item) => sum + item.total, 0);
+      const totalAssets = assetTypesCounts.reduce((sum, item) => sum + Number(item.total), 0);
       
       // Calculate utilization percentage for software licenses
       const utilizationPct = licenseStatus.totalLicenses > 0 
@@ -1227,10 +1227,10 @@ export class DatabaseStorage implements IStorage {
 
       // Maintain backward compatibility with existing UI
       const assetStatusBreakdown = [
-        { status: "deployed", count: assetTypesCounts.reduce((sum, item) => sum + item.deployed, 0) },
-        { status: "in-stock", count: assetTypesCounts.reduce((sum, item) => sum + item.inStock, 0) },
-        { status: "in-repair", count: assetTypesCounts.reduce((sum, item) => sum + item.inRepair, 0) },
-        { status: "disposed", count: assetTypesCounts.reduce((sum, item) => sum + item.disposed, 0) }
+        { status: "deployed", count: assetTypesCounts.reduce((sum, item) => sum + Number(item.deployed), 0) },
+        { status: "in-stock", count: assetTypesCounts.reduce((sum, item) => sum + Number(item.inStock), 0) },
+        { status: "in-repair", count: assetTypesCounts.reduce((sum, item) => sum + Number(item.inRepair), 0) },
+        { status: "disposed", count: assetTypesCounts.reduce((sum, item) => sum + Number(item.disposed), 0) }
       ];
 
       // Calculate comprehensive metrics for the response
@@ -1286,10 +1286,10 @@ export class DatabaseStorage implements IStorage {
         // Others detailed breakdown (special categories like CCTV, access control)
         others: {
           overview: {
-            total: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.total, 0),
-            deployed: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.deployed, 0),
-            inStock: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.inStock, 0),
-            inRepair: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + item.inRepair, 0)
+            total: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + Number(item.total), 0),
+            deployed: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + Number(item.deployed), 0),
+            inStock: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + Number(item.inStock), 0),
+            inRepair: Object.values(othersBreakdown).reduce((sum: number, item: any) => sum + Number(item.inRepair), 0)
           },
           byCategory: othersBreakdown
         },
