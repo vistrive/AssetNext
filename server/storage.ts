@@ -1104,7 +1104,7 @@ export class DatabaseStorage implements IStorage {
           amcExpired: sql<number>`count(*) filter (where amc_expiry IS NOT NULL AND amc_expiry <= current_date)`
         })
         .from(assets)
-        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'hardware')));
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'Hardware')));
 
       // Get software license status
       const softwareStatus = await db
@@ -1128,7 +1128,7 @@ export class DatabaseStorage implements IStorage {
           inRepair: sql<number>`count(*) filter (where status = 'in-repair')`
         })
         .from(assets)
-        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'peripheral')))
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'Peripherals')))
         .groupBy(assets.category);
 
       // Get uncategorized or "other" assets within each type
@@ -1255,7 +1255,7 @@ export class DatabaseStorage implements IStorage {
         
         // Hardware detailed breakdown
         hardware: {
-          overview: assetsByType.hardware || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
+          overview: assetsByType.Hardware || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
           byCategory: hardwareBreakdown,
           warrantyStatus: {
             total: warrantyStatus.total,
@@ -1268,7 +1268,7 @@ export class DatabaseStorage implements IStorage {
 
         // Software detailed breakdown
         software: {
-          overview: assetsByType.software || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
+          overview: assetsByType.Software || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
           licenseStatus: {
             totalLicenses: licenseStatus.totalLicenses,
             assigned: licenseStatus.assigned,
@@ -1282,7 +1282,7 @@ export class DatabaseStorage implements IStorage {
 
         // Peripheral detailed breakdown
         peripherals: {
-          overview: assetsByType.peripheral || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
+          overview: assetsByType.Peripherals || { total: 0, deployed: 0, inStock: 0, inRepair: 0, disposed: 0 },
           byCategory: peripheralBreakdown
         },
 
