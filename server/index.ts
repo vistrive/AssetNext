@@ -48,8 +48,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Seed the database with initial data
-  await seedDatabase();
+  // Attempt to seed the database with initial data
+  try {
+    await seedDatabase();
+  } catch (error) {
+    console.warn("Warning: Failed to seed database. Database may not be available.");
+    console.warn("The application will continue to run but may have limited functionality.");
+    console.warn("Error details:", error instanceof Error ? error.message : String(error));
+  }
   
   const server = await registerRoutes(app);
 
