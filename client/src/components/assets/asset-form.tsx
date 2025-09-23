@@ -29,8 +29,8 @@ const assetFormSchema = insertAssetSchema.extend({
   vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]*$/, "Please enter a valid phone number").optional().or(z.literal("")).or(z.undefined()),
   companyGstNumber: z.string().optional().or(z.literal("")).or(z.undefined()),
 }).superRefine((data, ctx) => {
-  // Make software-specific fields mandatory when type is 'software'
-  if (data.type === 'software') {
+  // Make software-specific fields mandatory when type is 'Software'
+  if (data.type === 'Software') {
     if (!data.softwareName) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -430,10 +430,10 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hardware">Hardware</SelectItem>
-                  <SelectItem value="software">Software</SelectItem>
-                  <SelectItem value="peripheral">Peripheral</SelectItem>
-                  <SelectItem value="others">Others</SelectItem>
+                  <SelectItem value="Hardware">Hardware</SelectItem>
+                  <SelectItem value="Software">Software</SelectItem>
+                  <SelectItem value="Peripherals">Peripherals</SelectItem>
+                  <SelectItem value="Others">Others</SelectItem>
                 </SelectContent>
               </Select>
               {errors.type && (
@@ -565,8 +565,8 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
               />
             </div>
 
-            {/* Software-specific fields - only show when type is 'software' */}
-            {watch("type") === "software" && (
+            {/* Software-specific fields - only show when type is 'Software' */}
+            {watch("type") === "Software" && (
               <>
                 <div className="md:col-span-2">
                   <h3 className="text-lg font-semibold text-foreground mb-4 border-b pb-2">Software Details</h3>

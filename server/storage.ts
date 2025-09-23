@@ -1448,7 +1448,7 @@ export async function seedDatabase() {
     const sampleAssets = [
       {
         name: "MacBook Pro 16\"",
-        type: "hardware",
+        type: "Hardware",
         category: "laptop",
         manufacturer: "Apple",
         model: "MacBook Pro",
@@ -1466,7 +1466,7 @@ export async function seedDatabase() {
       },
       {
         name: "Dell OptiPlex 7090",
-        type: "hardware",
+        type: "Hardware",
         category: "desktop",
         manufacturer: "Dell",
         model: "OptiPlex 7090",

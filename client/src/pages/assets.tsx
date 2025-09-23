@@ -15,6 +15,7 @@ import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, FileText, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import type { Asset, InsertAsset } from "@shared/schema";
+import { AssetTypeEnum } from "@shared/schema";
 
 export default function Assets() {
   const [location] = useLocation();
@@ -42,8 +43,8 @@ export default function Assets() {
     const categoryParam = urlParams.get('category');
     
     // Only apply type filtering if a valid type parameter is explicitly provided
-    // This ensures /assets shows all items, while /assets?type=hardware filters to hardware
-    if (typeParam && ['hardware', 'software', 'peripheral', 'others'].includes(typeParam)) {
+    // This ensures /assets shows all items, while /assets?type=Hardware filters to hardware
+    if (typeParam && AssetTypeEnum.safeParse(typeParam).success) {
       setTypeFilter(typeParam);
     } else {
       // Default to showing all assets (no type filtering)
@@ -71,10 +72,10 @@ export default function Assets() {
     }
     
     switch (typeFilter) {
-      case 'hardware': return 'Hardware Assets';
-      case 'software': return 'Software Assets'; 
-      case 'peripheral': return 'Peripheral Assets';
-      case 'others': return 'Other Assets';
+      case 'Hardware': return 'Hardware Assets';
+      case 'Software': return 'Software Assets'; 
+      case 'Peripherals': return 'Peripheral Assets';
+      case 'Others': return 'Other Assets';
       default: return 'Assets';
     }
   };
@@ -105,10 +106,10 @@ export default function Assets() {
     }
     
     switch (typeFilter) {
-      case 'hardware': return 'Manage hardware assets like laptops, desktops, and servers';
-      case 'software': return 'Manage software licenses and applications';
-      case 'peripheral': return 'Manage peripheral devices like printers and accessories';
-      case 'others': return 'Manage other miscellaneous assets';
+      case 'Hardware': return 'Manage hardware assets like laptops, desktops, and servers';
+      case 'Software': return 'Manage software licenses and applications';
+      case 'Peripherals': return 'Manage peripheral devices like printers and accessories';
+      case 'Others': return 'Manage other miscellaneous assets';
       default: return 'Manage your IT assets and equipment';
     }
   };
@@ -569,10 +570,10 @@ export default function Assets() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="hardware">Hardware</SelectItem>
-                  <SelectItem value="software">Software</SelectItem>
-                  <SelectItem value="peripheral">Peripherals</SelectItem>
-                  <SelectItem value="others">Others</SelectItem>
+                  <SelectItem value="Hardware">Hardware</SelectItem>
+                  <SelectItem value="Software">Software</SelectItem>
+                  <SelectItem value="Peripherals">Peripherals</SelectItem>
+                  <SelectItem value="Others">Others</SelectItem>
                 </SelectContent>
               </Select>
               

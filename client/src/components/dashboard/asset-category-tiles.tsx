@@ -16,28 +16,28 @@ export function AssetCategoryTiles({ metrics, onNavigateToAssets }: AssetCategor
   // Main category tiles
   const categories = [
     { 
-      key: 'hardware', 
+      key: 'Hardware', 
       label: 'Hardware', 
       icon: Monitor,
       count: metrics?.hardware?.overview?.total || 0,
       description: 'Computers, servers, devices'
     },
     { 
-      key: 'software', 
+      key: 'Software', 
       label: 'Software', 
       icon: Code,
       count: metrics?.software?.overview?.total || 0,
       description: 'Applications, licenses'
     },
     { 
-      key: 'peripheral', 
+      key: 'Peripherals', 
       label: 'Peripherals', 
       icon: Printer,
       count: metrics?.peripherals?.overview?.total || 0,
       description: 'Printers, scanners, accessories'
     },
     { 
-      key: 'others', 
+      key: 'Others', 
       label: 'Others', 
       icon: Package,
       count: metrics?.others?.overview?.total || 0,

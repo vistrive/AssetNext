@@ -34,6 +34,7 @@ import {
   insertTicketSchema,
   updateTicketSchema,
   insertTicketCommentSchema,
+  AssetTypeEnum,
   type LoginRequest,
   type RegisterRequest,
   type UpdateUserProfile,
@@ -721,8 +722,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { type, status, category, search } = req.query;
       const filters: any = {};
       
-      // Normalize query parameters - don't filter if "all" or empty
-      if (type && type !== "all") filters.type = type as string;
+      // Validate and normalize type parameter to Title Case asset types
+      if (type && type !== "all") {
+        const validationResult = AssetTypeEnum.safeParse(type);
+        if (validationResult.success) {
+          filters.type = validationResult.data;
+        } else {
+          return res.status(400).json({ message: "Invalid asset type. Must be Hardware, Software, Peripherals, or Others" });
+        }
+      }
       if (status && status !== "all") filters.status = status as string;
       if (category && category !== "all") filters.category = category as string;
       if (search && typeof search === 'string' && search.trim()) filters.search = search;

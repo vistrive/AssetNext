@@ -40,39 +40,39 @@ const navigation = [
     subItems: [
       { 
         name: "Hardware", 
-        href: "/assets?type=hardware", 
+        href: "/assets?type=Hardware", 
         icon: Laptop,
         subItems: [
-          { name: "PC", href: "/assets?type=hardware&category=pc", icon: Monitor },
-          { name: "Laptop", href: "/assets?type=hardware&category=laptop", icon: Laptop },
-          { name: "Server", href: "/assets?type=hardware&category=server", icon: Server },
-          { name: "Racks", href: "/assets?type=hardware&category=rack", icon: HardDrive },
-          { name: "Mobile Phone", href: "/assets?type=hardware&category=mobile", icon: Smartphone },
-          { name: "Tablets", href: "/assets?type=hardware&category=tablet", icon: Tablet },
+          { name: "PC", href: "/assets?type=Hardware&category=pc", icon: Monitor },
+          { name: "Laptop", href: "/assets?type=Hardware&category=laptop", icon: Laptop },
+          { name: "Server", href: "/assets?type=Hardware&category=server", icon: Server },
+          { name: "Racks", href: "/assets?type=Hardware&category=rack", icon: HardDrive },
+          { name: "Mobile Phone", href: "/assets?type=Hardware&category=mobile", icon: Smartphone },
+          { name: "Tablets", href: "/assets?type=Hardware&category=tablet", icon: Tablet },
         ]
       },
-      { name: "Software", href: "/assets?type=software", icon: Code },
+      { name: "Software", href: "/assets?type=Software", icon: Code },
       { 
         name: "Peripherals", 
-        href: "/assets?type=peripheral", 
+        href: "/assets?type=Peripherals", 
         icon: Printer,
         subItems: [
-          { name: "Printers", href: "/assets?type=peripheral&category=printer", icon: Printer },
-          { name: "3D Printers", href: "/assets?type=peripheral&category=3d-printer", icon: Package },
-          { name: "Scanners", href: "/assets?type=peripheral&category=scanner", icon: Scan },
-          { name: "Mouse", href: "/assets?type=peripheral&category=mouse", icon: Mouse },
-          { name: "Routers", href: "/assets?type=peripheral&category=router", icon: Router },
-          { name: "Switches", href: "/assets?type=peripheral&category=switch", icon: Wifi },
-          { name: "Hubs", href: "/assets?type=peripheral&category=hub", icon: Wifi },
+          { name: "Printers", href: "/assets?type=Peripherals&category=printer", icon: Printer },
+          { name: "3D Printers", href: "/assets?type=Peripherals&category=3d-printer", icon: Package },
+          { name: "Scanners", href: "/assets?type=Peripherals&category=scanner", icon: Scan },
+          { name: "Mouse", href: "/assets?type=Peripherals&category=mouse", icon: Mouse },
+          { name: "Routers", href: "/assets?type=Peripherals&category=router", icon: Router },
+          { name: "Switches", href: "/assets?type=Peripherals&category=switch", icon: Wifi },
+          { name: "Hubs", href: "/assets?type=Peripherals&category=hub", icon: Wifi },
         ]
       },
       { 
         name: "Others", 
-        href: "/assets?type=others", 
+        href: "/assets?type=Others", 
         icon: Package,
         subItems: [
-          { name: "CCTV Cameras", href: "/assets?type=others&category=cctv", icon: Camera },
-          { name: "Access Control", href: "/assets?type=others&category=access-control", icon: Shield },
+          { name: "CCTV Cameras", href: "/assets?type=Others&category=cctv", icon: Camera },
+          { name: "Access Control", href: "/assets?type=Others&category=access-control", icon: Shield },
         ]
       },
     ]

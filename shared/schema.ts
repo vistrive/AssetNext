@@ -3,6 +3,10 @@ import { pgTable, text, varchar, timestamp, integer, boolean, decimal, jsonb } f
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Asset Type Enum - shared across frontend and backend
+export const AssetTypeEnum = z.enum(["Hardware", "Software", "Peripherals", "Others"]);
+export type AssetType = z.infer<typeof AssetTypeEnum>;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
@@ -52,7 +56,7 @@ export const tenants = pgTable("tenants", {
 export const assets = pgTable("assets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type").notNull(), // hardware, software, peripheral, others
+  type: text("type").notNull(), // Hardware, Software, Peripherals, Others
   category: text("category"), // laptop, desktop, server, etc.
   manufacturer: text("manufacturer"),
   model: text("model"),
@@ -274,6 +278,7 @@ export const insertAssetSchema = createInsertSchema(assets).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
+  type: AssetTypeEnum, // Enforce Title Case asset types
   purchaseCost: z.number().positive().optional().or(z.undefined()),
 });
 
