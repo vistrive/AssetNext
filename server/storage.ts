@@ -52,7 +52,7 @@ import {
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
 import { db } from "./db";
-import { eq, and, desc, sql, ilike } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -1064,6 +1064,24 @@ export class DatabaseStorage implements IStorage {
       .orderBy(ticketActivities.createdAt);
   }
 
+  // Helper function to calculate time ago
+  private getTimeAgo(date: Date | null): string {
+    if (!date) return 'Unknown';
+    
+    const now = new Date();
+    const diffInMs = now.getTime() - new Date(date).getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    
+    return new Date(date).toLocaleDateString();
+  }
+
   // Dashboard Metrics
   async getDashboardMetrics(tenantId: string): Promise<any> {
     try {
@@ -1156,6 +1174,119 @@ export class DatabaseStorage implements IStorage {
         })
         .from(tickets)
         .where(eq(tickets.tenantId, tenantId));
+
+      // NEW: Get detailed unused hardware assets (in-stock status)
+      const unusedHardwareAssets = await db
+        .select({
+          id: assets.id,
+          name: assets.name,
+          category: assets.category,
+          manufacturer: assets.manufacturer,
+          model: assets.model,
+          purchaseDate: assets.purchaseDate,
+          purchaseCost: assets.purchaseCost,
+          location: assets.location
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          eq(assets.type, 'Hardware'),
+          eq(assets.status, 'in-stock')
+        ))
+        .limit(10);
+
+      // NEW: Get detailed unused software licenses
+      const unusedSoftwareLicenses = await db
+        .select({
+          id: softwareLicenses.id,
+          name: softwareLicenses.name,
+          vendor: softwareLicenses.vendor,
+          version: softwareLicenses.version,
+          totalLicenses: softwareLicenses.totalLicenses,
+          usedLicenses: softwareLicenses.usedLicenses,
+          costPerLicense: softwareLicenses.costPerLicense,
+          renewalDate: softwareLicenses.renewalDate
+        })
+        .from(softwareLicenses)
+        .where(and(
+          eq(softwareLicenses.tenantId, tenantId),
+          sql`${softwareLicenses.usedLicenses} < ${softwareLicenses.totalLicenses}`
+        ))
+        .limit(10);
+
+      // NEW: Get detailed expiring assets (warranties within 30 days) - using JS date for portability
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const today = new Date();
+
+      const expiringWarranties = await db
+        .select({
+          id: assets.id,
+          name: assets.name,
+          category: assets.category,
+          manufacturer: assets.manufacturer,
+          model: assets.model,
+          warrantyExpiry: assets.warrantyExpiry,
+          amcExpiry: assets.amcExpiry,
+          location: assets.location,
+          assignedUserName: assets.assignedUserName
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          or(
+            and(
+              sql`warranty_expiry IS NOT NULL`,
+              sql`warranty_expiry <= ${thirtyDaysFromNow}`,
+              sql`warranty_expiry >= ${today}`
+            ),
+            and(
+              sql`amc_expiry IS NOT NULL`,
+              sql`amc_expiry <= ${thirtyDaysFromNow}`,
+              sql`amc_expiry >= ${today}`
+            )
+          )
+        ))
+        .orderBy(sql`COALESCE(warranty_expiry, amc_expiry)`)
+        .limit(10);
+
+      // NEW: Get detailed expiring software licenses - using JS date for portability
+      const expiringSoftwareLicenses = await db
+        .select({
+          id: softwareLicenses.id,
+          name: softwareLicenses.name,
+          vendor: softwareLicenses.vendor,
+          version: softwareLicenses.version,
+          renewalDate: softwareLicenses.renewalDate,
+          totalLicenses: softwareLicenses.totalLicenses,
+          costPerLicense: softwareLicenses.costPerLicense
+        })
+        .from(softwareLicenses)
+        .where(and(
+          eq(softwareLicenses.tenantId, tenantId),
+          sql`renewal_date IS NOT NULL`,
+          sql`renewal_date <= ${thirtyDaysFromNow}`,
+          sql`renewal_date >= ${today}`
+        ))
+        .orderBy(softwareLicenses.renewalDate)
+        .limit(10);
+
+      // NEW: Get recent activity logs
+      const recentActivities = await db
+        .select({
+          id: auditLogs.id,
+          action: auditLogs.action,
+          resourceType: auditLogs.resourceType,
+          resourceId: auditLogs.resourceId,
+          userEmail: auditLogs.userEmail,
+          userRole: auditLogs.userRole,
+          description: auditLogs.description,
+          createdAt: auditLogs.createdAt
+        })
+        .from(auditLogs)
+        .where(eq(auditLogs.tenantId, tenantId))
+        .orderBy(sql`created_at DESC`)
+        .limit(10);
 
       // Process results
       const assetsByType = assetTypesCounts.reduce((acc: any, item) => {
@@ -1295,7 +1426,90 @@ export class DatabaseStorage implements IStorage {
         },
 
         // Ticket metrics
-        tickets: ticketStats
+        tickets: ticketStats,
+
+        // NEW: Enhanced ITAM Insights
+        itamInsights: {
+          // Unused Assets
+          unusedAssets: {
+            hardware: unusedHardwareAssets.map(asset => ({
+              id: asset.id,
+              name: asset.name,
+              category: asset.category,
+              manufacturer: asset.manufacturer,
+              model: asset.model,
+              purchaseDate: asset.purchaseDate,
+              purchaseCost: asset.purchaseCost,
+              location: asset.location,
+              type: 'hardware'
+            })),
+            software: unusedSoftwareLicenses.map(license => ({
+              id: license.id,
+              name: license.name,
+              vendor: license.vendor,
+              version: license.version,
+              totalLicenses: license.totalLicenses,
+              usedLicenses: license.usedLicenses,
+              availableLicenses: (license.totalLicenses || 0) - (license.usedLicenses || 0),
+              costPerLicense: license.costPerLicense,
+              renewalDate: license.renewalDate,
+              type: 'software'
+            }))
+          },
+
+          // Expiring Items
+          expiringItems: {
+            warranties: expiringWarranties.map(asset => ({
+              id: asset.id,
+              name: asset.name,
+              category: asset.category,
+              manufacturer: asset.manufacturer,
+              model: asset.model,
+              warrantyExpiry: asset.warrantyExpiry,
+              amcExpiry: asset.amcExpiry,
+              location: asset.location,
+              assignedUser: asset.assignedUserName, // Fixed: renamed from assignedUserName
+              type: 'warranty',
+              expiryDate: asset.warrantyExpiry || asset.amcExpiry, // Fixed: explicit mapping
+              contractType: asset.warrantyExpiry ? 'Warranty' : 'AMC' // Fixed: explicit contract type
+            })),
+            licenses: expiringSoftwareLicenses.map(license => ({
+              id: license.id,
+              name: license.name,
+              vendor: license.vendor,
+              version: license.version,
+              renewalDate: license.renewalDate,
+              totalLicenses: license.totalLicenses,
+              costPerLicense: license.costPerLicense,
+              type: 'license',
+              expiryDate: license.renewalDate, // Fixed: explicit mapping
+              contractType: 'Software License' // Fixed: explicit contract type
+            }))
+          },
+
+          // Recent Activities
+          recentActivities: recentActivities.map(activity => ({
+            id: activity.id,
+            action: activity.action,
+            resourceType: activity.resourceType,
+            resourceId: activity.resourceId,
+            userEmail: activity.userEmail,
+            userRole: activity.userRole,
+            description: activity.description,
+            createdAt: activity.createdAt,
+            timeAgo: this.getTimeAgo(activity.createdAt)
+          })),
+
+          // Summary Metrics
+          summary: {
+            totalUnusedHardware: unusedHardwareAssets.length,
+            totalUnusedLicenses: unusedSoftwareLicenses.reduce((sum, license) => sum + ((license.totalLicenses || 0) - (license.usedLicenses || 0)), 0),
+            totalExpiringWarranties: expiringWarranties.length,
+            totalExpiringLicenses: expiringSoftwareLicenses.length,
+            totalPendingActions: (warrantyStatus.warrantyExpiring || 0) + (warrantyStatus.amcDue || 0) + (licenseStatus.renewalDue || 0),
+            complianceRisk: (warrantyStatus.warrantyExpired || 0) + (licenseStatus.expired || 0) // Fixed: ensure numeric value
+          }
+        }
       };
     } catch (error) {
       console.error('Error fetching dashboard metrics:', error);
@@ -1467,7 +1681,7 @@ export async function seedDatabase() {
         assignedUserId: null,
         assignedUserName: null,
         purchaseDate: new Date("2024-01-15"),
-        purchaseCost: "2499.00",
+        purchaseCost: 2499.00,
         warrantyExpiry: new Date("2027-01-15"),
         specifications: { ram: "16GB", storage: "512GB SSD", processor: "M1 Pro" },
         tenantId: tenant.id,
@@ -1485,7 +1699,7 @@ export async function seedDatabase() {
         assignedUserId: null,
         assignedUserName: null,
         purchaseDate: new Date("2024-02-01"),
-        purchaseCost: "899.00",
+        purchaseCost: 899.00,
         warrantyExpiry: new Date("2027-02-01"),
         specifications: { ram: "8GB", storage: "256GB SSD", processor: "Intel i5" },
         tenantId: tenant.id,

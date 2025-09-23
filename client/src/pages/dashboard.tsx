@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/topbar";
 import { AssetCategoryTiles } from "@/components/dashboard/asset-category-tiles";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { ReportGenerator } from "@/components/dashboard/report-generator";
+import { ITAMInsights } from "@/components/dashboard/itam-insights";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Asset, Recommendation } from "@shared/schema";
 
@@ -60,8 +61,8 @@ export default function Dashboard() {
       
       <main className="flex-1 md:ml-64 overflow-auto">
         <TopBar
-          title="Dashboard"
-          description="IT Asset Overview with Category Breakdowns"
+          title="ITAM Dashboard"
+          description="Comprehensive IT Asset Management with Lifecycle Insights, Unused Asset Detection & Compliance Monitoring"
         />
         
         <div className="p-6 space-y-6">
@@ -71,6 +72,9 @@ export default function Dashboard() {
               onNavigateToAssets={handleNavigateToAssets}
             />
           )}
+          
+          {/* Enhanced ITAM Insights Section */}
+          {metrics && <ITAMInsights metrics={metrics} />}
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
