@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 const assetFormSchema = insertAssetSchema.extend({
   tenantId: z.string().optional(), // Make tenantId optional for form validation
   purchaseDate: z.string().optional(),
-  purchaseCost: z.number().positive().optional().or(z.undefined()),
+  purchaseCost: z.coerce.number().positive().optional().or(z.undefined()),
   warrantyExpiry: z.string().optional(),
   renewalDate: z.string().optional(),
   vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")).or(z.undefined()),
@@ -59,10 +59,10 @@ const assetFormSchema = insertAssetSchema.extend({
         path: ["licenseKey"],
       });
     }
-    if (data.usedLicenses === undefined || data.usedLicenses === null) {
+    if (data.usedLicenses === undefined || data.usedLicenses === null || !Number.isFinite(data.usedLicenses) || data.usedLicenses < 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Used licenses is required for software assets",
+        message: "Used licenses must be a valid non-negative number",
         path: ["usedLicenses"],
       });
     }
@@ -458,15 +458,15 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="font-medium text-muted-foreground">Asset Name:</span>
-                <p className="text-foreground">{formatFieldValue(reviewData.name)}</p>
+                <p className="text-foreground" data-testid="text-review-asset-name">{formatFieldValue(reviewData.name)}</p>
               </div>
               <div>
                 <span className="font-medium text-muted-foreground">Type:</span>
-                <p className="text-foreground">{formatFieldValue(reviewData.type)}</p>
+                <p className="text-foreground" data-testid="text-review-type">{formatFieldValue(reviewData.type)}</p>
               </div>
               <div>
                 <span className="font-medium text-muted-foreground">Serial Number:</span>
-                <p className="text-foreground">{formatFieldValue(reviewData.serialNumber)}</p>
+                <p className="text-foreground" data-testid="text-review-serial-number">{formatFieldValue(reviewData.serialNumber)}</p>
               </div>
               <div>
                 <span className="font-medium text-muted-foreground">Category:</span>
@@ -501,11 +501,11 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="font-medium text-muted-foreground">Purchase Date:</span>
-                <p className="text-foreground">{formatFieldValue(reviewData.purchaseDate, "date")}</p>
+                <p className="text-foreground" data-testid="text-review-purchase-date">{formatFieldValue(reviewData.purchaseDate, "date")}</p>
               </div>
               <div>
                 <span className="font-medium text-muted-foreground">Purchase Cost:</span>
-                <p className="text-foreground">{formatFieldValue(reviewData.purchaseCost, "currency")}</p>
+                <p className="text-foreground" data-testid="text-review-purchase-cost">{formatFieldValue(reviewData.purchaseCost, "currency")}</p>
               </div>
               <div className="col-span-2">
                 <span className="font-medium text-muted-foreground">Warranty Expiry:</span>
@@ -738,7 +738,9 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 id="purchaseCost"
                 type="number"
                 step="0.01"
-                {...register("purchaseCost", { valueAsNumber: true })}
+                {...register("purchaseCost", { 
+                  setValueAs: v => v === '' || v == null || Number.isNaN(+v) ? undefined : +v 
+                })}
                 placeholder="0.00"
                 data-testid="input-purchase-cost"
               />
@@ -851,7 +853,9 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                     id="usedLicenses"
                     type="number"
                     min="0"
-                    {...register("usedLicenses", { valueAsNumber: true })}
+                    {...register("usedLicenses", { 
+                      setValueAs: v => v === '' || v == null || Number.isNaN(+v) ? undefined : +v 
+                    })}
                     placeholder="0"
                     data-testid="input-used-licenses"
                   />
