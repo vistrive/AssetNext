@@ -203,21 +203,38 @@ export function Sidebar() {
                         return (
                           <div key={subItem.name}>
                             {hasNestedSubItems ? (
-                              // Sub-item with nested items
+                              // Sub-item with nested items - separate name link and dropdown button
                               <div>
-                                <button
-                                  onClick={() => toggleMenu(subItem.name)}
-                                  className={`sidebar-link text-sm w-full text-left ${isSubActive ? 'active' : ''}`}
-                                  data-testid={`nav-${subItem.name.toLowerCase().replace(' ', '-')}`}
-                                >
-                                  <subItem.icon className="w-4 h-4 mr-3" />
-                                  {subItem.name}
-                                  {isSubExpanded ? (
-                                    <ChevronDown className="w-3 h-3 ml-auto" />
-                                  ) : (
-                                    <ChevronRight className="w-3 h-3 ml-auto" />
-                                  )}
-                                </button>
+                                <div className="flex items-center">
+                                  {/* Main text/icon - clicks to navigate and filter by type */}
+                                  <Link href={subItem.href} className="flex-1">
+                                    <div 
+                                      className={`sidebar-link text-sm ${isSubActive ? 'active' : ''}`}
+                                      data-testid={`nav-${subItem.name.toLowerCase().replace(' ', '-')}`}
+                                    >
+                                      <subItem.icon className="w-4 h-4 mr-3" />
+                                      {subItem.name}
+                                    </div>
+                                  </Link>
+                                  
+                                  {/* Separate dropdown button - only toggles expansion */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      toggleMenu(subItem.name);
+                                    }}
+                                    className="p-1 hover:bg-muted rounded-md transition-colors ml-1"
+                                    data-testid={`dropdown-${subItem.name.toLowerCase().replace(' ', '-')}`}
+                                    title={`${isSubExpanded ? 'Collapse' : 'Expand'} ${subItem.name} menu`}
+                                  >
+                                    {isSubExpanded ? (
+                                      <ChevronDown className="w-3 h-3" />
+                                    ) : (
+                                      <ChevronRight className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
                                 
                                 {isSubExpanded && (
                                   <div className="ml-6 mt-1 space-y-1">
