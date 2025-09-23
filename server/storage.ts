@@ -1131,7 +1131,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'Peripherals')))
         .groupBy(assets.category);
 
-      // Get uncategorized or "other" assets within each type
+      // Get "Others" type assets breakdown by category
       const othersCounts = await db
         .select({
           type: assets.type,
@@ -1142,10 +1142,7 @@ export class DatabaseStorage implements IStorage {
           inRepair: sql<number>`count(*) filter (where status = 'in-repair')`
         })
         .from(assets)
-        .where(and(
-          eq(assets.tenantId, tenantId),
-          sql`category IN ('cctv', 'access-control', 'security', 'surveillance', 'other')`
-        ))
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.type, 'Others')))
         .groupBy(assets.type, assets.category);
 
       // Get ticket counts
