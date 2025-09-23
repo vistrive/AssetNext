@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useSearch } from "@/hooks/use-search";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { AssetForm } from "@/components/assets/asset-form";
@@ -18,7 +18,7 @@ import type { Asset, InsertAsset } from "@shared/schema";
 import { AssetTypeEnum } from "@shared/schema";
 
 export default function Assets() {
-  const [location] = useLocation();
+  const search = useSearch();
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
@@ -35,48 +35,35 @@ export default function Assets() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Add test navigation buttons for debugging
-  const testNavigation = () => {
-    console.log('Test: Navigating to Hardware assets');
-    window.location.href = '/assets?type=Hardware';
-  };
 
   // Initialize filters based on URL parameters
   // Main /assets route shows ALL assets, only subsection routes filter by type
   useEffect(() => {
-    console.log('Assets page location changed:', location);
-    const urlParams = new URLSearchParams(location.split('?')[1] || '');
+    const urlParams = new URLSearchParams(search);
     const typeParam = urlParams.get('type');
     const categoryParam = urlParams.get('category');
-    
-    console.log('URL parameters parsed:', { typeParam, categoryParam });
-    console.log('AssetTypeEnum validation for typeParam:', typeParam, 'result:', AssetTypeEnum.safeParse(typeParam));
     
     // Only apply type filtering if a valid type parameter is explicitly provided
     // This ensures /assets shows all items, while /assets?type=Hardware filters to hardware
     if (typeParam && AssetTypeEnum.safeParse(typeParam).success) {
-      console.log('Setting type filter to:', typeParam);
       setTypeFilter(typeParam);
     } else {
-      console.log('Setting type filter to "all" - no valid type param');
       // Default to showing all assets (no type filtering)
       setTypeFilter("all");
     }
     
     // Only apply category filtering if a category parameter is explicitly provided
     if (categoryParam && categoryParam.trim()) {
-      console.log('Setting category filter to:', categoryParam);
       setCategoryFilter(categoryParam);
     } else {
-      console.log('Setting category filter to "all" - no valid category param');
       // Default to showing all categories
       setCategoryFilter("all");
     }
-  }, [location]);
+  }, [search]);
 
   // Get dynamic page title based on filter
   const getPageTitle = () => {
-    const urlParams = new URLSearchParams(location.split('?')[1] || '');
+    const urlParams = new URLSearchParams(search);
     const categoryParam = urlParams.get('category');
     
     if (categoryParam) {
@@ -95,7 +82,7 @@ export default function Assets() {
   };
 
   const getPageDescription = () => {
-    const urlParams = new URLSearchParams(location.split('?')[1] || '');
+    const urlParams = new URLSearchParams(search);
     const categoryParam = urlParams.get('category');
     
     if (categoryParam) {
@@ -523,37 +510,6 @@ export default function Assets() {
         />
         
         <div className="p-6">
-          {/* DEBUG: Test Navigation Buttons */}
-          <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded-md">
-            <p className="text-sm font-medium mb-2">🚧 DEBUG: Test Navigation</p>
-            <div className="flex gap-2">
-              <Button 
-                onClick={testNavigation}
-                size="sm"
-                className="bg-blue-500 hover:bg-blue-600"
-                data-testid="test-hardware-navigation"
-              >
-                Test Hardware Filter
-              </Button>
-              <Button 
-                onClick={() => window.location.href = '/assets?type=Software'}
-                size="sm"
-                className="bg-green-500 hover:bg-green-600"
-                data-testid="test-software-navigation"
-              >
-                Test Software Filter
-              </Button>
-              <Button 
-                onClick={() => window.location.href = '/assets'}
-                size="sm"
-                className="bg-gray-500 hover:bg-gray-600"
-                data-testid="test-clear-filter"
-              >
-                Clear Filters
-              </Button>
-            </div>
-          </div>
-          
           {/* Active Search Indicator */}
           {debouncedSearchTerm && (
             <div className="mb-4">
