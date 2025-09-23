@@ -98,33 +98,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, password }: LoginRequest = loginSchema.parse(req.body);
       
-      const user = await storage.getUserByEmail(email);
+      let user;
+      try {
+        user = await storage.getUserByEmail(email);
+      } catch (dbError) {
+        console.error("Database connection failed during login:", dbError);
+        return res.status(503).json({ 
+          message: "Service temporarily unavailable. Database connection failed.",
+          code: "DATABASE_UNAVAILABLE"
+        });
+      }
+      
       if (!user) {
         // Log failed login attempt
-        await auditLogger.logAuthActivity(
-          AuditActions.LOGIN,
-          email,
-          null, // Don't know tenant yet
-          req,
-          false,
-          { reason: "user_not_found" }
-        );
+        try {
+          await auditLogger.logAuthActivity(
+            AuditActions.LOGIN,
+            email,
+            "unknown", // Don't know tenant yet
+            req,
+            false,
+            { reason: "user_not_found" }
+          );
+        } catch (auditError) {
+          console.warn("Failed to log auth activity:", auditError);
+        }
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isValidPassword = await comparePassword(password, user.password);
       if (!isValidPassword) {
         // Log failed login attempt with known user
-        await auditLogger.logAuthActivity(
-          AuditActions.LOGIN,
-          email,
-          user.tenantId,
-          req,
-          false,
-          { reason: "invalid_password" },
-          user.id,
-          user.role
-        );
+        try {
+          await auditLogger.logAuthActivity(
+            AuditActions.LOGIN,
+            email,
+            user.tenantId,
+            req,
+            false,
+            { reason: "invalid_password" },
+            user.id,
+            user.role
+          );
+        } catch (auditError) {
+          console.warn("Failed to log auth activity:", auditError);
+        }
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
@@ -189,13 +207,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { email, password, firstName, lastName, tenantName }: RegisterRequest = 
         registerSchema.parse(req.body);
 
-      const existingUser = await storage.getUserByEmail(email);
+      // Check database connectivity first
+      let existingUser;
+      try {
+        existingUser = await storage.getUserByEmail(email);
+      } catch (dbError) {
+        console.error("Database connection failed during registration:", dbError);
+        return res.status(503).json({ 
+          message: "Service temporarily unavailable. Database connection failed.",
+          code: "DATABASE_UNAVAILABLE"
+        });
+      }
+      
       if (existingUser) {
         return res.status(400).json({ message: "User already exists" });
       }
 
       // Check if organization already exists by name (case-insensitive)
-      let tenant = await storage.getTenantByName(tenantName);
+      let tenant;
+      try {
+        tenant = await storage.getTenantByName(tenantName);
+      } catch (dbError) {
+        console.error("Database connection failed during tenant lookup:", dbError);
+        return res.status(503).json({ 
+          message: "Service temporarily unavailable. Database connection failed.",
+          code: "DATABASE_UNAVAILABLE"
+        });
+      }
       
       if (!tenant) {
         // Create new organization if it doesn't exist
