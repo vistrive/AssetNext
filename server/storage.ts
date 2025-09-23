@@ -406,6 +406,18 @@ export class DatabaseStorage implements IStorage {
     return updatedTenant || undefined;
   }
 
+  // Get tenant by support email address for external ticket routing
+  async getTenantBySupportEmail(supportEmail: string): Promise<Tenant | undefined> {
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.supportEmail, supportEmail.toLowerCase()));
+    
+    return tenant;
+  }
+
+  // NOTE: getDefaultTenantForExternalTickets removed for security - no default fallback allowed
+
   async updateOrgSettings(tenantId: string, settings: UpdateOrgSettings): Promise<Tenant | undefined> {
     const [updatedTenant] = await db
       .update(tenants)
@@ -1448,7 +1460,7 @@ export async function seedDatabase() {
     const sampleAssets = [
       {
         name: "MacBook Pro 16\"",
-        type: "Hardware",
+        type: "Hardware" as const,
         category: "laptop",
         manufacturer: "Apple",
         model: "MacBook Pro",
@@ -1466,7 +1478,7 @@ export async function seedDatabase() {
       },
       {
         name: "Dell OptiPlex 7090",
-        type: "Hardware",
+        type: "Hardware" as const,
         category: "desktop",
         manufacturer: "Dell",
         model: "OptiPlex 7090",

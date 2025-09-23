@@ -184,49 +184,27 @@ export async function processEmailToTicket(emailData: EmailData): Promise<{ succ
     // Parse email content to ticket data
     const parsedTicket = parseEmailToTicket(emailData);
     
-    // Find user by email
+    // Try to find existing user by email
     const user = await findUserByEmail(parsedTicket.requestorEmail);
     
-    if (!user) {
-      console.warn(`User not found for email: ${parsedTicket.requestorEmail}`);
-      return {
-        success: false,
-        error: `No user account found for email address: ${parsedTicket.requestorEmail}. User must have an account to create tickets via email.`
-      };
-    }
+    let ticketData: InsertTicket;
     
-    // Create ticket data
-    const ticketData: InsertTicket = {
-      title: parsedTicket.title,
-      description: parsedTicket.description,
-      category: parsedTicket.category,
-      priority: parsedTicket.priority,
-      status: 'open',
-      requestorId: user.userId,
-      requestorName: `${user.firstName} ${user.lastName}`,
-      requestorEmail: parsedTicket.requestorEmail,
-      tenantId: user.tenantId,
-      // Optional fields
-      assignedToId: undefined,
-      assignedToName: undefined,
-      assignedById: undefined,
-      assignedByName: undefined,
-      assignedAt: undefined,
-      resolvedAt: undefined,
-      closedAt: undefined,
-      dueDate: undefined,
-      resolution: undefined,
-      resolutionNotes: undefined,
-      assetId: undefined,
-      assetName: undefined,
-      attachments: emailData.attachments && emailData.attachments.length > 0 ? emailData.attachments : undefined,
-      tags: undefined
-    };
+    if (user) {
+      // Internal user with account - use their details
+      console.log(`Creating ticket for registered user: ${user.firstName} ${user.lastName}`);
+      ticketData = createTicketForRegisteredUser(parsedTicket, user, emailData);
+    } else {
+      // External user without account - create ticket for external requestor
+      console.log(`Creating ticket for external user: ${parsedTicket.requestorEmail}`);
+      ticketData = await createTicketForExternalUser(parsedTicket, emailData);
+    }
     
     // Create the ticket
     const createdTicket = await storage.createTicket(ticketData);
     
-    console.log(`Ticket created from email: ${createdTicket.ticketNumber} for user ${user.firstName} ${user.lastName}`);
+    const userType = user ? 'internal' : 'external';
+    const userName = user ? `${user.firstName} ${user.lastName}` : ticketData.requestorName;
+    console.log(`Ticket created from email: ${createdTicket.ticketNumber} for ${userType} user ${userName}`);
     
     return {
       success: true,
@@ -272,21 +250,211 @@ export function validateEmailData(data: any): EmailData | null {
   };
 }
 
-// Validate webhook authenticity (basic shared secret)
-export function validateWebhookAuth(req: any): boolean {
-  // For now, we'll implement a basic check
-  // In production, you should use SendGrid's Event Webhook signature verification
-  // or implement a shared secret in query parameters or headers
+// Helper functions for ticket creation
+
+// Create ticket data for registered user with account
+function createTicketForRegisteredUser(parsedTicket: ParsedTicket, user: any, emailData: EmailData): InsertTicket {
+  return {
+    title: parsedTicket.title,
+    description: parsedTicket.description,
+    category: parsedTicket.category,
+    priority: parsedTicket.priority,
+    status: 'open',
+    requestorId: user.userId,
+    requestorName: `${user.firstName} ${user.lastName}`,
+    requestorEmail: parsedTicket.requestorEmail,
+    tenantId: user.tenantId,
+    // Optional fields set to undefined
+    assignedToId: undefined,
+    assignedToName: undefined,
+    assignedById: undefined,
+    assignedByName: undefined,
+    assignedAt: undefined,
+    resolvedAt: undefined,
+    closedAt: undefined,
+    dueDate: undefined,
+    resolution: undefined,
+    resolutionNotes: undefined,
+    assetId: undefined,
+    assetName: undefined,
+    attachments: emailData.attachments && emailData.attachments.length > 0 ? emailData.attachments : undefined,
+    tags: undefined
+  };
+}
+
+// Create ticket data for external user without account  
+async function createTicketForExternalUser(parsedTicket: ParsedTicket, emailData: EmailData): Promise<InsertTicket> {
+  // CRITICAL: Find tenant by support email address - NO DEFAULT FALLBACK for security
+  const targetTenant = await findTenantByRecipientEmail(emailData);
   
-  // For MVP, we'll just validate that the request has expected SendGrid headers/format
-  const userAgent = req.headers['user-agent'] || '';
-  const contentType = req.headers['content-type'] || '';
-  
-  // SendGrid typically sends with specific user agent and content type
-  if (contentType.includes('multipart/form-data')) {
-    return true; // Basic validation passed
+  if (!targetTenant) {
+    const recipientAddresses = extractRecipientEmails(emailData);
+    throw new Error(`No tenant configured for recipient email(s): ${recipientAddresses.join(', ')}. Please ensure the recipient email is configured as a support email for a tenant.`);
   }
   
-  console.warn('Webhook validation failed - suspicious request format');
-  return false;
+  console.log(`Routing external ticket to tenant: ${targetTenant.name} (${targetTenant.supportEmail})`);
+  
+  // Create unique external requestor ID
+  const externalRequestorId = `external_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  return {
+    title: parsedTicket.title,
+    description: `**External Support Request**\n\nFrom: ${parsedTicket.requestorEmail}\nName: ${parsedTicket.requestorName || 'Unknown'}\n\n---\n\n${parsedTicket.description}`,
+    category: parsedTicket.category,
+    priority: parsedTicket.priority,
+    status: 'open',
+    requestorId: externalRequestorId, // Use unique external ID
+    requestorName: parsedTicket.requestorName || extractNameFromEmail(parsedTicket.requestorEmail),
+    requestorEmail: parsedTicket.requestorEmail,
+    tenantId: targetTenant.id,
+    // Optional fields set to undefined
+    assignedToId: undefined,
+    assignedToName: undefined,
+    assignedById: undefined,
+    assignedByName: undefined,
+    assignedAt: undefined,
+    resolvedAt: undefined,
+    closedAt: undefined,
+    dueDate: undefined,
+    resolution: undefined,
+    resolutionNotes: undefined,
+    assetId: undefined,
+    assetName: undefined,
+    attachments: emailData.attachments && emailData.attachments.length > 0 ? emailData.attachments : undefined,
+    tags: ['external'] // Tag external tickets for easy filtering
+  };
+}
+
+// Validate webhook authenticity with shared secret (SendGrid compatible)
+export function validateWebhookAuth(req: any): boolean {
+  // CRITICAL: Require WEBHOOK_SECRET environment variable (no default for security)
+  const expectedSecret = process.env.WEBHOOK_SECRET;
+  if (!expectedSecret) {
+    console.error('SECURITY ERROR: WEBHOOK_SECRET environment variable not configured');
+    return false;
+  }
+
+  // Check for shared secret in headers - support both Basic Auth (SendGrid) and custom headers
+  const authHeader = req.headers['authorization'];
+  const customSecret = req.headers['x-webhook-secret'];
+  
+  let secretToCheck = null;
+  
+  // Handle Basic Auth (SendGrid Inbound Parse format)
+  if (authHeader && authHeader.startsWith('Basic ')) {
+    try {
+      const base64Credentials = authHeader.substring(6);
+      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
+      const [username, password] = credentials.split(':');
+      secretToCheck = password || username; // Use password field, fallback to username
+      console.log('Using Basic Auth for webhook validation');
+    } catch (error) {
+      console.warn('Failed to decode Basic Auth credentials:', error);
+      return false;
+    }
+  }
+  // Handle Bearer token format
+  else if (authHeader && authHeader.startsWith('Bearer ')) {
+    secretToCheck = authHeader.substring(7);
+    console.log('Using Bearer token for webhook validation');
+  }
+  // Handle custom header
+  else if (customSecret) {
+    secretToCheck = customSecret;
+    console.log('Using custom X-Webhook-Secret header for validation');
+  }
+  
+  // Validate the secret using constant-time comparison to prevent timing attacks
+  if (!secretToCheck || secretToCheck.length !== expectedSecret.length) {
+    console.warn('Webhook validation failed - invalid or missing secret');
+    return false;
+  }
+
+  // Use Node.js built-in crypto.timingSafeEqual for secure comparison
+  const crypto = require('crypto');
+  const providedBuffer = Buffer.from(secretToCheck, 'utf8');
+  const expectedBuffer = Buffer.from(expectedSecret, 'utf8');
+  
+  if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
+    console.warn('Webhook validation failed - secret mismatch');
+    return false;
+  }
+  
+  // Additional validation: Check content type
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('multipart/form-data') && !contentType.includes('application/x-www-form-urlencoded')) {
+    console.warn('Webhook validation failed - invalid content type');
+    return false;
+  }
+  
+  // Check for reasonable user agent
+  const userAgent = req.headers['user-agent'] || '';
+  if (userAgent.length === 0) {
+    console.warn('Webhook validation failed - missing user agent');
+    return false;
+  }
+  
+  console.log('Webhook validation successful');
+  return true;
+}
+
+// Extract recipient emails from email data with robust parsing
+function extractRecipientEmails(emailData: EmailData): string[] {
+  const recipients: string[] = [];
+  
+  // 1. Try envelope.to first (most reliable for SendGrid)
+  if (emailData.envelope) {
+    try {
+      const envelopeData = JSON.parse(emailData.envelope);
+      if (envelopeData.to && Array.isArray(envelopeData.to)) {
+        recipients.push(...envelopeData.to.map((email: string) => extractEmailAddress(email, emailData.envelope, emailData.headers)));
+      }
+    } catch (error) {
+      console.warn('Failed to parse envelope data for recipients:', error);
+    }
+  }
+  
+  // 2. Fallback to 'to' field if envelope not available
+  if (recipients.length === 0 && emailData.to) {
+    // Handle multiple recipients separated by commas
+    const toAddresses = emailData.to.split(',');
+    recipients.push(...toAddresses.map(addr => extractEmailAddress(addr.trim(), emailData.envelope, emailData.headers)));
+  }
+  
+  // 3. Remove duplicates and invalid entries
+  const uniqueRecipients = Array.from(new Set(recipients))
+    .filter(email => email && email.includes('@'))
+    .map(email => email.toLowerCase());
+    
+  return uniqueRecipients;
+}
+
+// Find tenant by checking all recipient emails
+async function findTenantByRecipientEmail(emailData: EmailData): Promise<any> {
+  const recipientEmails = extractRecipientEmails(emailData);
+  
+  console.log(`Checking recipient emails for tenant mapping: ${recipientEmails.join(', ')}`);
+  
+  // Try to match each recipient email to a tenant's support email
+  for (const recipientEmail of recipientEmails) {
+    // Try exact match first
+    let tenant = await storage.getTenantBySupportEmail(recipientEmail);
+    
+    if (!tenant) {
+      // Try with plus-addressing removed (support+tag@domain.com -> support@domain.com)
+      const baseEmail = recipientEmail.replace(/\+[^@]*@/, '@');
+      if (baseEmail !== recipientEmail) {
+        tenant = await storage.getTenantBySupportEmail(baseEmail);
+        console.log(`Checking base email after removing plus-addressing: ${baseEmail}`);
+      }
+    }
+    
+    if (tenant) {
+      console.log(`Found tenant match: ${tenant.name} for email: ${recipientEmail}`);
+      return tenant;
+    }
+  }
+  
+  console.warn(`No tenant found for any recipient emails: ${recipientEmails.join(', ')}`);
+  return null;
 }

@@ -37,6 +37,7 @@ export const tenants = pgTable("tenants", {
   website: text("website"),
   industry: text("industry"),
   employeeCount: integer("employee_count"),
+  supportEmail: text("support_email"), // Email address for external ticket routing
   // Settings
   timezone: text("timezone").default("UTC"),
   currency: text("currency").default("USD"),
