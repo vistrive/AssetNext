@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
+import { QuickActionsButton } from "@/components/layout/quick-actions-button";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
@@ -85,6 +86,7 @@ function App() {
           <Toaster />
           <Router />
           <FloatingAIAssistant />
+          <QuickActionsButton />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
