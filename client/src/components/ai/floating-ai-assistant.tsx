@@ -1,38 +1,34 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { authenticatedRequest } from "@/lib/auth";
-import { Bot, Send, Sparkles, X, MessageSquare, ChevronUp, ChevronDown } from "lucide-react";
+import { Bot, Send, Sparkles, GripVertical } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-export function FloatingAIAssistant() {
+function DraggableAIAssistant() {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: 'ai-assistant' });
+
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [positionOffset, setPositionOffset] = useState(0); // Vertical offset from center
-  const [showControls, setShowControls] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // Load position from localStorage on mount
-  useEffect(() => {
-    const savedOffset = localStorage.getItem('ai-assistant-position');
-    if (savedOffset) {
-      setPositionOffset(parseInt(savedOffset, 10));
-    }
-  }, []);
-
-  // Save position to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('ai-assistant-position', positionOffset.toString());
-  }, [positionOffset]);
-
-  // Only show to admin-level users (admin and super-admin)
+  // Only show to admin-level users
   if (!user || (user.role !== "admin" && user.role !== "super-admin")) {
     return null;
   }
@@ -94,38 +90,28 @@ export function FloatingAIAssistant() {
     }
   };
 
-  const moveUp = () => {
-    setPositionOffset(prev => Math.max(prev - 60, -200)); // Constrain upward movement
-  };
-
-  const moveDown = () => {
-    setPositionOffset(prev => Math.min(prev + 60, 200)); // Constrain downward movement
-  };
-
-  const containerStyle = {
-    transform: `translateY(${positionOffset}px)`
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.8 : 1,
   };
 
   return (
-    <div 
-      className="fixed top-1/2 right-6 z-50 flex flex-col items-center gap-2"
-      style={containerStyle}
-      onMouseEnter={() => setShowControls(true)}
-      onMouseLeave={() => setShowControls(false)}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="fixed top-1/2 right-6 z-50 flex flex-col items-center gap-2 group"
+      data-testid="ai-assistant-container"
     >
-      {/* Move Up Button */}
-      <Button
-        size="sm"
-        variant="outline"
-        className={`rounded-full w-8 h-8 shadow-md transition-all duration-200 ${
-          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-        }`}
-        onClick={moveUp}
-        disabled={positionOffset <= -200}
-        data-testid="button-ai-move-up"
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute -top-2 -left-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/90 hover:bg-background border border-border/50 shadow-sm"
+        data-testid="ai-assistant-drag-handle"
       >
-        <ChevronUp className="h-4 w-4" />
-      </Button>
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
 
       {/* Main AI Assistant Button */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -151,7 +137,7 @@ export function FloatingAIAssistant() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
               Ask me anything about your IT Asset Management portal. I can help with assets, licenses, reports, recommendations, and more.
             </div>
             
@@ -221,20 +207,37 @@ export function FloatingAIAssistant() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Move Down Button */}
-      <Button
-        size="sm"
-        variant="outline"
-        className={`rounded-full w-8 h-8 shadow-md transition-all duration-200 ${
-          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-        }`}
-        onClick={moveDown}
-        disabled={positionOffset >= 200}
-        data-testid="button-ai-move-down"
-      >
-        <ChevronDown className="h-4 w-4" />
-      </Button>
     </div>
+  );
+}
+
+export function FloatingAIAssistant() {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { delta } = event;
+    // Store drag position in localStorage for persistence
+    const currentPosition = JSON.parse(localStorage.getItem('ai-assistant-position') || '{"x": 0, "y": 0}');
+    const newPosition = {
+      x: currentPosition.x + delta.x,
+      y: currentPosition.y + delta.y
+    };
+    localStorage.setItem('ai-assistant-position', JSON.stringify(newPosition));
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <DraggableAIAssistant />
+    </DndContext>
   );
 }

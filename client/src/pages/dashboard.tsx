@@ -100,7 +100,7 @@ export default function Dashboard() {
                 {
                   id: 'asset-age-analysis',
                   title: 'Asset Age Analysis',
-                  component: <AssetAgeAnalysis tenantId={metrics.summary.tenantId} />,
+                  component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
                   size: 'large'
                 },
                 {
