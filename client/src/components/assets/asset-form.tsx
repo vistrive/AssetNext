@@ -28,6 +28,10 @@ const assetFormSchema = insertAssetSchema.extend({
   vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")).or(z.undefined()),
   vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]*$/, "Please enter a valid phone number").optional().or(z.literal("")).or(z.undefined()),
   companyGstNumber: z.string().optional().or(z.literal("")).or(z.undefined()),
+  // Geographic location fields
+  country: z.string().optional(),
+  state: z.string().optional(),
+  city: z.string().optional(),
 }).superRefine((data, ctx) => {
   // Make software-specific fields mandatory when type is 'Software'
   if (data.type === 'Software') {
@@ -263,7 +267,10 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       model: asset.model || "",
       serialNumber: asset.serialNumber || "",
       status: asset.status,
-      location: asset.location || "",
+      location: asset.location || "", // Legacy field, keep for migration
+      country: asset.country || "",
+      state: asset.state || "",
+      city: asset.city || "",
       assignedUserName: asset.assignedUserName || "",
       purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
       purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : undefined,
@@ -322,7 +329,10 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
         model: asset.model || "",
         serialNumber: asset.serialNumber || "",
         status: asset.status,
-        location: asset.location || "",
+        location: asset.location || "", // Legacy field, keep for migration
+      country: asset.country || "",
+      state: asset.state || "",
+      city: asset.city || "",
         assignedUserName: asset.assignedUserName || "",
         purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
         purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : undefined,
@@ -760,15 +770,33 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             </div>
             
             <div className="md:col-span-2">
-              <Label htmlFor="location">Location</Label>
-              <ComboSelect
-                value={watch("location") || ""}
-                onValueChange={(value) => setValue("location", value)}
-                type="location"
-                placeholder="Select location"
-                label="Location"
-                dataTestId="select-location"
-              />
+              {/* Geographic Location Fields */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    {...register("country")}
+                    placeholder="Country"
+                    data-testid="input-country"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="state">State/Province</Label>
+                  <Input
+                    {...register("state")}
+                    placeholder="State/Province"
+                    data-testid="input-state"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="city">City/Location</Label>
+                  <Input
+                    {...register("city")}
+                    placeholder="City or specific location"
+                    data-testid="input-city"
+                  />
+                </div>
+              </div>
             </div>
             
             <div className="md:col-span-2">

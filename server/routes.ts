@@ -2080,6 +2080,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Geographic data endpoints for location selector
+  app.get("/api/geographic/countries", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const countriesPath = path.join(process.cwd(), 'server', 'data', 'countries.json');
+      
+      if (!fs.existsSync(countriesPath)) {
+        return res.status(404).json({ message: "Countries data not found" });
+      }
+      
+      const countriesData = JSON.parse(fs.readFileSync(countriesPath, 'utf8'));
+      // Return simplified country list for dropdowns
+      const countries = countriesData.map((country: any) => ({
+        id: country.id,
+        name: country.name,
+        iso2: country.iso2,
+        iso3: country.iso3
+      }));
+      
+      res.json(countries);
+    } catch (error) {
+      console.error('Failed to load countries:', error);
+      res.status(500).json({ message: "Failed to fetch countries data" });
+    }
+  });
+
+  app.get("/api/geographic/states", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { countryId } = req.query;
+      if (!countryId) {
+        return res.status(400).json({ message: "Country ID is required" });
+      }
+
+      const fs = require('fs');
+      const path = require('path');
+      const statesPath = path.join(process.cwd(), 'server', 'data', 'states.json');
+      
+      if (!fs.existsSync(statesPath)) {
+        return res.status(404).json({ message: "States data not found" });
+      }
+      
+      const statesData = JSON.parse(fs.readFileSync(statesPath, 'utf8'));
+      // Filter states by country ID
+      const states = statesData
+        .filter((state: any) => state.country_id === parseInt(countryId as string))
+        .map((state: any) => ({
+          id: state.id,
+          name: state.name,
+          country_id: state.country_id,
+          iso2: state.iso2
+        }));
+      
+      res.json(states);
+    } catch (error) {
+      console.error('Failed to load states:', error);
+      res.status(500).json({ message: "Failed to fetch states data" });
+    }
+  });
+
   // Get technicians for ticket assignment (Managers and Admins only)
   app.get("/api/users/technicians", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {

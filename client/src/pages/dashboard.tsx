@@ -7,7 +7,7 @@ import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AssetCategoryTiles } from "@/components/dashboard/asset-category-tiles";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { ITAMInsights } from "@/components/dashboard/itam-insights";
-import { DraggableGrid } from "@/components/dashboard/draggable-grid";
+import { IndependentDraggableTiles } from "@/components/dashboard/independent-draggable-tile";
 import { AssetAgeAnalysis } from "@/components/dashboard/asset-age-analysis";
 import { WorldMap } from "@/components/dashboard/world-map";
 import { authenticatedRequest } from "@/lib/auth";
@@ -70,55 +70,64 @@ export default function Dashboard() {
         
         {/* Global Search Bar */}
         
-        <div className="p-6">
-          {metrics && (
-            <DraggableGrid
-              tiles={[
-                {
-                  id: 'asset-category-tiles',
-                  title: 'Asset Overview',
-                  component: (
-                    <AssetCategoryTiles 
-                      metrics={metrics} 
-                      onNavigateToAssets={handleNavigateToAssets}
-                    />
-                  ),
-                  size: 'full'
-                },
-                {
-                  id: 'itam-insights',
-                  title: 'ITAM Insights',
-                  component: <ITAMInsights metrics={metrics} />,
-                  size: 'full'
-                },
-                {
-                  id: 'asset-age-analysis',
-                  title: 'Asset Age Analysis',
-                  component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
-                  size: 'large'
-                },
-                {
-                  id: 'ai-recommendations',
-                  title: 'AI Recommendations',
-                  component: (
-                    <AIRecommendations
-                      recommendations={recommendations}
-                      onViewAll={handleViewAllRecommendations}
-                      onViewRecommendation={handleViewRecommendation}
-                    />
-                  ),
-                  size: 'large'
-                },
-                {
-                  id: 'world-map',
-                  title: 'Global Asset Distribution',
-                  component: <WorldMap />,
-                  size: 'large'
-                },
-              ]}
-            />
-          )}
-        </div>
+        {/* Dashboard Content - Independent Draggable Tiles */}
+        {metrics && (
+          <IndependentDraggableTiles
+            tiles={[
+              {
+                id: 'asset-category-tiles',
+                title: 'Asset Overview',
+                component: (
+                  <AssetCategoryTiles 
+                    metrics={metrics} 
+                    onNavigateToAssets={handleNavigateToAssets}
+                  />
+                ),
+                defaultPosition: { x: 100, y: 120 },
+                width: 800,
+                height: 400
+              },
+              {
+                id: 'itam-insights',
+                title: 'ITAM Insights',
+                component: <ITAMInsights metrics={metrics} />,
+                defaultPosition: { x: 920, y: 120 },
+                width: 600,
+                height: 400
+              },
+              {
+                id: 'asset-age-analysis',
+                title: 'Asset Age Analysis',
+                component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
+                defaultPosition: { x: 100, y: 540 },
+                width: 500,
+                height: 350
+              },
+              {
+                id: 'ai-recommendations',
+                title: 'AI Recommendations',
+                component: (
+                  <AIRecommendations
+                    recommendations={recommendations}
+                    onViewAll={handleViewAllRecommendations}
+                    onViewRecommendation={handleViewRecommendation}
+                  />
+                ),
+                defaultPosition: { x: 620, y: 540 },
+                width: 500,
+                height: 350
+              },
+              {
+                id: 'world-map',
+                title: 'Global Asset Distribution',
+                component: <WorldMap />,
+                defaultPosition: { x: 1140, y: 540 },
+                width: 500,
+                height: 350
+              },
+            ]}
+          />
+        )}
       </main>
     </div>
   );

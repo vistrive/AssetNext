@@ -63,7 +63,10 @@ export const assets = pgTable("assets", {
   model: text("model"),
   serialNumber: text("serial_number"),
   status: text("status").notNull().default("in-stock"), // in-stock, deployed, in-repair, disposed
-  location: text("location"),
+  location: text("location"), // Legacy field, will be deprecated
+  country: text("country"),
+  state: text("state"), 
+  city: text("city"),
   assignedUserId: varchar("assigned_user_id"),
   assignedUserName: text("assigned_user_name"),
   purchaseDate: timestamp("purchase_date"),
@@ -274,16 +277,20 @@ export const insertTenantSchema = createInsertSchema(tenants).omit({
   updatedAt: true,
 });
 
-export const insertAssetSchema = createInsertSchema(assets).omit({
+export const insertAssetSchema = createInsertSchema(assets, {
+  purchaseDate: z.coerce.date().optional(),
+  warrantyExpiry: z.coerce.date().optional(),
+  renewalDate: z.coerce.date().optional(),
+  country: z.string().optional(),
+  state: z.string().optional(), 
+  city: z.string().optional(),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
   type: AssetTypeEnum, // Enforce Title Case asset types
   purchaseCost: z.number().positive().optional().or(z.undefined()),
-  purchaseDate: z.coerce.date().optional(),
-  warrantyExpiry: z.coerce.date().optional(),
-  renewalDate: z.coerce.date().optional(),
 });
 
 export const insertSoftwareLicenseSchema = createInsertSchema(softwareLicenses).omit({
