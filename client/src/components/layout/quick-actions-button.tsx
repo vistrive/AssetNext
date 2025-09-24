@@ -25,7 +25,7 @@ export function QuickActionsButton() {
   };
 
   const handleNavigateToAddUser = () => {
-    setLocation("/team?action=add");
+    setLocation("/users?action=add");
   };
 
   const handleNavigateToAddVendor = () => {

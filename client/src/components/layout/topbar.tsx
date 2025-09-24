@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, Upload } from "lucide-react";
+import { GlobalSearch } from "@/components/dashboard/global-search";
 
 interface TopBarProps {
   title: string;
@@ -27,14 +28,11 @@ export function TopBar({
           <p className="text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Input 
-              type="text" 
-              placeholder="Search assets..." 
-              className="pl-10 w-64"
-              data-testid="input-search"
+          <div className="w-64">
+            <GlobalSearch 
+              placeholder="Search assets, users, vendors..." 
+              className="w-full"
             />
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           </div>
           {onBulkUploadClick && (
             <Button 

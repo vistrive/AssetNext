@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { authenticatedRequest } from "@/lib/auth";
 import { Bot, Send, Sparkles, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { useSortable } from '@dnd-kit/sortable';
+import { useSortable, SortableContext } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 function DraggableAIAssistant() {
@@ -237,7 +237,9 @@ export function FloatingAIAssistant() {
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <DraggableAIAssistant />
+      <SortableContext items={['ai-assistant']}>
+        <DraggableAIAssistant />
+      </SortableContext>
     </DndContext>
   );
 }

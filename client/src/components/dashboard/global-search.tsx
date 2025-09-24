@@ -116,7 +116,7 @@ export function GlobalSearch({ onResultSelect, placeholder = "Search assets, use
         navigate(`/users?search=${encodeURIComponent(result.email || result.name)}`);
         break;
       case 'license':
-        navigate(`/licenses?search=${encodeURIComponent(result.name)}`);
+        navigate(`/software?search=${encodeURIComponent(result.name)}`);
         break;
       case 'vendor':
         navigate(`/assets?manufacturer=${encodeURIComponent(result.name)}`);
