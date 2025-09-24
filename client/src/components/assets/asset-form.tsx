@@ -23,61 +23,215 @@ import { LocationSelector } from "@/components/ui/location-selector";
 const assetFormSchema = insertAssetSchema.extend({
   tenantId: z.string().optional(), // Make tenantId optional for form validation
   purchaseDate: z.string().optional(),
-  purchaseCost: z.coerce.number().positive().optional().or(z.undefined()),
+  purchaseCost: z.coerce.number().min(1, "Purchase cost must be at least $1.00 if provided").optional().or(z.undefined()),
   warrantyExpiry: z.string().optional(),
   renewalDate: z.string().optional(),
-  vendorEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")).or(z.undefined()),
-  vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]*$/, "Please enter a valid phone number").optional().or(z.literal("")).or(z.undefined()),
+  vendorEmail: z.string().email("Please enter a valid email address (e.g., vendor@company.com)").optional().or(z.literal("")).or(z.undefined()),
+  vendorPhone: z.string().regex(/^[\+]?[\d\s\-\(\)]*$/, "Please enter a valid phone number (e.g., +1-555-123-4567)").optional().or(z.literal("")).or(z.undefined()),
   companyGstNumber: z.string().optional().or(z.literal("")).or(z.undefined()),
   // Geographic location fields
   country: z.string().optional(),
   state: z.string().optional(),
   city: z.string().optional(),
+  // Enhanced validation for required fields
+  name: z.string().min(1, "Asset name is required").min(3, "Asset name must be at least 3 characters").max(100, "Asset name must not exceed 100 characters"),
+  serialNumber: z.string().optional().refine(val => !val || val.length >= 3, {
+    message: "Serial number must be at least 3 characters if provided"
+  }),
 }).superRefine((data, ctx) => {
-  // Make software-specific fields mandatory when type is 'Software'
+  // Enhanced date validation logic
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? null : date;
+  };
+
+  const purchaseDate = parseDate(data.purchaseDate || "");
+  const warrantyExpiry = parseDate(data.warrantyExpiry || "");
+  const renewalDate = parseDate(data.renewalDate || "");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Purchase date validation
+  if (purchaseDate) {
+    const maxFutureDate = new Date();
+    maxFutureDate.setDate(today.getDate() + 30);
+    
+    if (purchaseDate > maxFutureDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Purchase date cannot be more than 30 days in the future",
+        path: ["purchaseDate"],
+      });
+    }
+
+    const minDate = new Date(1990, 0, 1);
+    if (purchaseDate < minDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Purchase date cannot be earlier than January 1, 1990",
+        path: ["purchaseDate"],
+      });
+    }
+  }
+
+  // Warranty expiry validation
+  if (warrantyExpiry && purchaseDate) {
+    if (warrantyExpiry <= purchaseDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Warranty expiry date must be after the purchase date",
+        path: ["warrantyExpiry"],
+      });
+    }
+
+    // Reasonable warranty period check (max 10 years)
+    const maxWarranty = new Date(purchaseDate);
+    maxWarranty.setFullYear(purchaseDate.getFullYear() + 10);
+    if (warrantyExpiry > maxWarranty) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Warranty period seems unusually long (max 10 years recommended)",
+        path: ["warrantyExpiry"],
+      });
+    }
+  }
+
+  // Hardware-specific validation
+  if (data.type === 'Hardware') {
+    if (!data.category) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Category is required for hardware assets (e.g., Laptop, Desktop, Server)",
+        path: ["category"],
+      });
+    }
+    if (!data.manufacturer) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Manufacturer is required for hardware assets (e.g., Dell, HP, Lenovo)",
+        path: ["manufacturer"],
+      });
+    }
+    if (!data.model) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Model is required for hardware assets (e.g., Latitude 5520, ThinkPad T14)",
+        path: ["model"],
+      });
+    }
+    if (!data.serialNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Serial number is required for hardware assets for warranty and tracking",
+        path: ["serialNumber"],
+      });
+    }
+  }
+
+  // Software-specific validation with enhanced checks
   if (data.type === 'Software') {
     if (!data.softwareName) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Software name is required for software assets",
+        message: "Software name is required (e.g., Microsoft Office, Adobe Photoshop)",
         path: ["softwareName"],
       });
     }
     if (!data.version) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Version is required for software assets",
+        message: "Version is required for software tracking (e.g., 2024, v12.5, CC 2023)",
         path: ["version"],
       });
     }
     if (!data.licenseType) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "License type is required for software assets",
+        message: "License type is required (Perpetual, Subscription, or Volume)",
         path: ["licenseType"],
       });
     }
     if (!data.licenseKey) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "License key is required for software assets",
+        message: "License key is required for software asset management and compliance",
         path: ["licenseKey"],
       });
     }
-    if (data.usedLicenses === undefined || data.usedLicenses === null || !Number.isFinite(data.usedLicenses) || data.usedLicenses < 0) {
+
+    // Enhanced license validation with proper coercion
+    const usedLicenses = Number(data.usedLicenses);
+    if (isNaN(usedLicenses) || usedLicenses < 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Used licenses must be a valid non-negative number",
+        message: "Used licenses must be a valid number (0 or greater)",
         path: ["usedLicenses"],
       });
     }
+
+    // Reasonable license limits (check unconditionally)
+    if (!isNaN(usedLicenses) && usedLicenses > 10000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Used licenses count seems unusually high (max 10,000). Please verify.",
+        path: ["usedLicenses"],
+      });
+    }
+
     if (!data.renewalDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Renewal date is required for software assets",
+        message: "Renewal date is required for license compliance tracking",
         path: ["renewalDate"],
       });
     }
+
+    // Renewal date validation for software
+    if (renewalDate) {
+      if (renewalDate <= today) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Renewal date should be in the future. Past renewal dates may indicate expired licenses.",
+          path: ["renewalDate"],
+        });
+      }
+
+      // Max 5 years renewal period
+      const maxRenewal = new Date();
+      maxRenewal.setFullYear(today.getFullYear() + 5);
+      if (renewalDate > maxRenewal) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Renewal date seems unusually far in the future (max 5 years recommended)",
+          path: ["renewalDate"],
+        });
+      }
+    }
+  }
+
+  // Enhanced cost validation
+  if (data.purchaseCost !== undefined && data.purchaseCost !== null) {
+    if (data.purchaseCost > 1000000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Purchase cost seems unusually high. Please verify the amount is correct.",
+        path: ["purchaseCost"],
+      });
+    }
+    // Cost validation now handled at field level with min(1) requirement
+  }
+
+  // Asset type-specific location validation
+  if (data.type === 'Hardware' && data.status === 'deployed') {
+    if (!data.country) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Country is required for deployed hardware assets",
+        path: ["country"],
+      });
+    }
+    // Note: Assigned user recommendation is now handled as helper text, not blocking validation
   }
 });
 
@@ -437,6 +591,104 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
     onClose();
   };
 
+  // Helper functions for dynamic field requirements and hints
+  const getFieldHelperText = (fieldName: string, currentType?: string, currentCategory?: string, currentStatus?: string) => {
+    switch (fieldName) {
+      case 'serialNumber':
+        if (currentType === 'Hardware') {
+          return 'Required for hardware assets. Used for warranty claims and asset tracking.';
+        }
+        return 'Optional. If provided, must be at least 3 characters.';
+      case 'purchaseDate':
+        return 'Date when the asset was purchased. Cannot be more than 30 days in the future.';
+      case 'warrantyExpiry':
+        return 'Must be after the purchase date. Leave empty if no warranty or warranty unknown.';
+      case 'purchaseCost':
+        return 'Total cost paid for this asset. Used for depreciation and budgeting calculations.';
+      case 'assignedUserName':
+        if (currentCategory && ['Laptop', 'Desktop', 'Mobile Phone', 'Tablet'].includes(currentCategory)) {
+          return 'Recommended for personal computing devices to track asset responsibility.';
+        }
+        return 'Name of the person currently using this asset.';
+      case 'renewalDate':
+        if (currentType === 'Software') {
+          return 'Required for software assets. Date when license expires and needs renewal.';
+        }
+        return 'Date when any recurring cost or license needs to be renewed.';
+      case 'usedLicenses':
+        return 'Number of licenses currently in use. Cannot exceed total available licenses.';
+      case 'category':
+        if (currentType === 'Hardware') {
+          return 'Required. Examples: Laptop, Desktop, Server, Tablet, Mobile Phone, Printer';
+        }
+        return 'Classification category for this asset type.';
+      case 'manufacturer':
+        if (currentType === 'Hardware') {
+          return 'Required. Examples: Dell, HP, Lenovo, Apple, Microsoft';
+        }
+        return 'Company that manufactured this asset.';
+      case 'model':
+        if (currentType === 'Hardware') {
+          return 'Required. Examples: Latitude 5520, ThinkPad T14, MacBook Pro';
+        }
+        return 'Specific model name or number.';
+      case 'softwareName':
+        if (currentType === 'Software') {
+          return 'Required. Examples: Microsoft Office, Adobe Photoshop, AutoCAD';
+        }
+        return 'Name of the software application.';
+      case 'version':
+        if (currentType === 'Software') {
+          return 'Required. Examples: 2024, v12.5, CC 2023, Windows 11';
+        }
+        return 'Version number or identifier.';
+      case 'licenseType':
+        if (currentType === 'Software') {
+          return 'Required. Choose: Perpetual (one-time purchase), Subscription (recurring), or Volume (bulk licensing)';
+        }
+        return 'Type of license agreement.';
+      case 'licenseKey':
+        if (currentType === 'Software') {
+          return 'Required. Product key or license identifier for activation and compliance.';
+        }
+        return 'License or activation key.';
+      case 'country':
+        if (currentType === 'Hardware' && currentStatus === 'deployed') {
+          return 'Required for deployed hardware. Select the country where this asset is located.';
+        }
+        return 'Country where this asset is located.';
+      default:
+        return '';
+    }
+  };
+
+  const isFieldRequired = (fieldName: string, currentType?: string, currentStatus?: string, currentCategory?: string): boolean => {
+    switch (fieldName) {
+      case 'category':
+      case 'manufacturer':
+      case 'model':
+      case 'serialNumber':
+        return currentType === 'Hardware';
+      case 'softwareName':
+      case 'version':
+      case 'licenseType':
+      case 'licenseKey':
+      case 'renewalDate':
+        return currentType === 'Software';
+      case 'usedLicenses':
+        return currentType === 'Software';
+      case 'country':
+        return currentType === 'Hardware' && currentStatus === 'deployed';
+      default:
+        return false;
+    }
+  };
+
+  // Watch form values for dynamic field updates
+  const watchedType = watch('type');
+  const watchedCategory = watch('category');
+  const watchedStatus = watch('status');
+
   const formatFieldValue = (value: any, fieldType?: string): string => {
     if (value === null || value === undefined || value === "") return "Not specified";
     
@@ -667,17 +919,29 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             </div>
             
             <div>
-              <Label htmlFor="serialNumber">Serial Number</Label>
+              <Label htmlFor="serialNumber">
+                Serial Number {isFieldRequired('serialNumber', watchedType) && <span className="text-red-500">*</span>}
+              </Label>
               <Input
                 id="serialNumber"
                 {...register("serialNumber")}
                 placeholder="e.g., A1234567890"
                 data-testid="input-serial-number"
               />
+              {errors.serialNumber && (
+                <p className="text-red-500 text-sm mt-1">{errors.serialNumber.message}</p>
+              )}
+              {getFieldHelperText('serialNumber', watchedType) && (
+                <p className="text-muted-foreground text-xs mt-1">
+                  {getFieldHelperText('serialNumber', watchedType)}
+                </p>
+              )}
             </div>
             
             <div>
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="category">
+                Category {isFieldRequired('category', watchedType) && <span className="text-red-500">*</span>}
+              </Label>
               <ComboSelect
                 value={watch("category") || ""}
                 onValueChange={(value) => setValue("category", value)}
@@ -686,6 +950,14 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 label="Category"
                 dataTestId="select-category"
               />
+              {errors.category && (
+                <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>
+              )}
+              {getFieldHelperText('category', watchedType) && (
+                <p className="text-muted-foreground text-xs mt-1">
+                  {getFieldHelperText('category', watchedType)}
+                </p>
+              )}
             </div>
             
             <div>
@@ -701,7 +973,9 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             </div>
             
             <div>
-              <Label htmlFor="manufacturer">Manufacturer</Label>
+              <Label htmlFor="manufacturer">
+                Manufacturer {isFieldRequired('manufacturer', watchedType) && <span className="text-red-500">*</span>}
+              </Label>
               <ComboSelect
                 value={watch("manufacturer") || ""}
                 onValueChange={(value) => setValue("manufacturer", value)}
