@@ -21,6 +21,7 @@ import Vendors from "@/pages/vendors";
 import Tickets from "@/pages/tickets";
 import ActivityLogs from "@/pages/activity-logs";
 import Reports from "@/pages/reports";
+import SearchResults from "@/pages/search-results";
 
 function Router() {
   return (
@@ -94,6 +95,11 @@ function Router() {
       <Route path="/reports">
         <ProtectedRoute requiredRole="technician">
           <Reports />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/search-results">
+        <ProtectedRoute requiredRole="technician">
+          <SearchResults />
         </ProtectedRoute>
       </Route>
       <Route path="/activity-logs">

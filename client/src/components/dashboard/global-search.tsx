@@ -313,7 +313,7 @@ function GlobalSearchInternal({ onResultSelect, placeholder = "Search assets, us
                         </div>
                       )}
                       
-                      {allResults.map((result, index) => (
+                      {allResults.slice(0, 5).map((result, index) => (
                         <div
                           key={`${result.resultType}-${result.id}-${index}`}
                           onClick={() => handleResultClick(result)}
@@ -341,6 +341,24 @@ function GlobalSearchInternal({ onResultSelect, placeholder = "Search assets, us
                           </div>
                         </div>
                       ))}
+                      
+                      {/* View All Results Button */}
+                      {searchResults?.totalResults && searchResults.totalResults > 0 && (
+                        <div className="border-t p-2 mt-2">
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-center"
+                            onClick={() => {
+                              setIsOpen(false);
+                              setQuery('');
+                              navigate(`/search-results?q=${encodeURIComponent(debouncedQuery)}&type=${selectedType}`);
+                            }}
+                            data-testid="button-view-all-results"
+                          >
+                            View All {searchResults.totalResults} Results
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </ScrollArea>
                 )}
