@@ -12,12 +12,16 @@ import {
   MapPin, 
   FileText,
   Loader2,
-  X
+  X,
+  GripVertical
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { authenticatedRequest } from '@/lib/auth';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useLocation } from 'wouter';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface SearchResult {
   id: string;
@@ -49,9 +53,52 @@ interface GlobalSearchProps {
   onResultSelect?: (result: SearchResult) => void;
   placeholder?: string;
   className?: string;
+  isDraggable?: boolean;
 }
 
-export function GlobalSearch({ onResultSelect, placeholder = "Search assets, users, vendors...", className }: GlobalSearchProps) {
+function DraggableGlobalSearch({ position, ...props }: GlobalSearchProps & { position: { x: number; y: number } }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: 'global-search-draggable' });
+
+  const style = {
+    position: 'fixed' as const,
+    left: `${position.x}px`,
+    top: `${position.y}px`,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.8 : 1,
+    zIndex: 45,
+    width: '400px',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group"
+      data-testid="draggable-global-search-container"
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute -top-2 -left-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/90 hover:bg-background border border-border/50 shadow-sm"
+        data-testid="global-search-drag-handle"
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <GlobalSearchInternal {...props} className="shadow-lg border rounded-lg bg-background/95 backdrop-blur-sm p-3" />
+    </div>
+  );
+}
+
+function GlobalSearchInternal({ onResultSelect, placeholder = "Search assets, users, vendors...", className }: GlobalSearchProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -311,5 +358,54 @@ export function GlobalSearch({ onResultSelect, placeholder = "Search assets, use
         </Card>
       )}
     </div>
+  );
+}
+
+// Main export with draggable functionality
+export function GlobalSearch(props: GlobalSearchProps) {
+  // Check if draggable mode is requested
+  if (props.isDraggable) {
+    return <DraggableGlobalSearchWithContext {...props} />;
+  }
+  
+  // Regular non-draggable version
+  return <GlobalSearchInternal {...props} />;
+}
+
+// Draggable version with DndContext
+function DraggableGlobalSearchWithContext(props: GlobalSearchProps) {
+  const [position, setPosition] = useState(() => {
+    const savedPosition = localStorage.getItem('globalSearchPosition');
+    return savedPosition ? JSON.parse(savedPosition) : { x: 50, y: 100 };
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { delta } = event;
+    const newPosition = {
+      x: Math.max(0, Math.min(window.innerWidth - 400, position.x + delta.x)),
+      y: Math.max(0, Math.min(window.innerHeight - 100, position.y + delta.y))
+    };
+    setPosition(newPosition);
+    localStorage.setItem('globalSearchPosition', JSON.stringify(newPosition));
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={['global-search-draggable']}>
+        <DraggableGlobalSearch position={position} {...props} />
+      </SortableContext>
+    </DndContext>
   );
 }

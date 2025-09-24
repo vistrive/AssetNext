@@ -14,27 +14,63 @@ import {
   Package, 
   Users, 
   Building2,
-  Laptop
+  GripVertical
 } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-export function QuickActionsButton() {
+function DraggableQuickActions({ position }: { position: { x: number; y: number } }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: 'quick-actions' });
+
   const [, setLocation] = useLocation();
 
   const handleNavigateToAddAsset = () => {
-    setLocation("/assets?action=add");
+    setLocation("/assets/new");
   };
 
   const handleNavigateToAddUser = () => {
-    setLocation("/users?action=add");
+    setLocation("/users/new");
   };
 
   const handleNavigateToAddVendor = () => {
-    // Navigate to assets page with vendor add action, since vendors are typically managed through assets
-    setLocation("/assets?action=add&focus=vendor");
+    setLocation("/vendors/new");
+  };
+
+  const style = {
+    position: 'fixed' as const,
+    left: `${position.x}px`,
+    top: `${position.y}px`,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.8 : 1,
+    zIndex: 40,
   };
 
   return (
-    <div className="fixed top-16 right-8 z-40" data-testid="quick-actions-container">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-col items-center gap-2 group"
+      data-testid="quick-actions-container"
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute -top-2 -left-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/90 hover:bg-background border border-border/50 shadow-sm"
+        data-testid="quick-actions-drag-handle"
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button 
@@ -90,5 +126,42 @@ export function QuickActionsButton() {
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+export function QuickActionsButton() {
+  const [position, setPosition] = useState(() => {
+    const saved = localStorage.getItem('quick-actions-position');
+    return saved ? JSON.parse(saved) : { x: window.innerWidth - 80, y: 80 };
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { delta } = event;
+    const newPosition = {
+      x: Math.max(0, Math.min(window.innerWidth - 80, position.x + delta.x)),
+      y: Math.max(0, Math.min(window.innerHeight - 80, position.y + delta.y))
+    };
+    setPosition(newPosition);
+    localStorage.setItem('quick-actions-position', JSON.stringify(newPosition));
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={['quick-actions']}>
+        <DraggableQuickActions position={position} />
+      </SortableContext>
+    </DndContext>
   );
 }

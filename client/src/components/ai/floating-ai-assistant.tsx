@@ -11,7 +11,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEn
 import { useSortable, SortableContext } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function DraggableAIAssistant() {
+function DraggableAIAssistant({ position }: { position: { x: number; y: number } }) {
   const {
     attributes,
     listeners,
@@ -91,16 +91,20 @@ function DraggableAIAssistant() {
   };
 
   const style = {
+    position: 'fixed' as const,
+    left: `${position.x}px`,
+    top: `${position.y}px`,
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.8 : 1,
+    zIndex: 50,
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="fixed top-1/2 right-6 z-50 flex flex-col items-center gap-2 group"
+      className="flex flex-col items-center gap-2 group"
       data-testid="ai-assistant-container"
     >
       {/* Drag Handle */}
@@ -212,6 +216,11 @@ function DraggableAIAssistant() {
 }
 
 export function FloatingAIAssistant() {
+  const [position, setPosition] = useState(() => {
+    const saved = localStorage.getItem('ai-assistant-position');
+    return saved ? JSON.parse(saved) : { x: window.innerWidth - 100, y: window.innerHeight / 2 };
+  });
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -222,12 +231,11 @@ export function FloatingAIAssistant() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { delta } = event;
-    // Store drag position in localStorage for persistence
-    const currentPosition = JSON.parse(localStorage.getItem('ai-assistant-position') || '{"x": 0, "y": 0}');
     const newPosition = {
-      x: currentPosition.x + delta.x,
-      y: currentPosition.y + delta.y
+      x: Math.max(0, Math.min(window.innerWidth - 100, position.x + delta.x)),
+      y: Math.max(0, Math.min(window.innerHeight - 100, position.y + delta.y))
     };
+    setPosition(newPosition);
     localStorage.setItem('ai-assistant-position', JSON.stringify(newPosition));
   };
 
@@ -238,7 +246,7 @@ export function FloatingAIAssistant() {
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={['ai-assistant']}>
-        <DraggableAIAssistant />
+        <DraggableAIAssistant position={position} />
       </SortableContext>
     </DndContext>
   );

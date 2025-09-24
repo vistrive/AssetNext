@@ -52,7 +52,7 @@ import {
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
 import { db } from "./db";
-import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike, isNotNull, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -1092,7 +1092,7 @@ export class DatabaseStorage implements IStorage {
       const threeYearsAgo = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
       const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
 
-      // Get assets older than 3 years (replacement candidates)
+      // Get assets older than 3 years (replacement candidates) - excluding software
       const assetsOlderThan3Years = await db
         .select({
           id: assets.id,
@@ -1109,13 +1109,14 @@ export class DatabaseStorage implements IStorage {
         .from(assets)
         .where(and(
           eq(assets.tenantId, tenantId),
+          ne(assets.type, 'Software'),
           sql`purchase_date IS NOT NULL`,
           sql`purchase_date <= ${threeYearsAgo}`
         ))
         .orderBy(assets.purchaseDate)
         .limit(20);
 
-      // Get assets older than 5 years (critical replacement)
+      // Get assets older than 5 years (critical replacement) - excluding software
       const assetsOlderThan5Years = await db
         .select({
           id: assets.id,
@@ -1132,13 +1133,14 @@ export class DatabaseStorage implements IStorage {
         .from(assets)
         .where(and(
           eq(assets.tenantId, tenantId),
+          ne(assets.type, 'Software'),
           sql`purchase_date IS NOT NULL`,
           sql`purchase_date <= ${fiveYearsAgo}`
         ))
         .orderBy(assets.purchaseDate)
         .limit(20);
 
-      // Calculate age distribution
+      // Calculate age distribution - excluding software
       const ageDistribution = await db
         .select({
           ageCategory: sql<string>`
@@ -1152,7 +1154,10 @@ export class DatabaseStorage implements IStorage {
           count: sql<number>`COUNT(*)`
         })
         .from(assets)
-        .where(eq(assets.tenantId, tenantId))
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          ne(assets.type, 'Software')
+        ))
         .groupBy(sql`1`);
 
       // Calculate replacement cost estimates
@@ -1751,10 +1756,10 @@ export class DatabaseStorage implements IStorage {
           .where(and(
             eq(softwareLicenses.tenantId, tenantId),
             or(
-              ilike(softwareLicenses.softwareName, `%${query}%`),
+              ilike(softwareLicenses.name, `%${query}%`),
+              ilike(softwareLicenses.vendor, `%${query}%`),
               ilike(softwareLicenses.version, `%${query}%`),
-              ilike(softwareLicenses.licenseType, `%${query}%`),
-              ilike(softwareLicenses.vendorName, `%${query}%`)
+              ilike(softwareLicenses.licenseType, `%${query}%`)
             )
           ))
           .limit(limit);
@@ -1778,16 +1783,17 @@ export class DatabaseStorage implements IStorage {
 
         const vendorLicenses = await db
           .select({
-            vendorName: softwareLicenses.vendorName,
-            vendorEmail: softwareLicenses.vendorEmail,
-            vendorPhone: softwareLicenses.vendorPhone
+            vendorName: softwareLicenses.vendor,
+            vendorEmail: sql<string>`null`,
+            vendorPhone: sql<string>`null`
           })
           .from(softwareLicenses)
           .where(and(
             eq(softwareLicenses.tenantId, tenantId),
-            ilike(softwareLicenses.vendorName, `%${query}%`)
+            ilike(softwareLicenses.vendor, `%${query}%`),
+            isNotNull(softwareLicenses.vendor)
           ))
-          .groupBy(softwareLicenses.vendorName, softwareLicenses.vendorEmail, softwareLicenses.vendorPhone)
+          .groupBy(softwareLicenses.vendor)
           .limit(limit);
 
         results.vendors = [...vendorAssets, ...vendorLicenses].slice(0, limit);

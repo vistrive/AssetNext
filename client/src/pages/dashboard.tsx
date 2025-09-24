@@ -6,10 +6,10 @@ import { TopBar } from "@/components/layout/topbar";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AssetCategoryTiles } from "@/components/dashboard/asset-category-tiles";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
-import { ReportGenerator } from "@/components/dashboard/report-generator";
 import { ITAMInsights } from "@/components/dashboard/itam-insights";
 import { DraggableGrid } from "@/components/dashboard/draggable-grid";
 import { AssetAgeAnalysis } from "@/components/dashboard/asset-age-analysis";
+import { WorldMap } from "@/components/dashboard/world-map";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Asset, Recommendation } from "@shared/schema";
 
@@ -69,12 +69,6 @@ export default function Dashboard() {
         />
         
         {/* Global Search Bar */}
-        <div className="px-6 pb-4">
-          <GlobalSearch 
-            placeholder="Search assets, users, vendors, locations..."
-            className="max-w-md"
-          />
-        </div>
         
         <div className="p-6">
           {metrics && (
@@ -116,11 +110,11 @@ export default function Dashboard() {
                   size: 'large'
                 },
                 {
-                  id: 'report-generator',
-                  title: 'Report Generator',
-                  component: <ReportGenerator metrics={metrics} />,
-                  size: 'medium'
-                }
+                  id: 'world-map',
+                  title: 'Global Asset Distribution',
+                  component: <WorldMap />,
+                  size: 'large'
+                },
               ]}
             />
           )}

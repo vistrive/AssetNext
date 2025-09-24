@@ -139,7 +139,7 @@ export function ReportGenerator({ metrics }: ReportGeneratorProps) {
       // Auto-size columns based on header names and sample data
       const columnWidths = Object.keys(reportData[0] || {}).map(header => {
         const maxDataLength = Math.max(
-          ...reportData.map(row => String(row[header] || '').length),
+          ...reportData.map((row: any) => String(row[header] || '').length),
           header.length
         );
         return { wch: Math.min(Math.max(maxDataLength + 2, 15), 50) };
