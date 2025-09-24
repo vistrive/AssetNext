@@ -162,7 +162,15 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Global Search Bar */}
+        {/* Common Dashboard Heading */}
+        <div className="px-6 py-4 bg-background">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-foreground mb-2">Dashboard Analytics</h2>
+            <p className="text-muted-foreground text-sm">
+              Real-time insights and metrics for your IT asset management
+            </p>
+          </div>
+        </div>
         
         {/* Dashboard Content - Independent Draggable Tiles */}
         {metrics && (
