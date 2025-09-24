@@ -21,9 +21,10 @@ export function Layout({
   onBulkUploadClick 
 }: LayoutProps) {
   return (
-    <div className="h-screen bg-background flex">
+    <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      
+      <main className="flex-1 md:ml-64 overflow-auto">
         <TopBar 
           title={title}
           description={description}
@@ -32,10 +33,10 @@ export function Layout({
           addButtonText={addButtonText}
           onBulkUploadClick={onBulkUploadClick}
         />
-        <main className="flex-1 overflow-auto">
+        <div className="flex-1">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

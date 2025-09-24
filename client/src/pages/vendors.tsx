@@ -455,9 +455,10 @@ export default function Vendors() {
 
   if (showAddForm) {
     return (
-      <div className="h-screen bg-background flex">
+      <div className="flex h-screen bg-background">
         <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        
+        <main className="flex-1 md:ml-64 overflow-auto">
           <TopBar 
             title={editingVendor ? "Edit Vendor" : "Add New Vendor"}
             description={editingVendor 
@@ -466,7 +467,6 @@ export default function Vendors() {
             }
             showAddButton={false}
           />
-          <main className="flex-1 overflow-auto">
             <div className="p-6">
               <div className="max-w-4xl mx-auto">
                 <Card>
@@ -476,16 +476,16 @@ export default function Vendors() {
                 </Card>
               </div>
             </div>
-          </main>
-        </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-background flex">
+    <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      
+      <main className="flex-1 md:ml-64 overflow-auto">
         <TopBar 
           title={searchParams?.includes("filter=contract-expiring") ? "Contract Renewals" : "Vendors Management"}
           description={searchParams?.includes("filter=contract-expiring") 
@@ -496,7 +496,6 @@ export default function Vendors() {
           addButtonText="Add Vendor"
           onAddClick={handleAddVendor}
         />
-        <main className="flex-1 overflow-auto">
           <div className="p-6">
             <div className="mb-6">
               <div className="relative max-w-md">
@@ -641,8 +640,7 @@ export default function Vendors() {
               </div>
             )}
           </div>
-        </main>
-      </div>
+      </main>
     </div>
   );
 }
