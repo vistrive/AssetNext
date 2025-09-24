@@ -68,7 +68,7 @@ export function DraggableControls({
         <Button
           variant="outline"
           size="sm"
-          className="fixed bottom-4 left-4 z-30 shadow-lg"
+          className="fixed bottom-4 left-4 z-20 shadow-lg"
           data-testid="button-draggable-controls"
         >
           <Settings2 className="h-4 w-4 mr-2" />

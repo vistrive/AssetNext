@@ -239,7 +239,7 @@ function GlobalSearchInternal({ onResultSelect, placeholder = "Search assets, us
             setIsOpen(e.target.value.length >= 2);
           }}
           onFocus={() => setIsOpen(query.length >= 2)}
-          className="pl-10 pr-20"
+          className="pl-10 pr-16 sm:pr-20"
           data-testid="input-search"
         />
         {query && (
@@ -250,7 +250,7 @@ function GlobalSearchInternal({ onResultSelect, placeholder = "Search assets, us
               setQuery('');
               setIsOpen(false);
             }}
-            className="absolute right-12 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+            className="absolute right-8 sm:right-12 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
             data-testid="button-clear-search"
           >
             <X className="h-3 w-3" />

@@ -97,7 +97,7 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.8 : 1,
-    zIndex: 50,
+    zIndex: 60,
   };
 
   return (
