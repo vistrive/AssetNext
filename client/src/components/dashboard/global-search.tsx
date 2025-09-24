@@ -264,7 +264,7 @@ function GlobalSearchInternal({ onResultSelect, placeholder = "Search assets, us
       {/* Search Type Filter */}
       {isOpen && (
         <div className="flex gap-1 mt-2 flex-wrap">
-          {['all', 'assets', 'users', 'licenses', 'vendors', 'locations'].map((type) => (
+          {['all', 'assets', 'users', 'vendors'].map((type) => (
             <Button
               key={type}
               variant={selectedType === type ? 'default' : 'outline'}

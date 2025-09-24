@@ -41,55 +41,13 @@ const navigation = [
     href: "/assets", 
     icon: Monitor,
     subItems: [
-      { 
-        name: "Hardware", 
-        href: "/assets?type=Hardware", 
-        icon: Laptop,
-        subItems: [
-          { name: "PC", href: "/assets?type=Hardware&category=pc", icon: Monitor },
-          { name: "Laptop", href: "/assets?type=Hardware&category=laptop", icon: Laptop },
-          { name: "Server", href: "/assets?type=Hardware&category=server", icon: Server },
-          { name: "Racks", href: "/assets?type=Hardware&category=rack", icon: HardDrive },
-          { name: "Mobile Phone", href: "/assets?type=Hardware&category=mobile", icon: Smartphone },
-          { name: "Tablets", href: "/assets?type=Hardware&category=tablet", icon: Tablet },
-        ]
-      },
+      { name: "Hardware", href: "/assets?type=Hardware", icon: Laptop },
       { name: "Software", href: "/assets?type=Software", icon: Code },
-      { 
-        name: "Peripherals", 
-        href: "/assets?type=Peripherals", 
-        icon: Printer,
-        subItems: [
-          { name: "Printers", href: "/assets?type=Peripherals&category=printer", icon: Printer },
-          { name: "3D Printers", href: "/assets?type=Peripherals&category=3d-printer", icon: Package },
-          { name: "Scanners", href: "/assets?type=Peripherals&category=scanner", icon: Scan },
-          { name: "Mouse", href: "/assets?type=Peripherals&category=mouse", icon: Mouse },
-          { name: "Routers", href: "/assets?type=Peripherals&category=router", icon: Router },
-          { name: "Switches", href: "/assets?type=Peripherals&category=switch", icon: Wifi },
-          { name: "Hubs", href: "/assets?type=Peripherals&category=hub", icon: Wifi },
-        ]
-      },
-      { 
-        name: "Others", 
-        href: "/assets?type=Others", 
-        icon: Package,
-        subItems: [
-          { name: "CCTV Cameras", href: "/assets?type=Others&category=cctv", icon: Camera },
-          { name: "Access Control", href: "/assets?type=Others&category=access-control", icon: Shield },
-        ]
-      },
+      { name: "Peripherals", href: "/assets?type=Peripherals", icon: Printer },
+      { name: "Others", href: "/assets?type=Others", icon: Package },
     ]
   },
-  { 
-    name: "Vendors", 
-    href: "/vendors", 
-    icon: Building2,
-    requiredRole: "technician",
-    subItems: [
-      { name: "Add Vendor", href: "/vendors/new", icon: Plus },
-      { name: "Contract Renewals", href: "/vendors?filter=contract-expiring", icon: Calendar },
-    ]
-  },
+  { name: "Vendors", href: "/vendors", icon: Building2, requiredRole: "technician" },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Team Management", href: "/users", icon: Users, requiredRole: "admin" },
   { name: "Settings", href: "/settings", icon: Settings },
