@@ -97,10 +97,8 @@ export default function Dashboard() {
                       localStorage.removeItem(key);
                     }
                   });
-                  // Dispatch global reset event
+                  // Dispatch global reset event for in-place re-render
                   window.dispatchEvent(new CustomEvent('reset-all-tiles'));
-                  // Force page refresh to apply new default positions
-                  window.location.reload();
                 }}
                 className="h-8 px-3 text-xs"
                 data-testid="button-reset-all-tiles"
@@ -174,12 +172,12 @@ export default function Dashboard() {
               console.log('Layout updated:', layouts);
             }}
             tiles={[
-              // Asset Overview Section - Row 1 (top of dashboard)
+              // Asset Overview Section - Row 1 (consistent 24px gutters, equal card widths)
               {
                 id: 'hardware-tile',
                 title: 'Hardware Assets',
                 component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 20, y: 140 },
+                defaultPosition: { x: 24, y: 140 },
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -188,7 +186,7 @@ export default function Dashboard() {
                 id: 'software-tile',
                 title: 'Software Assets',
                 component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 320, y: 140 },
+                defaultPosition: { x: 328, y: 140 }, // 24 + 280 + 24
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -197,7 +195,7 @@ export default function Dashboard() {
                 id: 'peripherals-tile',
                 title: 'Peripherals Assets',
                 component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 620, y: 140 },
+                defaultPosition: { x: 632, y: 140 }, // 328 + 280 + 24
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -206,7 +204,7 @@ export default function Dashboard() {
                 id: 'others-tile',
                 title: 'Other Assets',
                 component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 920, y: 140 },
+                defaultPosition: { x: 936, y: 140 }, // 632 + 280 + 24
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -216,7 +214,7 @@ export default function Dashboard() {
                 id: 'unused-hardware-tile',
                 title: 'Unused Hardware',
                 component: <UnusedHardwareTile metrics={metrics} />,
-                defaultPosition: { x: 20, y: 360 },
+                defaultPosition: { x: 24, y: 364 }, // 140 + 200 + 24
                 width: 280,
                 height: 160,
                 section: 'metrics'
@@ -225,7 +223,7 @@ export default function Dashboard() {
                 id: 'unused-licenses-tile',
                 title: 'Unused Licenses',
                 component: <UnusedLicensesTile metrics={metrics} />,
-                defaultPosition: { x: 320, y: 360 },
+                defaultPosition: { x: 328, y: 364 },
                 width: 280,
                 height: 160,
                 section: 'metrics'
@@ -234,7 +232,7 @@ export default function Dashboard() {
                 id: 'expiring-items-tile',
                 title: 'Expiring Items',
                 component: <ExpiringItemsTile metrics={metrics} />,
-                defaultPosition: { x: 620, y: 360 },
+                defaultPosition: { x: 632, y: 364 },
                 width: 280,
                 height: 160,
                 section: 'metrics'
@@ -243,7 +241,7 @@ export default function Dashboard() {
                 id: 'compliance-risk-tile',
                 title: 'Compliance Risk',
                 component: <ComplianceRiskTile metrics={metrics} />,
-                defaultPosition: { x: 920, y: 360 },
+                defaultPosition: { x: 936, y: 364 },
                 width: 280,
                 height: 160,
                 section: 'metrics'
@@ -253,7 +251,7 @@ export default function Dashboard() {
                 id: 'recent-activities-tile',
                 title: 'Recent Activities',
                 component: <RecentActivitiesTile metrics={metrics} />,
-                defaultPosition: { x: 20, y: 540 },
+                defaultPosition: { x: 24, y: 548 }, // 364 + 160 + 24
                 width: 380,
                 height: 360,
                 section: 'analytics'
@@ -262,7 +260,7 @@ export default function Dashboard() {
                 id: 'asset-age-analysis',
                 title: 'Asset Age Analysis',
                 component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
-                defaultPosition: { x: 420, y: 540 },
+                defaultPosition: { x: 428, y: 548 }, // 24 + 380 + 24
                 width: 380,
                 height: 360,
                 section: 'analytics'
@@ -277,7 +275,7 @@ export default function Dashboard() {
                     onViewRecommendation={handleViewRecommendation}
                   />
                 ),
-                defaultPosition: { x: 820, y: 540 },
+                defaultPosition: { x: 832, y: 548 }, // 428 + 380 + 24
                 width: 380,
                 height: 360,
                 section: 'analytics'
@@ -287,7 +285,7 @@ export default function Dashboard() {
                 id: 'world-map',
                 title: 'Global Asset Distribution',
                 component: <WorldMap />,
-                defaultPosition: { x: 220, y: 920 },
+                defaultPosition: { x: 228, y: 932 }, // 548 + 360 + 24, centered
                 width: 760,
                 height: 400,
                 section: 'visual'

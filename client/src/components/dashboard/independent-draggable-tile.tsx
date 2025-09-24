@@ -69,41 +69,37 @@ function DraggableTileInternal({
     <div
       ref={setNodeRef}
       style={style}
-      className="group shadow-lg"
+      className="group relative"
       data-testid={`independent-tile-${tile.id}`}
     >
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">{tile.title}</CardTitle>
-            <div className="flex items-center gap-1">
-              {/* Reset Tile Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleResetTile}
-                className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
-                data-testid={`tile-reset-${tile.id}`}
-                title="Reset to default position"
-              >
-                <RotateCcw className="h-3 w-3 text-muted-foreground" />
-              </Button>
-              {/* Drag Handle */}
-              <div
-                {...attributes}
-                {...listeners}
-                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 hover:bg-background border border-border/50"
-                data-testid={`tile-drag-handle-${tile.id}`}
-              >
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="h-full overflow-auto">
-          {tile.component}
-        </CardContent>
-      </Card>
+      {/* Floating Controls - positioned above the tile */}
+      <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Reset Tile Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleResetTile}
+          className="p-1 h-6 w-6 bg-background/90 hover:bg-background border border-border/50 shadow-sm"
+          data-testid={`tile-reset-${tile.id}`}
+          title="Reset to default position"
+        >
+          <RotateCcw className="h-3 w-3 text-muted-foreground" />
+        </Button>
+        {/* Drag Handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="p-1 rounded cursor-grab active:cursor-grabbing bg-background/90 hover:bg-background border border-border/50 shadow-sm"
+          data-testid={`tile-drag-handle-${tile.id}`}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
+      
+      {/* Single tile content without double card wrapping */}
+      <div className="h-full">
+        {tile.component}
+      </div>
     </div>
   );
 }
