@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -111,6 +111,8 @@ function IndependentDraggableTileWithContext({
   tile: DashboardTile;
   onPositionChange: (tileId: string, position: TilePosition) => void;
 }) {
+  const isInit = useRef(true);
+  const skipSave = useRef(false);
   const [position, setPosition] = useState<TilePosition>(() => {
     // Try to get saved position from enhanced layout storage
     const savedLayouts = localStorage.getItem('dashboard-layout-v1');
@@ -153,7 +155,13 @@ function IndependentDraggableTileWithContext({
   );
 
   useEffect(() => {
-    // Only call onPositionChange when position actually changes, not on initial render
+    // Skip saving during initialization or when explicitly skipped
+    if (isInit.current || skipSave.current) {
+      isInit.current = false; // Clear init flag after first render
+      return;
+    }
+    
+    // Only call onPositionChange when position actually changes from user actions
     const timeoutId = setTimeout(() => {
       onPositionChange(tile.id, position);
     }, 100);
@@ -173,6 +181,10 @@ function IndependentDraggableTileWithContext({
       const canvasWidth = canvasBounds.width;
       const canvasHeight = Math.max(canvasBounds.height, 1400); // Ensure minimum canvas height for scrolling
       
+      // Clear init and skipSave flags for user-driven position changes
+      isInit.current = false;
+      skipSave.current = false;
+      
       const newPosition = {
         x: Math.max(20, Math.min(canvasWidth - (tile.width || 400) - 20, position.x + delta.x)),
         y: Math.max(20, Math.min(canvasHeight - (tile.height || 300) - 20, position.y + delta.y)),
@@ -184,6 +196,9 @@ function IndependentDraggableTileWithContext({
   // Reset position function
   const resetPosition = () => {
     const defaultPos = tile.defaultPosition || { x: 100, y: 100 };
+    // Clear flags to allow saving reset position
+    isInit.current = false;
+    skipSave.current = false;
     setPosition(defaultPos);
   };
 
@@ -207,11 +222,24 @@ function IndependentDraggableTileWithContext({
 
     const handleClampPosition = (event: CustomEvent) => {
       if (event.detail.tileId === tile.id) {
+        // Skip first clamp during initialization to preserve default positions
+        if (isInit.current) {
+          return;
+        }
+        
         const { canvasWidth, canvasHeight, tileWidth, tileHeight } = event.detail;
+        
+        // Set skipSave flag to prevent persisting clamp-induced position changes
+        skipSave.current = true;
         setPosition(prev => ({
           x: Math.max(20, Math.min(canvasWidth - tileWidth - 20, prev.x)),
           y: Math.max(20, Math.min(canvasHeight - tileHeight - 20, prev.y))
         }));
+        
+        // Clear skipSave flag in next microtask
+        setTimeout(() => {
+          skipSave.current = false;
+        }, 0);
       }
     };
 
@@ -265,32 +293,64 @@ export function IndependentDraggableTiles({ tiles, onLayoutChange }: Independent
     });
   };
 
-  // Clamp all positions on window resize
+  // Clamp all positions on window resize (debounced to prevent transient narrow widths)
   useEffect(() => {
+    let resizeTimeout: ReturnType<typeof setTimeout>;
+    let isInitialized = false;
+    
     const handleResize = () => {
-      const canvasElement = document.getElementById('dashboard-canvas');
-      if (!canvasElement) return;
+      // Clear existing timeout
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
       
-      const canvasBounds = canvasElement.getBoundingClientRect();
-      const canvasWidth = canvasBounds.width;
-      const canvasHeight = Math.max(canvasBounds.height, 1400);
-      
-      // Dispatch resize event for all tiles to re-clamp their positions
-      tiles.forEach(tile => {
-        window.dispatchEvent(new CustomEvent('clamp-tile-position', { 
-          detail: { 
-            tileId: tile.id,
-            canvasWidth,
-            canvasHeight,
-            tileWidth: tile.width || 400,
-            tileHeight: tile.height || 300
-          } 
-        }));
-      });
+      // Debounce resize events to avoid transient canvas widths
+      resizeTimeout = setTimeout(() => {
+        // Skip clamping during initial load to preserve default positions
+        if (!isInitialized) {
+          isInitialized = true;
+          return;
+        }
+        
+        const canvasElement = document.getElementById('dashboard-canvas');
+        if (!canvasElement) return;
+        
+        const canvasBounds = canvasElement.getBoundingClientRect();
+        const canvasWidth = canvasBounds.width;
+        const canvasHeight = Math.max(canvasBounds.height, 1400);
+        
+        // Only clamp if canvas has reasonable width to avoid collapsing tiles
+        if (canvasWidth < 600) return;
+        
+        // Dispatch resize event for all tiles to re-clamp their positions
+        tiles.forEach(tile => {
+          window.dispatchEvent(new CustomEvent('clamp-tile-position', { 
+            detail: { 
+              tileId: tile.id,
+              canvasWidth,
+              canvasHeight,
+              tileWidth: tile.width || 400,
+              tileHeight: tile.height || 300
+            } 
+          }));
+        });
+      }, 200); // 200ms debounce delay
     };
 
+    // Initialize after first paint to ensure canvas is properly sized
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isInitialized = true;
+      });
+    });
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+    };
   }, [tiles]);
 
   const resetContext: TileResetContextType = {
