@@ -8,10 +8,6 @@ import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { IndependentDraggableTiles } from "@/components/dashboard/independent-draggable-tile";
 import { AssetAgeAnalysis } from "@/components/dashboard/asset-age-analysis";
 import { WorldMap } from "@/components/dashboard/world-map";
-import { HardwareTile } from "@/components/dashboard/individual-tiles/hardware-tile";
-import { SoftwareTile } from "@/components/dashboard/individual-tiles/software-tile";
-import { PeripheralsTile } from "@/components/dashboard/individual-tiles/peripherals-tile";
-import { OthersTile } from "@/components/dashboard/individual-tiles/others-tile";
 import { UnusedHardwareTile } from "@/components/dashboard/individual-tiles/unused-hardware-tile";
 import { UnusedLicensesTile } from "@/components/dashboard/individual-tiles/unused-licenses-tile";
 import { ExpiringItemsTile } from "@/components/dashboard/individual-tiles/expiring-items-tile";
@@ -81,7 +77,7 @@ export default function Dashboard() {
         <div className="px-6 py-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Drag tiles to customize your dashboard layout • Reset tiles to restore default positions
+              Drag tiles to customize your dashboard layout • Clean single-layer grid with individual metric tiles
             </div>
             <div className="flex items-center gap-2">
               {/* Global Reset */}
@@ -107,25 +103,13 @@ export default function Dashboard() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'asset-overview' } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'metrics' } }))}
                   className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-asset-overview"
-                  title="Reset Asset Overview tiles"
+                  data-testid="button-reset-metrics"
+                  title="Reset Core Metrics tiles"
                 >
                   <RotateCcw className="h-3 w-3 mr-1" />
-                  Assets
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'itam-insights' } }))}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-itam-insights"
-                  title="Reset ITAM Insights tiles"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  Insights
+                  Metrics
                 </Button>
                 
                 <Button
@@ -143,13 +127,13 @@ export default function Dashboard() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'maps' } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'visual' } }))}
                   className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-maps"
-                  title="Reset Maps tiles"
+                  data-testid="button-reset-visual"
+                  title="Reset Visual tiles"
                 >
                   <RotateCcw className="h-3 w-3 mr-1" />
-                  Maps
+                  Visual
                 </Button>
               </div>
             </div>
@@ -166,97 +150,61 @@ export default function Dashboard() {
               console.log('Layout updated:', layouts);
             }}
             tiles={[
-              // Asset Overview Section - Row 1 (evenly spaced across top)
-              {
-                id: 'hardware-tile',
-                title: 'Hardware Assets',
-                component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 20, y: 140 },
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              {
-                id: 'software-tile',
-                title: 'Software Assets',
-                component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 320, y: 140 },
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              {
-                id: 'peripherals-tile',
-                title: 'Peripherals Assets',
-                component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 620, y: 140 },
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              {
-                id: 'others-tile',
-                title: 'Other Assets',
-                component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 920, y: 140 },
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              // ITAM Insights Section - Row 2 (compact insight tiles)
+              // Flattened Grid Layout - Individual Metric Tiles Only
+              // Row 1 - Core Insights (4 columns on desktop)
               {
                 id: 'unused-hardware-tile',
                 title: 'Unused Hardware',
                 component: <UnusedHardwareTile metrics={metrics} />,
-                defaultPosition: { x: 20, y: 360 },
+                defaultPosition: { x: 20, y: 140 },
                 width: 280,
-                height: 150,
-                section: 'itam-insights'
+                height: 160,
+                section: 'metrics'
               },
               {
                 id: 'unused-licenses-tile',
                 title: 'Unused Licenses',
                 component: <UnusedLicensesTile metrics={metrics} />,
-                defaultPosition: { x: 320, y: 360 },
+                defaultPosition: { x: 320, y: 140 },
                 width: 280,
-                height: 150,
-                section: 'itam-insights'
+                height: 160,
+                section: 'metrics'
               },
               {
                 id: 'expiring-items-tile',
                 title: 'Expiring Items',
                 component: <ExpiringItemsTile metrics={metrics} />,
-                defaultPosition: { x: 620, y: 360 },
+                defaultPosition: { x: 620, y: 140 },
                 width: 280,
-                height: 150,
-                section: 'itam-insights'
+                height: 160,
+                section: 'metrics'
               },
               {
                 id: 'compliance-risk-tile',
                 title: 'Compliance Risk',
                 component: <ComplianceRiskTile metrics={metrics} />,
-                defaultPosition: { x: 920, y: 360 },
+                defaultPosition: { x: 920, y: 140 },
                 width: 280,
-                height: 150,
-                section: 'itam-insights'
+                height: 160,
+                section: 'metrics'
               },
-              // Analytics Section - Row 3 (larger analytical tiles)
+              // Row 2 - Detailed Analytics (3 columns on desktop)
               {
                 id: 'recent-activities-tile',
                 title: 'Recent Activities',
                 component: <RecentActivitiesTile metrics={metrics} />,
-                defaultPosition: { x: 20, y: 530 },
+                defaultPosition: { x: 20, y: 320 },
                 width: 380,
-                height: 350,
+                height: 360,
                 section: 'analytics'
               },
               {
                 id: 'asset-age-analysis',
                 title: 'Asset Age Analysis',
                 component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
-                defaultPosition: { x: 420, y: 530 },
+                defaultPosition: { x: 420, y: 320 },
                 width: 380,
-                height: 350,
+                height: 360,
                 section: 'analytics'
               },
               {
@@ -269,20 +217,20 @@ export default function Dashboard() {
                     onViewRecommendation={handleViewRecommendation}
                   />
                 ),
-                defaultPosition: { x: 820, y: 530 },
+                defaultPosition: { x: 820, y: 320 },
                 width: 380,
-                height: 350,
+                height: 360,
                 section: 'analytics'
               },
-              // Maps & Visual Section - Row 4 (properly positioned within view)
+              // Row 3 - Visual & Geographic Data (centered wide tile)
               {
                 id: 'world-map',
                 title: 'Global Asset Distribution',
                 component: <WorldMap />,
-                defaultPosition: { x: 20, y: 900 },
-                width: 580,
+                defaultPosition: { x: 220, y: 700 },
+                width: 760,
                 height: 400,
-                section: 'maps'
+                section: 'visual'
               },
             ]}
           />
