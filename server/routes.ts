@@ -716,6 +716,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Global Search API
+  app.get("/api/search", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { query, type, limit = 10 } = req.query;
+      const user = req.user!;
+      const tenantId = user.tenantId;
+
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query parameter is required' });
+      }
+
+      const searchLimit = Math.min(parseInt(limit as string) || 10, 50); // Max 50 results
+      const searchResults = await storage.performGlobalSearch(
+        tenantId, 
+        query, 
+        type as string,
+        user.role,
+        searchLimit
+      );
+
+      res.json(searchResults);
+    } catch (error) {
+      console.error('Global search error:', error);
+      res.status(500).json({ error: 'Failed to perform search' });
+    }
+  });
+
   // Asset routes
   app.get("/api/assets", authenticateToken, async (req: Request, res: Response) => {
     try {

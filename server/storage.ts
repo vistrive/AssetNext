@@ -1082,6 +1082,176 @@ export class DatabaseStorage implements IStorage {
     return new Date(date).toLocaleDateString();
   }
 
+  // Asset Age Analysis
+  private async getAssetAgeAnalysis(tenantId: string) {
+    try {
+      const now = new Date();
+      const threeYearsAgo = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+      const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+
+      // Get assets older than 3 years (replacement candidates)
+      const assetsOlderThan3Years = await db
+        .select({
+          id: assets.id,
+          name: assets.name,
+          category: assets.category,
+          manufacturer: assets.manufacturer,
+          model: assets.model,
+          purchaseDate: assets.purchaseDate,
+          purchaseCost: assets.purchaseCost,
+          location: assets.location,
+          assignedUserName: assets.assignedUserName,
+          status: assets.status
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          sql`purchase_date IS NOT NULL`,
+          sql`purchase_date <= ${threeYearsAgo}`
+        ))
+        .orderBy(assets.purchaseDate)
+        .limit(20);
+
+      // Get assets older than 5 years (critical replacement)
+      const assetsOlderThan5Years = await db
+        .select({
+          id: assets.id,
+          name: assets.name,
+          category: assets.category,
+          manufacturer: assets.manufacturer,
+          model: assets.model,
+          purchaseDate: assets.purchaseDate,
+          purchaseCost: assets.purchaseCost,
+          location: assets.location,
+          assignedUserName: assets.assignedUserName,
+          status: assets.status
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          sql`purchase_date IS NOT NULL`,
+          sql`purchase_date <= ${fiveYearsAgo}`
+        ))
+        .orderBy(assets.purchaseDate)
+        .limit(20);
+
+      // Calculate age distribution
+      const ageDistribution = await db
+        .select({
+          ageCategory: sql<string>`
+            CASE 
+              WHEN purchase_date IS NULL THEN 'unknown'
+              WHEN purchase_date > ${threeYearsAgo} THEN 'new'
+              WHEN purchase_date > ${fiveYearsAgo} THEN 'aging'
+              ELSE 'old'
+            END
+          `,
+          count: sql<number>`COUNT(*)`
+        })
+        .from(assets)
+        .where(eq(assets.tenantId, tenantId))
+        .groupBy(sql`1`);
+
+      // Calculate replacement cost estimates
+      const replacementCosts = {
+        threeYearOld: assetsOlderThan3Years.reduce((sum, asset) => sum + (Number(asset.purchaseCost) || 0), 0),
+        fiveYearOld: assetsOlderThan5Years.reduce((sum, asset) => sum + (Number(asset.purchaseCost) || 0), 0)
+      };
+
+      return {
+        replacementCandidates: {
+          threeYearOld: assetsOlderThan3Years.map(asset => ({
+            id: asset.id,
+            name: asset.name,
+            category: asset.category,
+            manufacturer: asset.manufacturer,
+            model: asset.model,
+            purchaseDate: asset.purchaseDate,
+            age: this.calculateAssetAge(asset.purchaseDate),
+            purchaseCost: asset.purchaseCost,
+            location: asset.location,
+            assignedUser: asset.assignedUserName,
+            status: asset.status,
+            replacementUrgency: 'moderate'
+          })),
+          fiveYearOld: assetsOlderThan5Years.map(asset => ({
+            id: asset.id,
+            name: asset.name,
+            category: asset.category,
+            manufacturer: asset.manufacturer,
+            model: asset.model,
+            purchaseDate: asset.purchaseDate,
+            age: this.calculateAssetAge(asset.purchaseDate),
+            purchaseCost: asset.purchaseCost,
+            location: asset.location,
+            assignedUser: asset.assignedUserName,
+            status: asset.status,
+            replacementUrgency: 'high'
+          }))
+        },
+        ageDistribution: ageDistribution.reduce((acc, item) => {
+          acc[item.ageCategory] = Number(item.count);
+          return acc;
+        }, {} as Record<string, number>),
+        replacementCosts,
+        summary: {
+          totalAssetsNeedingReplacement: assetsOlderThan3Years.length,
+          criticalReplacementAssets: assetsOlderThan5Years.length,
+          estimatedReplacementCost: replacementCosts.threeYearOld,
+          averageAssetAge: await this.getAverageAssetAge(tenantId)
+        }
+      };
+    } catch (error) {
+      console.error('Error analyzing asset age:', error);
+      return {
+        replacementCandidates: { threeYearOld: [], fiveYearOld: [] },
+        ageDistribution: {},
+        replacementCosts: { threeYearOld: 0, fiveYearOld: 0 },
+        summary: {
+          totalAssetsNeedingReplacement: 0,
+          criticalReplacementAssets: 0,
+          estimatedReplacementCost: 0,
+          averageAssetAge: 0
+        }
+      };
+    }
+  }
+
+  private calculateAssetAge(purchaseDate: Date | null): string {
+    if (!purchaseDate) return 'Unknown';
+    
+    const now = new Date();
+    const ageInYears = now.getFullYear() - purchaseDate.getFullYear();
+    const monthDiff = now.getMonth() - purchaseDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < purchaseDate.getDate())) {
+      return `${ageInYears - 1}.${Math.abs(12 + monthDiff)} years`;
+    }
+    
+    return `${ageInYears}.${monthDiff} years`;
+  }
+
+  private async getAverageAssetAge(tenantId: string): Promise<number> {
+    try {
+      const result = await db
+        .select({
+          avgYears: sql<number>`
+            AVG(EXTRACT(YEAR FROM age(CURRENT_DATE, purchase_date))) 
+          `
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          sql`purchase_date IS NOT NULL`
+        ));
+
+      return Number(result[0]?.avgYears) || 0;
+    } catch (error) {
+      console.error('Error calculating average asset age:', error);
+      return 0;
+    }
+  }
+
   // Dashboard Metrics
   async getDashboardMetrics(tenantId: string): Promise<any> {
     try {
@@ -1499,6 +1669,9 @@ export class DatabaseStorage implements IStorage {
             createdAt: activity.createdAt,
             timeAgo: this.getTimeAgo(activity.createdAt)
           })),
+
+          // Asset Age Analysis
+          assetAgeAnalysis: await this.getAssetAgeAnalysis(tenantId),
 
           // Summary Metrics
           summary: {

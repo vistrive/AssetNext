@@ -3,10 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AssetCategoryTiles } from "@/components/dashboard/asset-category-tiles";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { ReportGenerator } from "@/components/dashboard/report-generator";
 import { ITAMInsights } from "@/components/dashboard/itam-insights";
+import { DraggableGrid } from "@/components/dashboard/draggable-grid";
+import { AssetAgeAnalysis } from "@/components/dashboard/asset-age-analysis";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Asset, Recommendation } from "@shared/schema";
 
@@ -64,6 +67,14 @@ export default function Dashboard() {
           title="ITAM Dashboard"
           description="Comprehensive IT Asset Management with Lifecycle Insights, Unused Asset Detection & Compliance Monitoring"
         />
+        
+        {/* Global Search Bar */}
+        <div className="px-6 pb-4">
+          <GlobalSearch 
+            placeholder="Search assets, users, vendors, locations..."
+            className="max-w-md"
+          />
+        </div>
         
         <div className="p-6 space-y-6">
           {metrics && (
