@@ -86,14 +86,12 @@ const navigation = [
     icon: Building2,
     requiredRole: "technician",
     subItems: [
-      { name: "All Vendors", href: "/vendors", icon: Building2 },
       { name: "Add Vendor", href: "/vendors/new", icon: Plus },
       { name: "Contract Renewals", href: "/vendors?filter=contract-expiring", icon: Calendar },
     ]
   },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Team Management", href: "/users", icon: Users, requiredRole: "admin" },
-  { name: "Activity Logs", href: "/activity-logs", icon: FileText, requiredRole: "admin" },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

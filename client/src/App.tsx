@@ -7,9 +7,6 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { QuickActionsButton } from "@/components/layout/quick-actions-button";
-import { DraggableControls } from "@/components/layout/draggable-controls";
-import { GlobalSearch } from "@/components/dashboard/global-search";
-import { DraggableAssetsSearch } from "@/components/dashboard/draggable-assets-search";
 import { useState } from "react";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
@@ -110,15 +107,6 @@ function Router() {
 }
 
 function App() {
-  const [globalSearchDraggable, setGlobalSearchDraggable] = useState(false);
-  const [assetsSearchDraggable, setAssetsSearchDraggable] = useState(false);
-  const [draggableAssetsSearchProps, setDraggableAssetsSearchProps] = useState({
-    searchTerm: '',
-    onSearchTermChange: (term: string) => setDraggableAssetsSearchProps(prev => ({ ...prev, searchTerm: term })),
-    onSearch: () => {},
-    onClearSearch: () => setDraggableAssetsSearchProps(prev => ({ ...prev, searchTerm: '' }))
-  });
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -127,28 +115,6 @@ function App() {
           <Router />
           <FloatingAIAssistant />
           <QuickActionsButton />
-          
-          {/* Draggable UI Controls */}
-          <DraggableControls
-            globalSearchDraggable={globalSearchDraggable}
-            onGlobalSearchDraggableChange={setGlobalSearchDraggable}
-            assetsSearchDraggable={assetsSearchDraggable}
-            onAssetsSearchDraggableChange={setAssetsSearchDraggable}
-          />
-          
-          {/* Draggable Global Search */}
-          {globalSearchDraggable && (
-            <GlobalSearch
-              isDraggable={true}
-              placeholder="Search assets, users, vendors..."
-            />
-          )}
-          
-          {/* Draggable Assets Search */}
-          <DraggableAssetsSearch
-            isDraggable={assetsSearchDraggable}
-            {...draggableAssetsSearchProps}
-          />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
