@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { GripVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { GripVertical, RotateCcw } from 'lucide-react';
 
 interface TilePosition {
   x: number;
@@ -17,7 +18,17 @@ interface DashboardTile {
   defaultPosition?: TilePosition;
   width?: number;
   height?: number;
+  section?: string; // For grouping tiles by section
 }
+
+// Context for managing tile resets
+interface TileResetContextType {
+  resetTile: (tileId: string) => void;
+  resetSection: (section: string) => void;
+  resetAllTiles: () => void;
+}
+
+const TileResetContext = createContext<TileResetContextType | null>(null);
 
 function DraggableTileInternal({ 
   tile, 
@@ -26,6 +37,7 @@ function DraggableTileInternal({
   tile: DashboardTile; 
   position: TilePosition 
 }) {
+  const resetContext = useContext(TileResetContext);
   const {
     attributes,
     listeners,
@@ -36,7 +48,7 @@ function DraggableTileInternal({
   } = useSortable({ id: tile.id });
 
   const style = {
-    position: 'fixed' as const,
+    position: 'absolute' as const,
     left: `${position.x}px`,
     top: `${position.y}px`,
     transform: CSS.Transform.toString(transform),
@@ -45,6 +57,12 @@ function DraggableTileInternal({
     zIndex: isDragging ? 50 : 10,
     width: tile.width || 400,
     height: tile.height || 300,
+  };
+
+  const handleResetTile = () => {
+    if (resetContext) {
+      resetContext.resetTile(tile.id);
+    }
   };
 
   return (
@@ -58,14 +76,27 @@ function DraggableTileInternal({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">{tile.title}</CardTitle>
-            {/* Drag Handle */}
-            <div
-              {...attributes}
-              {...listeners}
-              className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 hover:bg-background border border-border/50"
-              data-testid={`tile-drag-handle-${tile.id}`}
-            >
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-1">
+              {/* Reset Tile Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResetTile}
+                className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
+                data-testid={`tile-reset-${tile.id}`}
+                title="Reset to default position"
+              >
+                <RotateCcw className="h-3 w-3 text-muted-foreground" />
+              </Button>
+              {/* Drag Handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 hover:bg-background border border-border/50"
+                data-testid={`tile-drag-handle-${tile.id}`}
+              >
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -77,13 +108,44 @@ function DraggableTileInternal({
   );
 }
 
-function IndependentDraggableTileWithContext({ tile }: { tile: DashboardTile }) {
+function IndependentDraggableTileWithContext({ 
+  tile, 
+  onPositionChange 
+}: { 
+  tile: DashboardTile;
+  onPositionChange: (tileId: string, position: TilePosition) => void;
+}) {
   const [position, setPosition] = useState<TilePosition>(() => {
-    const saved = localStorage.getItem(`tile-position-${tile.id}`);
-    if (saved) {
-      return JSON.parse(saved);
+    // Try to get saved position from enhanced layout storage
+    const savedLayouts = localStorage.getItem('dashboard-layout-v1');
+    if (savedLayouts) {
+      const layouts = JSON.parse(savedLayouts);
+      if (layouts[tile.id]) {
+        // Clamp saved position to ensure it's within reasonable bounds
+        const savedPos = layouts[tile.id];
+        return {
+          x: Math.max(20, Math.min(1200, savedPos.x)),
+          y: Math.max(20, Math.min(1200, savedPos.y))
+        };
+      }
     }
-    return tile.defaultPosition || { x: Math.random() * 200 + 100, y: Math.random() * 200 + 100 };
+    
+    // Fallback to old storage method
+    const oldSaved = localStorage.getItem(`tile-position-${tile.id}`);
+    if (oldSaved) {
+      const oldPos = JSON.parse(oldSaved);
+      return {
+        x: Math.max(20, Math.min(1200, oldPos.x)),
+        y: Math.max(20, Math.min(1200, oldPos.y))
+      };
+    }
+    
+    // Provide safe default position within canvas bounds
+    const defaultPos = tile.defaultPosition || { x: 100, y: 100 };
+    return {
+      x: Math.max(20, Math.min(1200, defaultPos.x)),
+      y: Math.max(20, Math.min(1200, defaultPos.y))
+    };
   });
 
   const sensors = useSensors(
@@ -95,20 +157,80 @@ function IndependentDraggableTileWithContext({ tile }: { tile: DashboardTile }) 
   );
 
   useEffect(() => {
-    localStorage.setItem(`tile-position-${tile.id}`, JSON.stringify(position));
-  }, [position, tile.id]);
+    // Only call onPositionChange when position actually changes, not on initial render
+    const timeoutId = setTimeout(() => {
+      onPositionChange(tile.id, position);
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [position.x, position.y, tile.id]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { delta } = event;
     
     if (delta) {
+      // Get the canvas container bounds for proper clamping
+      const canvasElement = document.getElementById('dashboard-canvas');
+      if (!canvasElement) return;
+      
+      const canvasBounds = canvasElement.getBoundingClientRect();
+      const canvasWidth = canvasBounds.width;
+      const canvasHeight = Math.max(canvasBounds.height, 1400); // Ensure minimum canvas height for scrolling
+      
       const newPosition = {
-        x: Math.max(0, Math.min(window.innerWidth - (tile.width || 400), position.x + delta.x)),
-        y: Math.max(0, Math.min(window.innerHeight - (tile.height || 300), position.y + delta.y)),
+        x: Math.max(20, Math.min(canvasWidth - (tile.width || 400) - 20, position.x + delta.x)),
+        y: Math.max(20, Math.min(canvasHeight - (tile.height || 300) - 20, position.y + delta.y)),
       };
       setPosition(newPosition);
     }
   };
+
+  // Reset position function
+  const resetPosition = () => {
+    const defaultPos = tile.defaultPosition || { x: 100, y: 100 };
+    setPosition(defaultPos);
+  };
+
+  // Listen for reset events (individual, section, and global) and position clamping
+  useEffect(() => {
+    const handleReset = (event: CustomEvent) => {
+      if (event.detail.tileId === tile.id) {
+        resetPosition();
+      }
+    };
+
+    const handleSectionReset = (event: CustomEvent) => {
+      if (tile.section && event.detail.section === tile.section) {
+        resetPosition();
+      }
+    };
+
+    const handleGlobalReset = () => {
+      resetPosition();
+    };
+
+    const handleClampPosition = (event: CustomEvent) => {
+      if (event.detail.tileId === tile.id) {
+        const { canvasWidth, canvasHeight, tileWidth, tileHeight } = event.detail;
+        setPosition(prev => ({
+          x: Math.max(20, Math.min(canvasWidth - tileWidth - 20, prev.x)),
+          y: Math.max(20, Math.min(canvasHeight - tileHeight - 20, prev.y))
+        }));
+      }
+    };
+
+    window.addEventListener('reset-tile' as any, handleReset);
+    window.addEventListener('reset-section' as any, handleSectionReset);
+    window.addEventListener('reset-all-tiles' as any, handleGlobalReset);
+    window.addEventListener('clamp-tile-position' as any, handleClampPosition);
+    
+    return () => {
+      window.removeEventListener('reset-tile' as any, handleReset);
+      window.removeEventListener('reset-section' as any, handleSectionReset);
+      window.removeEventListener('reset-all-tiles' as any, handleGlobalReset);
+      window.removeEventListener('clamp-tile-position' as any, handleClampPosition);
+    };
+  }, [tile.id, tile.section]);
 
   return (
     <DndContext
@@ -125,14 +247,111 @@ function IndependentDraggableTileWithContext({ tile }: { tile: DashboardTile }) 
 
 interface IndependentDraggableTilesProps {
   tiles: DashboardTile[];
+  onLayoutChange?: (layouts: Record<string, TilePosition>) => void;
 }
 
-export function IndependentDraggableTiles({ tiles }: IndependentDraggableTilesProps) {
+export function IndependentDraggableTiles({ tiles, onLayoutChange }: IndependentDraggableTilesProps) {
+  const [positions, setPositions] = useState<Record<string, TilePosition>>({});
+
+  const handlePositionChange = (tileId: string, position: TilePosition) => {
+    setPositions(prev => {
+      const newPositions = { ...prev, [tileId]: position };
+      
+      // Save to enhanced localStorage
+      localStorage.setItem('dashboard-layout-v1', JSON.stringify(newPositions));
+      
+      // Notify parent component
+      if (onLayoutChange) {
+        onLayoutChange(newPositions);
+      }
+      
+      return newPositions;
+    });
+  };
+
+  // Clamp all positions on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      const canvasElement = document.getElementById('dashboard-canvas');
+      if (!canvasElement) return;
+      
+      const canvasBounds = canvasElement.getBoundingClientRect();
+      const canvasWidth = canvasBounds.width;
+      const canvasHeight = Math.max(canvasBounds.height, 1400);
+      
+      // Dispatch resize event for all tiles to re-clamp their positions
+      tiles.forEach(tile => {
+        window.dispatchEvent(new CustomEvent('clamp-tile-position', { 
+          detail: { 
+            tileId: tile.id,
+            canvasWidth,
+            canvasHeight,
+            tileWidth: tile.width || 400,
+            tileHeight: tile.height || 300
+          } 
+        }));
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [tiles]);
+
+  const resetContext: TileResetContextType = {
+    resetTile: (tileId: string) => {
+      // Dispatch custom event to reset specific tile
+      window.dispatchEvent(new CustomEvent('reset-tile', { detail: { tileId } }));
+    },
+    resetSection: (section: string) => {
+      // Reset all tiles in a section
+      tiles
+        .filter(tile => tile.section === section)
+        .forEach(tile => {
+          window.dispatchEvent(new CustomEvent('reset-tile', { detail: { tileId: tile.id } }));
+        });
+    },
+    resetAllTiles: () => {
+      // Clear all saved positions and reset to defaults
+      localStorage.removeItem('dashboard-layout-v1');
+      tiles.forEach(tile => {
+        // Clear old individual tile storage
+        localStorage.removeItem(`tile-position-${tile.id}`);
+        // Dispatch reset event
+        window.dispatchEvent(new CustomEvent('reset-tile', { detail: { tileId: tile.id } }));
+      });
+    }
+  };
+
   return (
-    <div data-testid="independent-draggable-tiles-container">
-      {tiles.map((tile) => (
-        <IndependentDraggableTileWithContext key={tile.id} tile={tile} />
-      ))}
-    </div>
+    <TileResetContext.Provider value={resetContext}>
+      {/* Scrollable Canvas Container */}
+      <div 
+        id="dashboard-canvas"
+        className="relative min-h-[1400px] w-full"
+        data-testid="independent-draggable-tiles-container"
+        style={{ 
+          // Ensure the canvas extends beyond viewport for scrolling
+          minHeight: 'max(100vh, 1400px)',
+          paddingBottom: '200px' // Extra space at bottom
+        }}
+      >
+        {tiles.map((tile) => (
+          <IndependentDraggableTileWithContext 
+            key={tile.id} 
+            tile={tile} 
+            onPositionChange={handlePositionChange}
+          />
+        ))}
+      </div>
+    </TileResetContext.Provider>
   );
 }
+
+// Export the context hook for use in dashboard header
+export const useTileReset = () => {
+  const context = useContext(TileResetContext);
+  if (!context) {
+    throw new Error('useTileReset must be used within TileResetContext');
+  }
+  return context;
+};
