@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,7 @@ interface Invitation {
 }
 
 export default function Users() {
+  const [location] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -74,6 +76,13 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+
+  // Detect if we're in "new" mode and auto-open the form
+  useEffect(() => {
+    if (location === '/users/new') {
+      setIsInviteDialogOpen(true);
+    }
+  }, [location]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadResults, setUploadResults] = useState<any>(null);
   const [isValidating, setIsValidating] = useState(false);

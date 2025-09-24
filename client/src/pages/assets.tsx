@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "@/hooks/use-search";
+import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { AssetForm } from "@/components/assets/asset-form";
@@ -786,6 +787,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
 export default function Assets() {
   const search = useSearch();
+  const [location] = useLocation();
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
@@ -795,6 +797,13 @@ export default function Assets() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect if we're in "new" mode and auto-open the form
+  useEffect(() => {
+    if (location === '/assets/new') {
+      setIsAssetFormOpen(true);
+    }
+  }, [location]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadResults, setUploadResults] = useState<any>(null);
   const [isValidating, setIsValidating] = useState(false);
