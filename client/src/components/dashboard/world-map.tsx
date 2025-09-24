@@ -155,7 +155,7 @@ const WorldMapSVG = ({
   return (
     <svg 
       viewBox="0 0 800 300" 
-      className="w-full h-64 bg-slate-50 dark:bg-slate-900 rounded-lg border"
+      className="w-full h-48 sm:h-56 md:h-64 bg-slate-50 dark:bg-slate-900 rounded-lg border"
     >
       {/* Simple continent outlines */}
       <g fill="none" stroke="#94a3b8" strokeWidth="1" opacity="0.3">
@@ -319,14 +319,16 @@ export function WorldMap() {
   const totalAssets = Object.values(countryData).reduce((sum, data) => sum + data.count, 0);
 
   return (
-    <Card className="col-span-full lg:col-span-2" data-testid="card-world-map">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Globe className="h-5 w-5 text-blue-500" />
-          Global Asset Distribution
+    <Card className="h-full" data-testid="card-world-map">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+          <span className="hidden sm:inline">Global Asset Distribution</span>
+          <span className="sm:hidden">Global Assets</span>
         </CardTitle>
-        <CardDescription>
-          Asset locations worldwide - click markers to filter by location
+        <CardDescription className="text-xs sm:text-sm">
+          <span className="hidden sm:inline">Asset locations worldwide - click markers to filter by location</span>
+          <span className="sm:hidden">Click markers to filter</span>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -343,7 +345,7 @@ export function WorldMap() {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <WorldMapSVG 
               countryData={countryData}
               onCountryClick={handleCountryClick}
@@ -352,29 +354,30 @@ export function WorldMap() {
             />
             
             {/* Top countries stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Top Countries by Asset Count
+                <h4 className="text-xs sm:text-sm font-medium mb-2 sm:mb-3 flex items-center gap-1 sm:gap-2">
+                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Top Countries by Asset Count</span>
+                  <span className="sm:hidden">Top Countries</span>
                 </h4>
-                <div className="space-y-2">
+                <div className="space-y-1 sm:space-y-2">
                   {sortedCountries.map(([countryCode, data]) => (
                     <div 
                       key={countryCode}
-                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                      className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
                       onClick={() => handleCountryClick(countryCode)}
                       data-testid={`country-stat-${countryCode}`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
                         <div 
-                          className="w-3 h-3 rounded-full"
+                          className="w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0"
                           style={{ backgroundColor: hoveredCountry === countryCode ? '#3b82f6' : '#64748b' }}
                         />
-                        <span className="text-sm font-medium">{data.country}</span>
+                        <span className="text-xs sm:text-sm font-medium truncate">{data.country}</span>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold">{data.count}</div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-xs sm:text-sm font-semibold">{data.count}</div>
                         <div className="text-xs text-muted-foreground">
                           {data.percentage.toFixed(1)}%
                         </div>
@@ -385,27 +388,27 @@ export function WorldMap() {
               </div>
 
               <div>
-                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
+                <h4 className="text-xs sm:text-sm font-medium mb-2 sm:mb-3 flex items-center gap-1 sm:gap-2">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                   Quick Stats
                 </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 rounded-lg bg-muted/50 text-center">
-                    <div className="text-lg font-bold text-blue-600">{Object.keys(countryData).length}</div>
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <div className="p-2 sm:p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-sm sm:text-lg font-bold text-blue-600">{Object.keys(countryData).length}</div>
                     <div className="text-xs text-muted-foreground">Countries</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-muted/50 text-center">
-                    <div className="text-lg font-bold text-green-600">{totalAssets}</div>
+                  <div className="p-2 sm:p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-sm sm:text-lg font-bold text-green-600">{totalAssets}</div>
                     <div className="text-xs text-muted-foreground">Located Assets</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-muted/50 text-center">
-                    <div className="text-lg font-bold text-purple-600">
+                  <div className="p-2 sm:p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-sm sm:text-lg font-bold text-purple-600">
                       {Object.values(countryData).reduce((sum, data) => sum + data.locations.length, 0)}
                     </div>
                     <div className="text-xs text-muted-foreground">Locations</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-muted/50 text-center">
-                    <div className="text-lg font-bold text-orange-600">
+                  <div className="p-2 sm:p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-sm sm:text-lg font-bold text-orange-600">
                       {sortedCountries.length > 0 ? sortedCountries[0][1].percentage.toFixed(1) : 0}%
                     </div>
                     <div className="text-xs text-muted-foreground">Top Country</div>

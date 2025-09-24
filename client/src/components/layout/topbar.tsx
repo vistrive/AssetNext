@@ -22,25 +22,25 @@ export function TopBar({
   onBulkUploadClick
 }: TopBarProps) {
   return (
-    <header className="bg-card border-b border-border px-6 py-4">
-      <div className="flex items-center justify-between">
+    <header className="bg-card border-b border-border px-4 sm:px-6 py-3 sm:py-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
         {/* Left Side: Title and Description */}
-        <div className="flex items-center space-x-6">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-            <p className="text-muted-foreground text-sm">{description}</p>
+        <div className="flex items-center space-x-6 min-w-0 flex-1">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-semibold text-foreground truncate">{title}</h2>
+            <p className="text-muted-foreground text-xs sm:text-sm truncate">{description}</p>
           </div>
         </div>
         
         {/* Right Side: Global Search and Action Buttons */}
-        <div className="flex items-center space-x-4">
-          <div className="w-80">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+          <div className="w-full sm:w-64 lg:w-80">
             <GlobalSearch 
               placeholder="Search assets, users, vendors..." 
               className="w-full"
             />
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <RoleNotifications />
             {onBulkUploadClick && (
               <Button 
@@ -48,15 +48,23 @@ export function TopBar({
                 onClick={onBulkUploadClick} 
                 data-testid="button-bulk-upload"
                 size="sm"
+                className="flex-1 sm:flex-none"
               >
-                <Upload className="mr-2 h-4 w-4" />
-                Bulk Upload
+                <Upload className="mr-1 sm:mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Bulk Upload</span>
+                <span className="sm:hidden">Upload</span>
               </Button>
             )}
             {showAddButton && onAddClick && (
-              <Button onClick={onAddClick} data-testid="button-add-asset" size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                {addButtonText}
+              <Button 
+                onClick={onAddClick} 
+                data-testid="button-add-asset" 
+                size="sm"
+                className="flex-1 sm:flex-none"
+              >
+                <Plus className="mr-1 sm:mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">{addButtonText}</span>
+                <span className="sm:hidden">Add</span>
               </Button>
             )}
           </div>

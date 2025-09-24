@@ -32,10 +32,12 @@ const TileResetContext = createContext<TileResetContextType | null>(null);
 
 function DraggableTileInternal({ 
   tile, 
-  position 
+  position,
+  showDragHandle = true 
 }: { 
   tile: DashboardTile; 
-  position: TilePosition 
+  position: TilePosition;
+  showDragHandle?: boolean;
 }) {
   const resetContext = useContext(TileResetContext);
   const {
@@ -57,6 +59,9 @@ function DraggableTileInternal({
     zIndex: isDragging ? 50 : 10,
     width: tile.width || 400,
     height: tile.height || 300,
+    // Ensure tiles don't exceed viewport on mobile
+    maxWidth: '100%',
+    boxSizing: 'border-box' as const,
   };
 
   const handleResetTile = () => {
@@ -85,15 +90,17 @@ function DraggableTileInternal({
         >
           <RotateCcw className="h-3 w-3 text-muted-foreground" />
         </Button>
-        {/* Drag Handle */}
-        <div
-          {...attributes}
-          {...listeners}
-          className="p-1 rounded cursor-grab active:cursor-grabbing bg-background/90 hover:bg-background border border-border/50 shadow-sm"
-          data-testid={`tile-drag-handle-${tile.id}`}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
+        {/* Drag Handle - only show when dragging is enabled */}
+        {showDragHandle && (
+          <div
+            {...attributes}
+            {...listeners}
+            className="p-1 rounded cursor-grab active:cursor-grabbing bg-background/90 hover:bg-background border border-border/50 shadow-sm"
+            data-testid={`tile-drag-handle-${tile.id}`}
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
       </div>
       
       {/* Single tile content without double card wrapping */}
@@ -106,36 +113,37 @@ function DraggableTileInternal({
 
 function IndependentDraggableTileWithContext({ 
   tile, 
-  onPositionChange 
+  onPositionChange,
+  externalPosition,
+  isDraggingEnabled = true 
 }: { 
   tile: DashboardTile;
   onPositionChange: (tileId: string, position: TilePosition) => void;
+  externalPosition?: TilePosition;
+  isDraggingEnabled?: boolean;
 }) {
   const isInit = useRef(true);
   const skipSave = useRef(false);
+  
+  // Remove redundant screen size monitoring (handled by parent)
+  
   const [position, setPosition] = useState<TilePosition>(() => {
-    // Try to get saved position from enhanced layout storage
+    // Use external position if provided (responsive layout)
+    if (externalPosition) {
+      return externalPosition;
+    }
+    
+    // Try to get saved position from enhanced layout storage (desktop only)
     const savedLayouts = localStorage.getItem('dashboard-layout-v1');
     if (savedLayouts) {
       const layouts = JSON.parse(savedLayouts);
       if (layouts[tile.id]) {
-        // Clamp saved position to ensure it's within reasonable bounds
         const savedPos = layouts[tile.id];
         return {
           x: Math.max(20, Math.min(1200, savedPos.x)),
           y: Math.max(20, Math.min(1200, savedPos.y))
         };
       }
-    }
-    
-    // Fallback to old storage method
-    const oldSaved = localStorage.getItem(`tile-position-${tile.id}`);
-    if (oldSaved) {
-      const oldPos = JSON.parse(oldSaved);
-      return {
-        x: Math.max(20, Math.min(1200, oldPos.x)),
-        y: Math.max(20, Math.min(1200, oldPos.y))
-      };
     }
     
     // Provide safe default position within canvas bounds
@@ -145,6 +153,17 @@ function IndependentDraggableTileWithContext({
       y: Math.max(20, Math.min(1200, defaultPos.y))
     };
   });
+  
+  // Sync internal position with external position changes (responsive layout)
+  useEffect(() => {
+    if (externalPosition) {
+      skipSave.current = true;
+      setPosition(externalPosition);
+      setTimeout(() => {
+        skipSave.current = false;
+      }, 0);
+    }
+  }, [externalPosition]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -153,6 +172,9 @@ function IndependentDraggableTileWithContext({
       },
     })
   );
+  
+  // Disable sensors if dragging is not enabled (responsive modes)
+  const activeSensors = isDraggingEnabled ? sensors : [];
 
   useEffect(() => {
     // Skip saving during initialization or when explicitly skipped
@@ -258,12 +280,16 @@ function IndependentDraggableTileWithContext({
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={activeSensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={[tile.id]}>
-        <DraggableTileInternal tile={tile} position={position} />
+        <DraggableTileInternal 
+          tile={tile} 
+          position={position} 
+          showDragHandle={isDraggingEnabled} 
+        />
       </SortableContext>
     </DndContext>
   );
@@ -276,12 +302,73 @@ interface IndependentDraggableTilesProps {
 
 export function IndependentDraggableTiles({ tiles, onLayoutChange }: IndependentDraggableTilesProps) {
   const [positions, setPositions] = useState<Record<string, TilePosition>>({});
+  const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+
+  // Calculate responsive positions based on screen size with collision-free layout
+  const getResponsivePosition = (tile: DashboardTile, index: number): TilePosition => {
+    const defaultPos = tile.defaultPosition || { x: 100, y: 100 };
+    
+    // Use saved position if available and not in responsive mode
+    const savedLayouts = localStorage.getItem('dashboard-layout-v1');
+    if (savedLayouts && screenSize === 'desktop') {
+      const layouts = JSON.parse(savedLayouts);
+      if (layouts[tile.id]) {
+        return layouts[tile.id];
+      }
+    }
+    
+    if (screenSize === 'mobile') {
+      // Mobile: Stack all tiles vertically with actual tile heights
+      let cumulativeY = 140;
+      for (let i = 0; i < index; i++) {
+        const prevTile = tiles[i];
+        const prevHeight = prevTile.section === 'analytics' ? 300 : 
+                          prevTile.section === 'visual' ? 350 : 220;
+        cumulativeY += prevHeight + 24; // Add tile height + 24px gap
+      }
+      return {
+        x: 20,
+        y: cumulativeY
+      };
+    } else if (screenSize === 'tablet') {
+      // Tablet: 2-column layout with collision-free positioning
+      const columnHeights = [140, 140]; // Track height of each column
+      
+      // Calculate positions for all tiles up to current index
+      for (let i = 0; i <= index; i++) {
+        const currentTile = tiles[i];
+        const tileHeight = currentTile.section === 'analytics' ? 280 : 
+                          currentTile.section === 'visual' ? 320 : 200;
+        
+        if (i === index) {
+          // Place current tile in shorter column
+          const column = columnHeights[0] <= columnHeights[1] ? 0 : 1;
+          return {
+            x: 20 + (column * 360),
+            y: columnHeights[column]
+          };
+        } else {
+          // Update column heights for previous tiles
+          const column = columnHeights[0] <= columnHeights[1] ? 0 : 1;
+          columnHeights[column] += tileHeight + 24;
+        }
+      }
+    }
+    
+    // Desktop: Use default positions
+    return defaultPos;
+  };
 
   const handlePositionChange = (tileId: string, position: TilePosition) => {
+    // Only allow position changes on desktop - ignore on mobile/tablet for controlled layout
+    if (screenSize !== 'desktop') {
+      return;
+    }
+    
     setPositions(prev => {
       const newPositions = { ...prev, [tileId]: position };
       
-      // Save to enhanced localStorage
+      // Save to localStorage on desktop to preserve manual positioning
       localStorage.setItem('dashboard-layout-v1', JSON.stringify(newPositions));
       
       // Notify parent component
@@ -292,6 +379,39 @@ export function IndependentDraggableTiles({ tiles, onLayoutChange }: Independent
       return newPositions;
     });
   };
+  
+  // Update positions when screen size changes
+  useEffect(() => {
+    const newPositions: Record<string, TilePosition> = {};
+    tiles.forEach((tile, index) => {
+      newPositions[tile.id] = getResponsivePosition(tile, index);
+    });
+    setPositions(newPositions);
+    
+    if (onLayoutChange) {
+      onLayoutChange(newPositions);
+    }
+  }, [screenSize, tiles, onLayoutChange]);
+
+  // Update screen size and handle responsive positioning
+  useEffect(() => {
+    const updateScreenSize = () => {
+      const width = window.innerWidth;
+      if (width < 768) {
+        setScreenSize('mobile');
+      } else if (width < 1024) {
+        setScreenSize('tablet');
+      } else {
+        setScreenSize('desktop');
+      }
+    };
+    
+    // Initial screen size check
+    updateScreenSize();
+    
+    window.addEventListener('resize', updateScreenSize);
+    return () => window.removeEventListener('resize', updateScreenSize);
+  }, []);
 
   // Clamp all positions on window resize (debounced to prevent transient narrow widths)
   useEffect(() => {
@@ -319,8 +439,7 @@ export function IndependentDraggableTiles({ tiles, onLayoutChange }: Independent
         const canvasWidth = canvasBounds.width;
         const canvasHeight = Math.max(canvasBounds.height, 1400);
         
-        // Only clamp if canvas has reasonable width to avoid collapsing tiles
-        if (canvasWidth < 600) return;
+        // Clamp tiles for all screen sizes to prevent off-canvas positioning
         
         // Dispatch resize event for all tiles to re-clamp their positions
         tiles.forEach(tile => {
@@ -380,24 +499,61 @@ export function IndependentDraggableTiles({ tiles, onLayoutChange }: Independent
 
   return (
     <TileResetContext.Provider value={resetContext}>
-      {/* Scrollable Canvas Container */}
+      {/* Scrollable Canvas Container with Responsive Layout */}
       <div 
         id="dashboard-canvas"
-        className="relative min-h-[1400px] w-full"
+        className={`relative w-full transition-all duration-300 ${
+          screenSize === 'mobile' ? 'min-h-screen px-4' : 
+          screenSize === 'tablet' ? 'min-h-[1200px] px-6' : 
+          'min-h-[1400px] px-6'
+        }`}
         data-testid="independent-draggable-tiles-container"
         style={{ 
           // Ensure the canvas extends beyond viewport for scrolling
-          minHeight: 'max(100vh, 1400px)',
-          paddingBottom: '200px' // Extra space at bottom
+          minHeight: screenSize === 'mobile' ? '100vh' : 'max(100vh, 1400px)',
+          paddingBottom: screenSize === 'mobile' ? '100px' : '200px'
         }}
       >
-        {tiles.map((tile) => (
-          <IndependentDraggableTileWithContext 
-            key={tile.id} 
-            tile={tile} 
-            onPositionChange={handlePositionChange}
-          />
-        ))}
+        {tiles.map((tile, index) => {
+          const responsivePosition = positions[tile.id] || getResponsivePosition(tile, index);
+          
+          // Calculate responsive width to prevent overflow on narrow devices
+          const getResponsiveWidth = () => {
+            if (screenSize === 'mobile') {
+              // Get current canvas width from DOM
+              const canvasElement = document.getElementById('dashboard-canvas');
+              const canvasWidth = canvasElement ? canvasElement.clientWidth : window.innerWidth;
+              // Use calc to account for margins: canvas width - 40px (20px left + 20px right)
+              return Math.min(340, canvasWidth - 40);
+            } else if (screenSize === 'tablet') {
+              const canvasElement = document.getElementById('dashboard-canvas');
+              const canvasWidth = canvasElement ? canvasElement.clientWidth : window.innerWidth;
+              return Math.min(340, (canvasWidth - 60) / 2); // Account for 2 columns + gaps
+            }
+            return tile.width;
+          };
+          
+          return (
+            <IndependentDraggableTileWithContext 
+              key={tile.id} 
+              tile={{
+                ...tile,
+                // Adjust tile dimensions for responsive layout
+                width: getResponsiveWidth(),
+                height: screenSize === 'mobile' ? 
+                        (tile.section === 'analytics' ? 300 : 
+                         tile.section === 'visual' ? 350 : 220) :
+                        screenSize === 'tablet' ? 
+                        (tile.section === 'analytics' ? 280 : 
+                         tile.section === 'visual' ? 320 : 200) :
+                        tile.height
+              }}
+              externalPosition={screenSize !== 'desktop' ? responsivePosition : undefined}
+              isDraggingEnabled={screenSize === 'desktop'}
+              onPositionChange={handlePositionChange}
+            />
+          );
+        })}
       </div>
     </TileResetContext.Provider>
   );
