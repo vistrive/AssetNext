@@ -76,29 +76,54 @@ export default function Dashboard() {
           />
         </div>
         
-        <div className="p-6 space-y-6">
+        <div className="p-6">
           {metrics && (
-            <AssetCategoryTiles 
-              metrics={metrics} 
-              onNavigateToAssets={handleNavigateToAssets}
+            <DraggableGrid
+              tiles={[
+                {
+                  id: 'asset-category-tiles',
+                  title: 'Asset Overview',
+                  component: (
+                    <AssetCategoryTiles 
+                      metrics={metrics} 
+                      onNavigateToAssets={handleNavigateToAssets}
+                    />
+                  ),
+                  size: 'full'
+                },
+                {
+                  id: 'itam-insights',
+                  title: 'ITAM Insights',
+                  component: <ITAMInsights metrics={metrics} />,
+                  size: 'full'
+                },
+                {
+                  id: 'asset-age-analysis',
+                  title: 'Asset Age Analysis',
+                  component: <AssetAgeAnalysis tenantId={metrics.summary.tenantId} />,
+                  size: 'large'
+                },
+                {
+                  id: 'ai-recommendations',
+                  title: 'AI Recommendations',
+                  component: (
+                    <AIRecommendations
+                      recommendations={recommendations}
+                      onViewAll={handleViewAllRecommendations}
+                      onViewRecommendation={handleViewRecommendation}
+                    />
+                  ),
+                  size: 'large'
+                },
+                {
+                  id: 'report-generator',
+                  title: 'Report Generator',
+                  component: <ReportGenerator metrics={metrics} />,
+                  size: 'medium'
+                }
+              ]}
             />
           )}
-          
-          {/* Enhanced ITAM Insights Section */}
-          {metrics && <ITAMInsights metrics={metrics} />}
-          
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <AIRecommendations
-                recommendations={recommendations}
-                onViewAll={handleViewAllRecommendations}
-                onViewRecommendation={handleViewRecommendation}
-              />
-            </div>
-            <div>
-              {metrics && <ReportGenerator metrics={metrics} />}
-            </div>
-          </div>
         </div>
       </main>
     </div>
