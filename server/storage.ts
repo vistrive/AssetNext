@@ -154,6 +154,9 @@ export interface IStorage {
   
   // Dashboard Metrics
   getDashboardMetrics(tenantId: string): Promise<any>;
+  
+  // Global Search
+  performGlobalSearch(tenantId: string, query: string, searchType?: string, userRole?: string, limit?: number): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1686,6 +1689,129 @@ export class DatabaseStorage implements IStorage {
       };
     } catch (error) {
       console.error('Error fetching dashboard metrics:', error);
+      throw error;
+    }
+  }
+
+  // Global Search functionality
+  async performGlobalSearch(tenantId: string, query: string, searchType?: string, userRole?: string, limit: number = 10): Promise<any> {
+    try {
+      const results: any = {
+        assets: [],
+        users: [],
+        vendors: [],
+        locations: [],
+        softwareLicenses: []
+      };
+
+      // Search assets
+      if (!searchType || searchType === 'all' || searchType === 'assets') {
+        results.assets = await db
+          .select()
+          .from(assets)
+          .where(and(
+            eq(assets.tenantId, tenantId),
+            or(
+              ilike(assets.name, `%${query}%`),
+              ilike(assets.category, `%${query}%`),
+              ilike(assets.manufacturer, `%${query}%`),
+              ilike(assets.model, `%${query}%`),
+              ilike(assets.serialNumber, `%${query}%`),
+              ilike(assets.location, `%${query}%`)
+            )
+          ))
+          .limit(limit);
+      }
+
+      // Search users (only for admin and it-manager roles)
+      if (userRole === 'admin' || userRole === 'it-manager') {
+        if (!searchType || searchType === 'all' || searchType === 'users') {
+          results.users = await db
+            .select()
+            .from(users)
+            .where(and(
+              eq(users.tenantId, tenantId),
+              or(
+                ilike(users.firstName, `%${query}%`),
+                ilike(users.lastName, `%${query}%`),
+                ilike(users.email, `%${query}%`),
+                ilike(users.username, `%${query}%`),
+                ilike(users.department, `%${query}%`)
+              )
+            ))
+            .limit(limit);
+        }
+      }
+
+      // Search software licenses
+      if (!searchType || searchType === 'all' || searchType === 'licenses') {
+        results.softwareLicenses = await db
+          .select()
+          .from(softwareLicenses)
+          .where(and(
+            eq(softwareLicenses.tenantId, tenantId),
+            or(
+              ilike(softwareLicenses.softwareName, `%${query}%`),
+              ilike(softwareLicenses.version, `%${query}%`),
+              ilike(softwareLicenses.licenseType, `%${query}%`),
+              ilike(softwareLicenses.vendorName, `%${query}%`)
+            )
+          ))
+          .limit(limit);
+      }
+
+      // Search vendors (extract from assets and licenses)
+      if (!searchType || searchType === 'all' || searchType === 'vendors') {
+        const vendorAssets = await db
+          .select({
+            vendorName: assets.vendorName,
+            vendorEmail: assets.vendorEmail,
+            vendorPhone: assets.vendorPhone
+          })
+          .from(assets)
+          .where(and(
+            eq(assets.tenantId, tenantId),
+            ilike(assets.vendorName, `%${query}%`)
+          ))
+          .groupBy(assets.vendorName, assets.vendorEmail, assets.vendorPhone)
+          .limit(limit);
+
+        const vendorLicenses = await db
+          .select({
+            vendorName: softwareLicenses.vendorName,
+            vendorEmail: softwareLicenses.vendorEmail,
+            vendorPhone: softwareLicenses.vendorPhone
+          })
+          .from(softwareLicenses)
+          .where(and(
+            eq(softwareLicenses.tenantId, tenantId),
+            ilike(softwareLicenses.vendorName, `%${query}%`)
+          ))
+          .groupBy(softwareLicenses.vendorName, softwareLicenses.vendorEmail, softwareLicenses.vendorPhone)
+          .limit(limit);
+
+        results.vendors = [...vendorAssets, ...vendorLicenses].slice(0, limit);
+      }
+
+      // Search locations (extract from assets)
+      if (!searchType || searchType === 'all' || searchType === 'locations') {
+        results.locations = await db
+          .select({
+            location: assets.location,
+            count: sql<number>`count(*)`
+          })
+          .from(assets)
+          .where(and(
+            eq(assets.tenantId, tenantId),
+            ilike(assets.location, `%${query}%`)
+          ))
+          .groupBy(assets.location)
+          .limit(limit);
+      }
+
+      return { results };
+    } catch (error) {
+      console.error('Error performing global search:', error);
       throw error;
     }
   }
