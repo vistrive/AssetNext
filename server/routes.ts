@@ -2140,6 +2140,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/geographic/cities", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { stateId } = req.query;
+      if (!stateId) {
+        return res.status(400).json({ message: "State ID is required" });
+      }
+
+      const fs = require('fs');
+      const path = require('path');
+      const citiesPath = path.join(process.cwd(), 'server', 'data', 'cities.json');
+      
+      if (!fs.existsSync(citiesPath)) {
+        return res.status(404).json({ message: "Cities data not found" });
+      }
+      
+      const citiesData = JSON.parse(fs.readFileSync(citiesPath, 'utf8'));
+      
+      // Filter cities by state ID
+      const cities = citiesData.cities
+        .filter((city: any) => city.state_id === stateId.toString())
+        .map((city: any) => ({
+          id: city.id,
+          name: city.name,
+          state_id: city.state_id
+        }));
+      
+      res.json(cities);
+    } catch (error) {
+      console.error('Failed to load cities:', error);
+      res.status(500).json({ message: "Failed to fetch cities data" });
+    }
+  });
+
   // Get technicians for ticket assignment (Managers and Admins only)
   app.get("/api/users/technicians", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {

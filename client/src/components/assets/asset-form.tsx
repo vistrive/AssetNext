@@ -18,6 +18,7 @@ import { insertAssetSchema, insertMasterDataSchema } from "@shared/schema";
 import type { Asset, InsertAsset, MasterData } from "@shared/schema";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { LocationSelector } from "@/components/ui/location-selector";
 
 const assetFormSchema = insertAssetSchema.extend({
   tenantId: z.string().optional(), // Make tenantId optional for form validation
@@ -770,33 +771,18 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             </div>
             
             <div className="md:col-span-2">
-              {/* Geographic Location Fields */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="country">Country</Label>
-                  <Input
-                    {...register("country")}
-                    placeholder="Country"
-                    data-testid="input-country"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="state">State/Province</Label>
-                  <Input
-                    {...register("state")}
-                    placeholder="State/Province"
-                    data-testid="input-state"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="city">City/Location</Label>
-                  <Input
-                    {...register("city")}
-                    placeholder="City or specific location"
-                    data-testid="input-city"
-                  />
-                </div>
-              </div>
+              {/* Geographic Location Fields - Cascading Dropdowns */}
+              <LocationSelector
+                country={watch("country")}
+                state={watch("state")}
+                city={watch("city")}
+                onLocationChange={(location) => {
+                  if (location.country !== undefined) setValue("country", location.country);
+                  if (location.state !== undefined) setValue("state", location.state);
+                  if (location.city !== undefined) setValue("city", location.city);
+                }}
+                dataTestId="location-selector"
+              />
             </div>
             
             <div className="md:col-span-2">
