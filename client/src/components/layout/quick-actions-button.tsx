@@ -82,7 +82,7 @@ function DraggableQuickActions({ position }: { position: { x: number; y: number 
           </Button>
         </DropdownMenuTrigger>
         
-        <DropdownMenuContent align="end" className="w-48" data-testid="menu-quick-actions">
+        <DropdownMenuContent align="end" className="w-48 bg-background/95 backdrop-blur-md border shadow-xl" data-testid="menu-quick-actions">
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
             Quick Actions
           </DropdownMenuLabel>
