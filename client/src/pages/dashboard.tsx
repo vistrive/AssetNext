@@ -356,9 +356,9 @@ function createDashboardTiles(
       id: 'world-map',
       title: 'Global Asset Distribution',
       section: 'visual',
-      defaultPosition: { x: 24, y: 1360 },
-      width: 1368,
-      height: 400,
+      defaultPosition: { x: 24, y: 1400 },
+      width: 640,
+      height: 380,
       component: (
         <div className="bg-card rounded-lg border p-3 h-full">
           <WorldMap />
@@ -435,9 +435,9 @@ export default function Dashboard() {
           <>
             {isDragMode ? (
               // Drag-and-Drop Mode with Container Boundaries and Reset Controls
-              <div className="w-full max-w-[100vw] mx-auto px-4 sm:px-6 py-6 box-border overflow-hidden relative">
+              <div className="w-full max-w-[100vw] mx-auto px-6 py-6 box-border overflow-hidden relative">
                 {/* Reset Controls - Only visible in drag mode */}
-                <div className="mb-4 flex justify-end">
+                <div className="mb-2 flex justify-end">
                   <Button 
                     variant="outline" 
                     size="sm" 
