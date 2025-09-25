@@ -75,87 +75,16 @@ export default function Dashboard() {
           description="Comprehensive IT Asset Management with Lifecycle Insights, Unused Asset Detection & Compliance Monitoring"
         />
         
-        {/* Dashboard Controls Header */}
+        {/* Dashboard Header */}
         <div className="px-6 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Drag tiles to customize your dashboard layout • Asset Overview, Lifecycle, Metrics & Visual sections
+              Comprehensive IT Asset Management Dashboard • Asset Overview, Lifecycle, Insights & Global Distribution
             </div>
-            <div className="flex items-center gap-2">
-              {/* Global Reset */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Clear all saved positions and dispatch reset events
-                  localStorage.removeItem('dashboard-layout-v1');
-                  // Also clear old tile position storage
-                  Object.keys(localStorage).forEach(key => {
-                    if (key.startsWith('tile-position-')) {
-                      localStorage.removeItem(key);
-                    }
-                  });
-                  // Dispatch global reset event for in-place re-render
-                  window.dispatchEvent(new CustomEvent('reset-all-tiles'));
-                }}
-                className="h-8 px-3 text-xs"
-                data-testid="button-reset-all-tiles"
-                title="Reset all tiles to default positions"
-              >
-                <RotateCcw className="h-3 w-3 mr-1" />
-                Reset Layout
-              </Button>
-              
-              {/* Section Reset Controls */}
-              <div className="flex items-center gap-1 border-l pl-2 ml-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'asset-overview' } }))}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-asset-overview"
-                  title="Reset Asset Overview tiles"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  Overview
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'metrics' } }))}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-metrics"
-                  title="Reset Core Metrics tiles"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  Metrics
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'analytics' } }))}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-analytics"
-                  title="Reset Analytics tiles"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  Analytics
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'visual' } }))}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  data-testid="button-reset-visual"
-                  title="Reset Visual tiles"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  Visual
-                </Button>
-              </div>
+            <div className="text-xs text-muted-foreground">
+              {metrics && (
+                <span>Total Assets: {metrics.totalAssets || 0}</span>
+              )}
             </div>
           </div>
         </div>
