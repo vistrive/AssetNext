@@ -1548,12 +1548,21 @@ export class DatabaseStorage implements IStorage {
         ? Math.round((licenseStatus.assigned * 100) / licenseStatus.totalLicenses) 
         : 0;
 
+      // Create assetStatusCounts object for frontend compatibility
+      const assetStatusCounts = {
+        deployed: assetTypesCounts.reduce((sum, item) => sum + Number(item.deployed), 0),
+        inStock: assetTypesCounts.reduce((sum, item) => sum + Number(item.inStock), 0),
+        inRepair: assetTypesCounts.reduce((sum, item) => sum + Number(item.inRepair), 0),
+        retired: assetTypesCounts.reduce((sum, item) => sum + Number(item.disposed), 0) // Map 'disposed' to 'retired' for frontend
+      };
+
       return {
         // Legacy compatibility - maintain existing structure for current UI
         totalAssets,
         activeLicenses: licenseStatus.totalLicenses - licenseStatus.expired,
         complianceScore: totalAssets > 0 ? Math.round(((totalAssets - warrantyStatus.warrantyExpired) / totalAssets) * 100) : 100,
         assetStatusBreakdown,
+        assetStatusCounts, // Add the object that frontend expects
 
         // Enhanced metrics for new dashboard tiles
         pendingActions: warrantyStatus.warrantyExpiring + warrantyStatus.amcDue + licenseStatus.renewalDue,
