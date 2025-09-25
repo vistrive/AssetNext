@@ -54,9 +54,16 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // Function to navigate to user profile by email or employee ID
-  const navigateToUserProfile = async (email?: string, employeeId?: string) => {
+  // Function to navigate to user profile by user ID, email, or employee ID
+  const navigateToUserProfile = async (email?: string, employeeId?: string, userId?: string) => {
     try {
+      // If we have a direct user ID, navigate immediately
+      if (userId) {
+        window.location.href = `/users/${userId}`;
+        return;
+      }
+
+      // Otherwise, look up the user by email or employee ID
       let queryParam = '';
       if (email) {
         queryParam = `email=${encodeURIComponent(email)}`;
@@ -789,7 +796,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <span 
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
                             data-testid={`link-assigned-${asset.id}`}
-                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId)}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId, asset.assignedUserId)}
                           >
                             {asset.assignedUserName}
                           </span>
@@ -807,7 +814,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <span 
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
                             data-testid={`link-email-${asset.id}`}
-                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId)}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId, asset.assignedUserId)}
                           >
                             {asset.assignedUserEmail}
                           </span>
@@ -825,7 +832,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <span 
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
                             data-testid={`link-employee-id-${asset.id}`}
-                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId)}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId, asset.assignedUserId)}
                           >
                             {asset.assignedUserEmployeeId}
                           </span>

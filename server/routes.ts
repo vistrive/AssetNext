@@ -461,6 +461,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, employeeId } = req.query;
       
+      console.log("Debug /api/users/find - Params:", { email, employeeId });
+      console.log("Debug /api/users/find - User tenant:", req.user!.tenantId);
+      
       if (!email && !employeeId) {
         return res.status(400).json({ message: "Either email or employeeId parameter is required" });
       }
@@ -468,12 +471,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let user: User | undefined;
       
       if (email && typeof email === 'string') {
+        console.log("Debug - Looking up user by email:", email, "tenant:", req.user!.tenantId);
         user = await storage.getUserByEmail(email, req.user!.tenantId);
+        console.log("Debug - User found by email:", !!user, user?.id);
       } else if (employeeId && typeof employeeId === 'string') {
+        console.log("Debug - Looking up user by employeeId:", employeeId, "tenant:", req.user!.tenantId);
         user = await storage.getUserByEmployeeId(employeeId, req.user!.tenantId);
+        console.log("Debug - User found by employeeId:", !!user, user?.id);
       }
       
-      if (!user || user.tenantId !== req.user!.tenantId) {
+      if (!user) {
+        console.log("Debug - No user found");
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (user.tenantId !== req.user!.tenantId) {
+        console.log("Debug - Tenant mismatch:", user.tenantId, "vs", req.user!.tenantId);
         return res.status(404).json({ message: "User not found" });
       }
 
