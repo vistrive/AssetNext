@@ -56,9 +56,11 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
   // Function to navigate to user profile by user ID, email, or employee ID
   const navigateToUserProfile = async (email?: string, employeeId?: string, userId?: string) => {
+    console.log("navigateToUserProfile called with:", { email, employeeId, userId });
     try {
       // If we have a direct user ID, navigate immediately
       if (userId) {
+        console.log("Navigating directly to user ID:", userId);
         window.location.href = `/users/${userId}`;
         return;
       }
