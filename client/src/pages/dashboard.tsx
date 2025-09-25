@@ -6,6 +6,17 @@ import { TopBar } from "@/components/layout/topbar";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { WorldMap } from "@/components/dashboard/world-map";
+import { IndependentDraggableTiles, useTileReset } from "@/components/dashboard/independent-draggable-tile";
+
+interface DashboardTile {
+  id: string;
+  title: string;
+  component: React.ReactNode;
+  defaultPosition?: { x: number; y: number };
+  width?: number;
+  height?: number;
+  section?: string;
+}
 import { HardwareTile } from "@/components/dashboard/individual-tiles/hardware-tile";
 import { SoftwareTile } from "@/components/dashboard/individual-tiles/software-tile";
 import { PeripheralsTile } from "@/components/dashboard/individual-tiles/peripherals-tile";
@@ -16,9 +27,462 @@ import { ExpiringItemsTile } from "@/components/dashboard/individual-tiles/expir
 import { ComplianceRiskTile } from "@/components/dashboard/individual-tiles/compliance-risk-tile";
 import { RecentActivitiesTile } from "@/components/dashboard/individual-tiles/recent-activities-tile";
 import { Button } from "@/components/ui/button";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Plus, Users, Building2 } from "lucide-react";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Recommendation } from "@shared/schema";
+
+// Create dashboard tiles for draggable system
+function createDashboardTiles(
+  metrics: any,
+  recommendations: Recommendation[] | undefined,
+  handleNavigateToAssets: (type?: string, category?: string) => void,
+  handleViewAllRecommendations: () => void,
+  handleViewRecommendation: (id: string) => void,
+  navigate: any
+): DashboardTile[] {
+  return [
+    // Asset Overview Section
+    {
+      id: 'hardware-tile',
+      title: 'Hardware Assets',
+      section: 'asset-overview',
+      defaultPosition: { x: 50, y: 120 },
+      width: 320,
+      height: 180,
+      component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+    },
+    {
+      id: 'software-tile',
+      title: 'Software Assets',
+      section: 'asset-overview',
+      defaultPosition: { x: 390, y: 120 },
+      width: 320,
+      height: 180,
+      component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+    },
+    {
+      id: 'peripherals-tile',
+      title: 'Peripheral Devices',
+      section: 'asset-overview',
+      defaultPosition: { x: 730, y: 120 },
+      width: 320,
+      height: 180,
+      component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+    },
+    {
+      id: 'others-tile',
+      title: 'Other Assets',
+      section: 'asset-overview',
+      defaultPosition: { x: 1070, y: 120 },
+      width: 320,
+      height: 180,
+      component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+    },
+    
+    // Asset Lifecycle Section
+    {
+      id: 'deployed-assets',
+      title: 'Deployed Assets',
+      section: 'lifecycle',
+      defaultPosition: { x: 50, y: 320 },
+      width: 240,
+      height: 150,
+      component: (
+        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-deployed-assets">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Deployed</p>
+            <p className="text-xl font-bold text-green-600" data-testid="count-deployed">
+              {metrics?.assetStatusCounts?.deployed || 0}
+            </p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-green-600"></div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'in-stock-assets',
+      title: 'In Stock Assets',
+      section: 'lifecycle',
+      defaultPosition: { x: 310, y: 320 },
+      width: 240,
+      height: 150,
+      component: (
+        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-stock-assets">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">In Stock</p>
+            <p className="text-xl font-bold text-blue-600" data-testid="count-in-stock">
+              {metrics?.assetStatusCounts?.inStock || 0}
+            </p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'in-repair-assets',
+      title: 'In Repair Assets',
+      section: 'lifecycle',
+      defaultPosition: { x: 570, y: 320 },
+      width: 240,
+      height: 150,
+      component: (
+        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-repair-assets">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">In Repair</p>
+            <p className="text-xl font-bold text-orange-600" data-testid="count-in-repair">
+              {metrics?.assetStatusCounts?.inRepair || 0}
+            </p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-orange-600"></div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'retired-assets',
+      title: 'Retired Assets',
+      section: 'lifecycle',
+      defaultPosition: { x: 830, y: 320 },
+      width: 240,
+      height: 150,
+      component: (
+        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-retired-assets">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Retired</p>
+            <p className="text-xl font-bold text-gray-600" data-testid="count-retired">
+              {metrics?.assetStatusCounts?.retired || 0}
+            </p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+          </div>
+        </div>
+      )
+    },
+    
+    // Expiring Warranties & Licenses
+    {
+      id: 'expiring-warranties',
+      title: 'Expiring Warranties',
+      section: 'expiring',
+      defaultPosition: { x: 50, y: 490 },
+      width: 420,
+      height: 300,
+      component: (
+        <div className="bg-card rounded-lg border h-full" data-testid="card-expiring-warranties">
+          <div className="flex items-center justify-between p-3 border-b">
+            <div className="flex items-center">
+              <div className="w-2 h-2 rounded-full bg-yellow-600 mr-2"></div>
+              <p className="text-sm font-medium text-foreground">Hardware Warranties</p>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {metrics?.itamInsights?.expiringItems?.warranties?.length || 0} expiring
+            </span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {metrics?.itamInsights?.expiringItems?.warranties?.length > 0 ? (
+              metrics.itamInsights.expiringItems.warranties.map((item: any) => (
+                <div
+                  key={item.id}
+                  className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
+                  data-testid={`expiring-warranty-${item.id}`}
+                  onClick={() => navigate(`/assets?selectedId=${item.id}`)}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                    <p className="text-xs text-yellow-600 font-medium ml-2">
+                      {(() => {
+                        const date = item.expiryDate || item.warrantyExpiry || item.amcExpiry;
+                        return date ? new Date(date).toLocaleDateString() : 'No date';
+                      })()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {item.manufacturer} {item.model} • {item.category}
+                  </p>
+                  <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>Serial: {item.serialNumber || 'N/A'}</span>
+                    <span>Purchase: {item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <p className="text-xs text-muted-foreground">
+                      {item.assignedUser || item.location || 'Unassigned'}
+                    </p>
+                    <p className="text-xs text-yellow-600">{item.contractType}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-3 text-center text-xs text-muted-foreground">
+                No warranties expiring in next 30 days
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'expiring-licenses',
+      title: 'Expiring Licenses',
+      section: 'expiring',
+      defaultPosition: { x: 490, y: 490 },
+      width: 420,
+      height: 300,
+      component: (
+        <div className="bg-card rounded-lg border h-full" data-testid="card-expiring-licenses">
+          <div className="flex items-center justify-between p-3 border-b">
+            <div className="flex items-center">
+              <div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div>
+              <p className="text-sm font-medium text-foreground">Software Licenses</p>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {metrics?.itamInsights?.expiringItems?.licenses?.length || 0} expiring
+            </span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {metrics?.itamInsights?.expiringItems?.licenses?.length > 0 ? (
+              metrics.itamInsights.expiringItems.licenses.map((item: any) => (
+                <div
+                  key={item.id}
+                  className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
+                  data-testid={`expiring-license-${item.id}`}
+                  onClick={() => navigate(`/software?selectedId=${item.id}`)}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                    <p className="text-xs text-red-600 font-medium ml-2">
+                      {(() => {
+                        const date = item.expiryDate || item.renewalDate;
+                        return date ? new Date(date).toLocaleDateString() : 'No date';
+                      })()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {item.vendor} v{item.version} • {item.totalLicenses} licenses
+                  </p>
+                  <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>Cost: ${item.costPerLicense || 0}/license</span>
+                    <span>Purchase: {item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <p className="text-xs text-muted-foreground">
+                      License Key: {item.licenseKey || 'N/A'}
+                    </p>
+                    <p className="text-xs text-red-600">{item.contractType}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-3 text-center text-xs text-muted-foreground">
+                No licenses expiring in next 30 days
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    },
+    
+    // ITAM Insights Section
+    {
+      id: 'unused-hardware',
+      title: 'Unused Hardware',
+      section: 'insights',
+      defaultPosition: { x: 50, y: 810 },
+      width: 280,
+      height: 180,
+      component: <UnusedHardwareTile metrics={metrics} />
+    },
+    {
+      id: 'unused-licenses',
+      title: 'Unused Licenses',
+      section: 'insights',
+      defaultPosition: { x: 350, y: 810 },
+      width: 280,
+      height: 180,
+      component: <UnusedLicensesTile metrics={metrics} />
+    },
+    {
+      id: 'expiring-items',
+      title: 'Expiring Items Summary',
+      section: 'insights',
+      defaultPosition: { x: 650, y: 810 },
+      width: 280,
+      height: 180,
+      component: <ExpiringItemsTile metrics={metrics} />
+    },
+    {
+      id: 'compliance-risk',
+      title: 'Compliance Risk',
+      section: 'insights',
+      defaultPosition: { x: 950, y: 810 },
+      width: 280,
+      height: 180,
+      component: <ComplianceRiskTile metrics={metrics} />
+    },
+    
+    // Activities Section
+    {
+      id: 'recent-activities',
+      title: 'Recent Activities',
+      section: 'activities',
+      defaultPosition: { x: 50, y: 1010 },
+      width: 480,
+      height: 320,
+      component: <RecentActivitiesTile metrics={metrics} />
+    },
+    {
+      id: 'ai-recommendations',
+      title: 'AI Recommendations',
+      section: 'activities',
+      defaultPosition: { x: 550, y: 1010 },
+      width: 480,
+      height: 320,
+      component: (
+        <AIRecommendations
+          recommendations={recommendations}
+          onViewAll={handleViewAllRecommendations}
+          onViewRecommendation={handleViewRecommendation}
+        />
+      )
+    },
+    
+    // Global Distribution
+    {
+      id: 'world-map',
+      title: 'Global Asset Distribution',
+      section: 'visual',
+      defaultPosition: { x: 50, y: 1350 },
+      width: 980,
+      height: 400,
+      component: (
+        <div className="bg-card rounded-lg border p-3 h-full">
+          <WorldMap />
+        </div>
+      )
+    }
+  ];
+}
+
+// Dashboard header controls with reset functionality and quick actions
+function DashboardHeaderControls({ totalAssets }: { totalAssets: number }) {
+  const navigate = useLocation()[1];
+
+  const handleQuickAddAsset = () => {
+    navigate('/assets?action=create');
+  };
+
+  const handleQuickAddUser = () => {
+    navigate('/team?action=create');
+  };
+
+  const handleQuickAddVendor = () => {
+    navigate('/vendors?action=create');
+  };
+
+  const handleResetSection = (section: string) => {
+    window.dispatchEvent(new CustomEvent('reset-section', { detail: { section } }));
+  };
+
+  const handleResetAllTiles = () => {
+    // Clear saved layout from localStorage and dispatch reset events
+    localStorage.removeItem('dashboard-layout-v1');
+    window.dispatchEvent(new CustomEvent('reset-all-tiles'));
+  };
+
+  return (
+    <div className="px-6 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Comprehensive IT Asset Management Dashboard • Asset Overview, Lifecycle, Insights & Global Distribution
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Quick Actions */}
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleQuickAddAsset}
+              className="text-xs h-7"
+              data-testid="quick-add-asset"
+              title="Quick add asset"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Asset
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleQuickAddUser}
+              className="text-xs h-7"
+              data-testid="quick-add-user"
+              title="Quick add user"
+            >
+              <Users className="h-3 w-3 mr-1" />
+              User
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleQuickAddVendor}
+              className="text-xs h-7"
+              data-testid="quick-add-vendor"
+              title="Quick add vendor"
+            >
+              <Building2 className="h-3 w-3 mr-1" />
+              Vendor
+            </Button>
+          </div>
+          
+          {/* Reset Controls */}
+          <div className="flex items-center gap-2 border-l pl-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => handleResetSection('asset-overview')}
+              className="text-xs h-7"
+              data-testid="reset-overview-section"
+              title="Reset Asset Overview tiles"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Overview
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => handleResetSection('insights')}
+              className="text-xs h-7"
+              data-testid="reset-insights-section"
+              title="Reset ITAM Insights tiles"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Insights
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleResetAllTiles}
+              className="text-xs h-7 text-orange-600 hover:text-orange-700"
+              data-testid="reset-all-tiles"
+              title="Reset all dashboard tiles to default positions"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Reset All
+            </Button>
+          </div>
+          
+          <div className="text-xs text-muted-foreground border-l pl-3">
+            <span>Total Assets: {totalAssets}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
@@ -75,291 +539,15 @@ export default function Dashboard() {
           description="Comprehensive IT Asset Management with Lifecycle Insights, Unused Asset Detection & Compliance Monitoring"
         />
         
-        {/* Dashboard Header */}
-        <div className="px-6 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Comprehensive IT Asset Management Dashboard • Asset Overview, Lifecycle, Insights & Global Distribution
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {metrics && (
-                <span>Total Assets: {metrics.totalAssets || 0}</span>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Dashboard Header with Reset Controls & Quick Actions */}
+        <DashboardHeaderControls totalAssets={metrics?.totalAssets || 0} />
         
         
-        {/* Dashboard Content with Responsive Grid Layout */}
+        {/* Draggable Dashboard Content */}
         {metrics && (
-          <div className="p-4">
-            {/* Asset Overview Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-1">Asset Overview</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Hardware, Software, Peripherals and Other Assets
-              </p>
-            </div>
-            {/* Asset Overview Tiles - Responsive Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-              <div className="max-w-full">
-                <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-              </div>
-              <div className="max-w-full">
-                <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-              </div>
-              <div className="max-w-full">
-                <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-              </div>
-              <div className="max-w-full">
-                <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-              </div>
-            </div>
-            
-            {/* Asset Lifecycle Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-1">Asset Lifecycle</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Asset Status Distribution and Lifecycle Management
-              </p>
-            </div>
-            
-            {/* Asset Lifecycle Tiles - Responsive Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-              <div className="max-w-full">
-                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-deployed-assets">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Deployed</p>
-                    <p className="text-xl font-bold text-green-600" data-testid="count-deployed">
-                      {metrics?.assetStatusCounts?.deployed || 0}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-green-600"></div>
-                  </div>
-                </div>
-              </div>
-              <div className="max-w-full">
-                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-stock-assets">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">In Stock</p>
-                    <p className="text-xl font-bold text-blue-600" data-testid="count-in-stock">
-                      {metrics?.assetStatusCounts?.inStock || 0}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                  </div>
-                </div>
-              </div>
-              <div className="max-w-full">
-                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-repair-assets">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">In Repair</p>
-                    <p className="text-xl font-bold text-orange-600" data-testid="count-in-repair">
-                      {metrics?.assetStatusCounts?.inRepair || 0}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-orange-600"></div>
-                  </div>
-                </div>
-              </div>
-              <div className="max-w-full">
-                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-retired-assets">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Retired</p>
-                    <p className="text-xl font-bold text-gray-600" data-testid="count-retired">
-                      {metrics?.assetStatusCounts?.retired || 0}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-gray-600"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Expiring Warranties & Licenses Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-1">Expiring Warranties & Licenses</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Upcoming Hardware Warranty and Software License Expirations
-              </p>
-            </div>
-            
-            {/* Expiring Items - Detailed Lists */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
-              {/* Hardware Warranties */}
-              <div className="max-w-full">
-                <div className="bg-card rounded-lg border" data-testid="card-expiring-warranties">
-                  <div className="flex items-center justify-between p-3 border-b">
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 rounded-full bg-yellow-600 mr-2"></div>
-                      <p className="text-sm font-medium text-foreground">Hardware Warranties</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {metrics?.itamInsights?.expiringItems?.warranties?.length || 0} expiring
-                    </span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {metrics?.itamInsights?.expiringItems?.warranties?.length > 0 ? (
-                      metrics.itamInsights.expiringItems.warranties.map((item: any) => (
-                        <div
-                          key={item.id}
-                          className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
-                          data-testid={`expiring-warranty-${item.id}`}
-                          onClick={() => navigate(`/assets?selectedId=${item.id}`)}
-                        >
-                          <div className="flex justify-between items-start mb-1">
-                            <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                            <p className="text-xs text-yellow-600 font-medium ml-2">
-                              {(() => {
-                                const date = item.expiryDate || item.warrantyExpiry || item.amcExpiry;
-                                return date ? new Date(date).toLocaleDateString() : 'No date';
-                              })()}
-                            </p>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            {item.manufacturer} {item.model} • {item.category}
-                          </p>
-                          <div className="flex justify-between items-center text-xs text-muted-foreground">
-                            <span>Serial: {item.serialNumber || 'N/A'}</span>
-                            <span>Purchase: {item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between items-center mt-1">
-                            <p className="text-xs text-muted-foreground">
-                              {item.assignedUser || item.location || 'Unassigned'}
-                            </p>
-                            <p className="text-xs text-yellow-600">{item.contractType}</p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-3 text-center text-xs text-muted-foreground">
-                        No warranties expiring in next 30 days
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Software Licenses */}
-              <div className="max-w-full">
-                <div className="bg-card rounded-lg border" data-testid="card-expiring-licenses">
-                  <div className="flex items-center justify-between p-3 border-b">
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div>
-                      <p className="text-sm font-medium text-foreground">Software Licenses</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {metrics?.itamInsights?.expiringItems?.licenses?.length || 0} expiring
-                    </span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {metrics?.itamInsights?.expiringItems?.licenses?.length > 0 ? (
-                      metrics.itamInsights.expiringItems.licenses.map((item: any) => (
-                        <div
-                          key={item.id}
-                          className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
-                          data-testid={`expiring-license-${item.id}`}
-                          onClick={() => navigate(`/software?selectedId=${item.id}`)}
-                        >
-                          <div className="flex justify-between items-start mb-1">
-                            <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                            <p className="text-xs text-red-600 font-medium ml-2">
-                              {(() => {
-                                const date = item.expiryDate || item.renewalDate;
-                                return date ? new Date(date).toLocaleDateString() : 'No date';
-                              })()}
-                            </p>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            {item.vendor} v{item.version} • {item.totalLicenses} licenses
-                          </p>
-                          <div className="flex justify-between items-center text-xs text-muted-foreground">
-                            <span>Cost: ${item.costPerLicense || 0}/license</span>
-                            <span>Purchase: {item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between items-center mt-1">
-                            <p className="text-xs text-muted-foreground">
-                              License Key: {item.licenseKey || 'N/A'}
-                            </p>
-                            <p className="text-xs text-red-600">{item.contractType}</p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-3 text-center text-xs text-muted-foreground">
-                        No licenses expiring in next 30 days
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* ITAM Insights Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-1">ITAM Insights</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Unused Assets, License Optimization and Compliance Monitoring
-              </p>
-            </div>
-            
-            {/* ITAM Insights Tiles - Responsive Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-              <div className="max-w-full">
-                <UnusedHardwareTile metrics={metrics} />
-              </div>
-              <div className="max-w-full">
-                <UnusedLicensesTile metrics={metrics} />
-              </div>
-              <div className="max-w-full">
-                <ExpiringItemsTile metrics={metrics} />
-              </div>
-              <div className="max-w-full">
-                <ComplianceRiskTile metrics={metrics} />
-              </div>
-            </div>
-            
-            {/* Activities Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-1">Activities</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Recent Activities and AI-Powered Recommendations
-              </p>
-            </div>
-            
-            {/* Activities Tiles - Responsive Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
-              <div className="max-w-full">
-                <RecentActivitiesTile metrics={metrics} />
-              </div>
-              <div className="max-w-full">
-                <AIRecommendations
-                  recommendations={recommendations}
-                  onViewAll={handleViewAllRecommendations}
-                  onViewRecommendation={handleViewRecommendation}
-                />
-              </div>
-            </div>
-            
-            {/* Global Distribution Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-1">Global Distribution</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Worldwide Asset Location and Regional Overview
-              </p>
-            </div>
-            
-            {/* World Map - Full Width */}
-            <div className="max-w-full overflow-hidden">
-              <div className="bg-card rounded-lg border p-3">
-                <WorldMap />
-              </div>
-            </div>
-          </div>
+          <IndependentDraggableTiles 
+            tiles={createDashboardTiles(metrics, recommendations, handleNavigateToAssets, handleViewAllRecommendations, handleViewRecommendation, navigate)}
+          />
         )}
       </main>
     </div>
