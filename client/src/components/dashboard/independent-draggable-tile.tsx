@@ -165,16 +165,14 @@ function IndependentDraggableTileWithContext({
     }
   }, [externalPosition]);
 
+  // Keep sensors array stable to avoid React warnings
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: isDraggingEnabled ? 8 : 999999, // Effectively disable dragging by requiring huge distance
       },
     })
   );
-  
-  // Disable sensors if dragging is not enabled (responsive modes)
-  const activeSensors = isDraggingEnabled ? sensors : [];
 
   useEffect(() => {
     // Skip saving during initialization or when explicitly skipped
@@ -280,7 +278,7 @@ function IndependentDraggableTileWithContext({
 
   return (
     <DndContext
-      sensors={activeSensors}
+      sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
