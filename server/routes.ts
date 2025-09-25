@@ -1,5 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import fs from "fs";
+import path from "path";
 import { storage } from "./storage";
 import { auditLogger, AuditActions, ResourceTypes } from "./audit-logger";
 import multer from "multer";
@@ -2244,8 +2246,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Geographic data endpoints for location selector
   app.get("/api/geographic/countries", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const fs = require('fs');
-      const path = require('path');
       const countriesPath = path.join(process.cwd(), 'server', 'data', 'countries.json');
       
       if (!fs.existsSync(countriesPath)) {
@@ -2275,8 +2275,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Country ID is required" });
       }
 
-      const fs = require('fs');
-      const path = require('path');
       const statesPath = path.join(process.cwd(), 'server', 'data', 'states.json');
       
       if (!fs.existsSync(statesPath)) {
@@ -2308,8 +2306,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "State ID is required" });
       }
 
-      const fs = require('fs');
-      const path = require('path');
       const citiesPath = path.join(process.cwd(), 'server', 'data', 'cities.json');
       
       if (!fs.existsSync(citiesPath)) {
