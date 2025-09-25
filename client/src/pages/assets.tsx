@@ -53,6 +53,31 @@ interface EnhancedAssetsTableProps {
 function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: EnhancedAssetsTableProps) {
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Function to navigate to user profile by email or employee ID
+  const navigateToUserProfile = async (email?: string, employeeId?: string) => {
+    try {
+      let queryParam = '';
+      if (email) {
+        queryParam = `email=${encodeURIComponent(email)}`;
+      } else if (employeeId) {
+        queryParam = `employeeId=${encodeURIComponent(employeeId)}`;
+      } else {
+        return;
+      }
+
+      const response = await authenticatedRequest(`/api/users/find?${queryParam}`);
+      if (response.ok) {
+        const user = await response.json();
+        // Navigate to user detail page with the found user ID
+        window.location.href = `/users/${user.id}`;
+      } else {
+        console.error('User not found');
+      }
+    } catch (error) {
+      console.error('Error finding user:', error);
+    }
+  };
   const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
   const [dateRanges, setDateRanges] = useState<Record<string, { from?: Date; to?: Date }>>({});
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
@@ -756,20 +781,13 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                     {columnVisibility.assignedUserName && (
                       <td className="py-3 px-4">
                         {asset.assignedUserName ? (
-                          asset.assignedUserId ? (
-                            <Link href={`/users/${asset.assignedUserId}`}>
-                              <span 
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
-                                data-testid={`link-assigned-${asset.id}`}
-                              >
-                                {asset.assignedUserName}
-                              </span>
-                            </Link>
-                          ) : (
-                            <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
-                              {asset.assignedUserName}
-                            </span>
-                          )
+                          <span 
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
+                            data-testid={`link-assigned-${asset.id}`}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId)}
+                          >
+                            {asset.assignedUserName}
+                          </span>
                         ) : (
                           <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
                             Unassigned
@@ -781,20 +799,13 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                     {columnVisibility.assignedUserEmail && (
                       <td className="py-3 px-4">
                         {asset.assignedUserEmail ? (
-                          asset.assignedUserId ? (
-                            <Link href={`/users/${asset.assignedUserId}`}>
-                              <span 
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
-                                data-testid={`link-email-${asset.id}`}
-                              >
-                                {asset.assignedUserEmail}
-                              </span>
-                            </Link>
-                          ) : (
-                            <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
-                              {asset.assignedUserEmail}
-                            </span>
-                          )
+                          <span 
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
+                            data-testid={`link-email-${asset.id}`}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId)}
+                          >
+                            {asset.assignedUserEmail}
+                          </span>
                         ) : (
                           <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
                             N/A
@@ -806,20 +817,13 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                     {columnVisibility.assignedUserEmployeeId && (
                       <td className="py-3 px-4">
                         {asset.assignedUserEmployeeId ? (
-                          asset.assignedUserId ? (
-                            <Link href={`/users/${asset.assignedUserId}`}>
-                              <span 
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
-                                data-testid={`link-employee-id-${asset.id}`}
-                              >
-                                {asset.assignedUserEmployeeId}
-                              </span>
-                            </Link>
-                          ) : (
-                            <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
-                              {asset.assignedUserEmployeeId}
-                            </span>
-                          )
+                          <span 
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
+                            data-testid={`link-employee-id-${asset.id}`}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId)}
+                          >
+                            {asset.assignedUserEmployeeId}
+                          </span>
                         ) : (
                           <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
                             N/A

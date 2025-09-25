@@ -456,6 +456,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Find user by email or employee ID
+  app.get("/api/users/find", authenticateToken, requireRole("technician"), async (req: Request, res: Response) => {
+    try {
+      const { email, employeeId } = req.query;
+      
+      if (!email && !employeeId) {
+        return res.status(400).json({ message: "Either email or employeeId parameter is required" });
+      }
+      
+      let user: User | undefined;
+      
+      if (email && typeof email === 'string') {
+        user = await storage.getUserByEmail(email);
+      } else if (employeeId && typeof employeeId === 'string') {
+        user = await storage.getUserByEmployeeId(employeeId, req.user!.tenantId);
+      }
+      
+      if (!user || user.tenantId !== req.user!.tenantId) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        department: user.department,
+        jobTitle: user.jobTitle,
+        manager: user.manager,
+        avatar: user.avatar,
+        role: user.role,
+        isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        userID: user.userID,
+      });
+    } catch (error) {
+      console.error("Error finding user:", error);
+      res.status(500).json({ message: "Failed to find user" });
+    }
+  });
+
   app.patch("/api/users/me", authenticateToken, async (req: Request, res: Response) => {
     try {
       const profileData: UpdateUserProfile = updateUserProfileSchema.parse(req.body);
