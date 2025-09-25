@@ -162,30 +162,56 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Common Dashboard Heading */}
-        <div className="px-6 py-4 bg-background">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Dashboard Analytics</h2>
-            <p className="text-muted-foreground text-sm">
-              Real-time insights and metrics for your IT asset management
-            </p>
-          </div>
-        </div>
         
-        {/* Dashboard Content - Independent Draggable Tiles */}
+        {/* Dashboard Content with Integrated Section Headings and Tiles */}
         {metrics && (
-          <IndependentDraggableTiles
-            onLayoutChange={(layouts) => {
-              // Optionally handle layout changes here
-              console.log('Layout updated:', layouts);
-            }}
-            tiles={[
-              // Asset Overview Section - Row 1 (consistent 24px gutters, equal card widths)
+          <div className="relative px-6 pb-8">
+            {/* Section Headings positioned above their respective tile rows */}
+            <div className="absolute left-6 z-10">
+              {/* Asset Overview Section Heading */}
+              <div className="mb-6" style={{ top: '140px', position: 'absolute' }}>
+                <h2 className="text-xl font-semibold text-foreground mb-2">Asset Overview</h2>
+                <p className="text-sm text-muted-foreground">
+                  Hardware, Software, Peripherals and Other Assets
+                </p>
+              </div>
+              
+              {/* ITAM Insights Section Heading */}
+              <div className="mb-6" style={{ top: '380px', position: 'absolute' }}>
+                <h2 className="text-xl font-semibold text-foreground mb-2">ITAM Insights</h2>
+                <p className="text-sm text-muted-foreground">
+                  Unused Assets, License Optimization and Compliance Monitoring
+                </p>
+              </div>
+              
+              {/* Activities Section Heading */}
+              <div className="mb-6" style={{ top: '580px', position: 'absolute' }}>
+                <h2 className="text-xl font-semibold text-foreground mb-2">Activities</h2>
+                <p className="text-sm text-muted-foreground">
+                  Recent Activities, Asset Analysis and AI-Powered Recommendations
+                </p>
+              </div>
+              
+              {/* Global Distribution Section Heading */}
+              <div className="mb-6" style={{ top: '980px', position: 'absolute' }}>
+                <h2 className="text-xl font-semibold text-foreground mb-2">Global Distribution</h2>
+                <p className="text-sm text-muted-foreground">
+                  Worldwide Asset Location and Regional Overview
+                </p>
+              </div>
+            </div>
+            <IndependentDraggableTiles
+              onLayoutChange={(layouts) => {
+                // Optionally handle layout changes here
+                console.log('Layout updated:', layouts);
+              }}
+              tiles={[
+              // Asset Overview Section - Row 1 (improved spacing with proper margins)
               {
                 id: 'hardware-tile',
                 title: 'Hardware Assets',
                 component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 24, y: 140 },
+                defaultPosition: { x: 32, y: 220 },
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -194,7 +220,7 @@ export default function Dashboard() {
                 id: 'software-tile',
                 title: 'Software Assets',
                 component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 328, y: 140 }, // 24 + 280 + 24
+                defaultPosition: { x: 344, y: 220 }, // 32 + 280 + 32
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -203,7 +229,7 @@ export default function Dashboard() {
                 id: 'peripherals-tile',
                 title: 'Peripherals Assets',
                 component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 632, y: 140 }, // 328 + 280 + 24
+                defaultPosition: { x: 656, y: 220 }, // 344 + 280 + 32
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
@@ -212,17 +238,17 @@ export default function Dashboard() {
                 id: 'others-tile',
                 title: 'Other Assets',
                 component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 936, y: 140 }, // 632 + 280 + 24
+                defaultPosition: { x: 968, y: 220 }, // 656 + 280 + 32
                 width: 280,
                 height: 200,
                 section: 'asset-overview'
               },
-              // Core Metrics Section - Row 2 (insights and warnings)
+              // ITAM Insights Section - Row 2 (insights and warnings with proper spacing)
               {
                 id: 'unused-hardware-tile',
                 title: 'Unused Hardware',
                 component: <UnusedHardwareTile metrics={metrics} />,
-                defaultPosition: { x: 24, y: 364 }, // 140 + 200 + 24
+                defaultPosition: { x: 32, y: 480 }, // 220 + 200 + 60
                 width: 280,
                 height: 160,
                 section: 'metrics'
@@ -231,16 +257,16 @@ export default function Dashboard() {
                 id: 'unused-licenses-tile',
                 title: 'Unused Licenses',
                 component: <UnusedLicensesTile metrics={metrics} />,
-                defaultPosition: { x: 328, y: 364 },
+                defaultPosition: { x: 344, y: 480 },
                 width: 280,
                 height: 160,
                 section: 'metrics'
               },
               {
                 id: 'expiring-items-tile',
-                title: 'Expiring Items',
+                title: 'Expiring Warranties & Licenses',
                 component: <ExpiringItemsTile metrics={metrics} />,
-                defaultPosition: { x: 632, y: 364 },
+                defaultPosition: { x: 656, y: 480 },
                 width: 280,
                 height: 160,
                 section: 'metrics'
@@ -249,17 +275,17 @@ export default function Dashboard() {
                 id: 'compliance-risk-tile',
                 title: 'Compliance Risk',
                 component: <ComplianceRiskTile metrics={metrics} />,
-                defaultPosition: { x: 936, y: 364 },
+                defaultPosition: { x: 968, y: 480 },
                 width: 280,
                 height: 160,
                 section: 'metrics'
               },
-              // Analytics Section - Row 3 (detailed analysis)
+              // Activities Section - Row 3 (detailed analysis with improved spacing)
               {
                 id: 'recent-activities-tile',
                 title: 'Recent Activities',
                 component: <RecentActivitiesTile metrics={metrics} />,
-                defaultPosition: { x: 24, y: 548 }, // 364 + 160 + 24
+                defaultPosition: { x: 32, y: 700 }, // 480 + 160 + 60
                 width: 380,
                 height: 360,
                 section: 'analytics'
@@ -268,7 +294,7 @@ export default function Dashboard() {
                 id: 'asset-age-analysis',
                 title: 'Asset Age Analysis',
                 component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
-                defaultPosition: { x: 428, y: 548 }, // 24 + 380 + 24
+                defaultPosition: { x: 444, y: 700 }, // 32 + 380 + 32
                 width: 380,
                 height: 360,
                 section: 'analytics'
@@ -283,23 +309,24 @@ export default function Dashboard() {
                     onViewRecommendation={handleViewRecommendation}
                   />
                 ),
-                defaultPosition: { x: 832, y: 548 }, // 428 + 380 + 24
+                defaultPosition: { x: 856, y: 700 }, // 444 + 380 + 32
                 width: 380,
                 height: 360,
                 section: 'analytics'
               },
-              // Visual Section - Row 4 (geographic and visual data)
+              // Global Distribution Section - Row 4 (geographic and visual data with proper spacing)
               {
                 id: 'world-map',
                 title: 'Global Asset Distribution',
                 component: <WorldMap />,
-                defaultPosition: { x: 228, y: 932 }, // 548 + 360 + 24, centered
+                defaultPosition: { x: 244, y: 1120 }, // 700 + 360 + 60, centered
                 width: 760,
                 height: 400,
                 section: 'visual'
               },
             ]}
-          />
+            />
+          </div>
         )}
       </main>
     </div>
