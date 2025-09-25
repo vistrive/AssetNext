@@ -952,7 +952,9 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
             </div>
             
             <div>
-              <Label htmlFor="model">Model</Label>
+              <Label htmlFor="model">
+                Model {isFieldRequired('model', watchedType) && <span className="text-red-500">*</span>}
+              </Label>
               <ComboSelect
                 value={watch("model") || ""}
                 onValueChange={(value) => setValue("model", value)}
@@ -961,6 +963,14 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 label="Model"
                 dataTestId="select-model"
               />
+              {errors.model && (
+                <p className="text-red-500 text-sm mt-1">{errors.model.message}</p>
+              )}
+              {getFieldHelperText('model', watchedType) && (
+                <p className="text-muted-foreground text-xs mt-1">
+                  {getFieldHelperText('model', watchedType)}
+                </p>
+              )}
             </div>
             
             <div>
@@ -975,6 +985,14 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 label="Manufacturer"
                 dataTestId="select-manufacturer"
               />
+              {errors.manufacturer && (
+                <p className="text-red-500 text-sm mt-1">{errors.manufacturer.message}</p>
+              )}
+              {getFieldHelperText('manufacturer', watchedType) && (
+                <p className="text-muted-foreground text-xs mt-1">
+                  {getFieldHelperText('manufacturer', watchedType)}
+                </p>
+              )}
             </div>
             
             <div>
