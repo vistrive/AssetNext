@@ -84,7 +84,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/users/:userId">
-        <ProtectedRoute requiredRole="technician">
+        <ProtectedRoute requiredRole="admin">
           <UserDetail />
         </ProtectedRoute>
       </Route>

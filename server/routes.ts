@@ -420,7 +420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user by ID (for user detail page)
-  app.get("/api/users/:id", authenticateToken, requireRole("technician"), async (req: Request, res: Response) => {
+  app.get("/api/users/:id", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       
