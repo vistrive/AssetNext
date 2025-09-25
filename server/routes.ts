@@ -72,6 +72,20 @@ const authenticateToken = (req: Request, res: Response, next: Function) => {
   next();
 };
 
+// Middleware to validate authenticated user exists in database
+const validateUserExists = async (req: Request, res: Response, next: Function) => {
+  try {
+    const user = await storage.getUser(req.user!.userId);
+    if (!user || !user.isActive) {
+      return res.status(401).json({ message: "Invalid authentication" });
+    }
+    next();
+  } catch (error) {
+    console.error("User validation error:", error);
+    return res.status(401).json({ message: "Authentication error" });
+  }
+};
+
 const requireRole = (role: string) => (req: Request, res: Response, next: Function) => {
   if (!req.user || !checkPermission(req.user.role, role)) {
     return res.status(403).json({ message: "Insufficient permissions" });
@@ -2480,7 +2494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/users/invitations", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+  app.get("/api/users/invitations", authenticateToken, validateUserExists, requireRole("admin"), async (req: Request, res: Response) => {
     try {
       const invitations = await storage.getTenantInvitations(req.user!.tenantId);
       
