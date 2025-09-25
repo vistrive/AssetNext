@@ -1,6 +1,7 @@
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Asset, User } from "@shared/schema";
+import { authenticatedRequest } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,12 +65,20 @@ export default function UserDetail() {
   // Fetch user details
   const { data: user, isLoading: isLoadingUser } = useQuery<User>({
     queryKey: ['/api/users', userId],
+    queryFn: async () => {
+      const response = await authenticatedRequest('GET', `/api/users/${userId}`);
+      return response.json();
+    },
     enabled: !!userId
   });
 
   // Fetch user assets
   const { data: assets = [], isLoading: isLoadingAssets } = useQuery<Asset[]>({
     queryKey: ['/api/assets/user', userId],
+    queryFn: async () => {
+      const response = await authenticatedRequest('GET', `/api/assets/user/${userId}`);
+      return response.json();
+    },
     enabled: !!userId
   });
 
