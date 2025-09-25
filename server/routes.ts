@@ -861,6 +861,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get assets by user ID
+  app.get("/api/assets/user/:userId", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+      
+      const assets = await storage.getAssetsByUserId(userId, req.user!.tenantId);
+      res.json(assets);
+    } catch (error) {
+      console.error("Error fetching assets by user ID:", error);
+      res.status(500).json({ message: "Failed to fetch user assets" });
+    }
+  });
+
   // Assets Report endpoint (must come before /api/assets/:id to avoid route conflict)
   app.get("/api/assets/report", authenticateToken, async (req: Request, res: Response) => {
     try {
