@@ -27,7 +27,7 @@ import { ExpiringItemsTile } from "@/components/dashboard/individual-tiles/expir
 import { ComplianceRiskTile } from "@/components/dashboard/individual-tiles/compliance-risk-tile";
 import { RecentActivitiesTile } from "@/components/dashboard/individual-tiles/recent-activities-tile";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Plus, Users, Building2, Grid3X3, Move } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Recommendation } from "@shared/schema";
 
@@ -368,153 +368,6 @@ function createDashboardTiles(
   ];
 }
 
-// Dashboard header controls with reset functionality and quick actions
-function DashboardHeaderControls({ 
-  totalAssets, 
-  isDragMode, 
-  onToggleDragMode 
-}: { 
-  totalAssets: number;
-  isDragMode: boolean;
-  onToggleDragMode: () => void;
-}) {
-  const navigate = useLocation()[1];
-
-  const handleQuickAddAsset = () => {
-    navigate('/assets?action=create');
-  };
-
-  const handleQuickAddUser = () => {
-    navigate('/users?action=create');
-  };
-
-  const handleQuickAddVendor = () => {
-    navigate('/vendors?action=create');
-  };
-
-  const handleResetSection = (section: string) => {
-    window.dispatchEvent(new CustomEvent('reset-section', { detail: { section } }));
-  };
-
-  const handleResetAllTiles = () => {
-    // Clear saved layout from localStorage and dispatch reset events
-    localStorage.removeItem('dashboard-layout-v1');
-    window.dispatchEvent(new CustomEvent('reset-all-tiles'));
-  };
-
-  return (
-    <div className="px-6 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Comprehensive IT Asset Management Dashboard • Asset Overview, Lifecycle, Insights & Global Distribution
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Layout Mode Toggle */}
-          <div className="flex items-center gap-2">
-            <Button 
-              variant={isDragMode ? "secondary" : "ghost"} 
-              size="sm" 
-              onClick={onToggleDragMode}
-              className="text-xs h-7"
-              data-testid="toggle-drag-mode"
-              title={isDragMode ? "Switch to grid layout" : "Enable drag and drop"}
-            >
-              {isDragMode ? (
-                <>
-                  <Grid3X3 className="h-3 w-3 mr-1" />
-                  Grid
-                </>
-              ) : (
-                <>
-                  <Move className="h-3 w-3 mr-1" />
-                  Drag
-                </>
-              )}
-            </Button>
-          </div>
-          
-          {/* Quick Actions */}
-          <div className="flex items-center gap-2 border-l pl-3">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleQuickAddAsset}
-              className="text-xs h-7"
-              data-testid="quick-add-asset"
-              title="Quick add asset"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Asset
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleQuickAddUser}
-              className="text-xs h-7"
-              data-testid="quick-add-user"
-              title="Quick add user"
-            >
-              <Users className="h-3 w-3 mr-1" />
-              User
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleQuickAddVendor}
-              className="text-xs h-7"
-              data-testid="quick-add-vendor"
-              title="Quick add vendor"
-            >
-              <Building2 className="h-3 w-3 mr-1" />
-              Vendor
-            </Button>
-          </div>
-          
-          {/* Reset Controls */}
-          <div className="flex items-center gap-2 border-l pl-3">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => handleResetSection('asset-overview')}
-              className="text-xs h-7"
-              data-testid="reset-overview-section"
-              title="Reset Asset Overview tiles"
-            >
-              <RotateCcw className="h-3 w-3 mr-1" />
-              Overview
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => handleResetSection('insights')}
-              className="text-xs h-7"
-              data-testid="reset-insights-section"
-              title="Reset ITAM Insights tiles"
-            >
-              <RotateCcw className="h-3 w-3 mr-1" />
-              Insights
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleResetAllTiles}
-              className="text-xs h-7 text-orange-600 hover:text-orange-700"
-              data-testid="reset-all-tiles"
-              title="Reset all dashboard tiles to default positions"
-            >
-              <RotateCcw className="h-3 w-3 mr-1" />
-              Reset All
-            </Button>
-          </div>
-          
-          <div className="text-xs text-muted-foreground border-l pl-3">
-            <span>Total Assets: {totalAssets}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
@@ -571,11 +424,7 @@ export default function Dashboard() {
         <TopBar
           title="ITAM Dashboard"
           description="Comprehensive IT Asset Management with Lifecycle Insights, Unused Asset Detection & Compliance Monitoring"
-        />
-        
-        {/* Dashboard Header with Reset Controls & Quick Actions */}
-        <DashboardHeaderControls 
-          totalAssets={metrics?.totalAssets || 0} 
+          showDragToggle={true}
           isDragMode={isDragMode}
           onToggleDragMode={() => setIsDragMode(!isDragMode)}
         />
@@ -585,8 +434,51 @@ export default function Dashboard() {
         {metrics && (
           <>
             {isDragMode ? (
-              // Drag-and-Drop Mode with Container Boundaries
-              <div className="w-full max-w-[1440px] mx-auto px-6 py-6 box-border overflow-hidden relative">
+              // Drag-and-Drop Mode with Container Boundaries and Reset Controls
+              <div className="w-full max-w-[100vw] mx-auto px-4 sm:px-6 py-6 box-border overflow-hidden relative">
+                {/* Reset Controls - Only visible in drag mode */}
+                <div className="mb-4 flex justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'asset-overview' } }));
+                    }}
+                    className="text-xs"
+                    data-testid="reset-overview-section"
+                    title="Reset Asset Overview tiles"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Reset Overview
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'insights' } }));
+                    }}
+                    className="text-xs"
+                    data-testid="reset-insights-section"
+                    title="Reset ITAM Insights tiles"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Reset Insights
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => {
+                      localStorage.removeItem('dashboard-layout-v1');
+                      window.dispatchEvent(new CustomEvent('reset-all-tiles'));
+                    }}
+                    className="text-xs"
+                    data-testid="reset-all-tiles"
+                    title="Reset all dashboard tiles to default positions"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Reset All
+                  </Button>
+                </div>
                 <IndependentDraggableTiles 
                   tiles={createDashboardTiles(metrics, recommendations, handleNavigateToAssets, handleViewAllRecommendations, handleViewRecommendation, navigate)}
                 />

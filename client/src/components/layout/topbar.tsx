@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Upload } from "lucide-react";
+import { Search, Plus, Upload, Move } from "lucide-react";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { RoleNotifications } from "@/components/notifications/role-notifications";
 
@@ -11,6 +11,9 @@ interface TopBarProps {
   showAddButton?: boolean;
   addButtonText?: string;
   onBulkUploadClick?: () => void;
+  showDragToggle?: boolean;
+  isDragMode?: boolean;
+  onToggleDragMode?: () => void;
 }
 
 export function TopBar({ 
@@ -19,7 +22,10 @@ export function TopBar({
   onAddClick, 
   showAddButton = true,
   addButtonText = "Add Asset",
-  onBulkUploadClick
+  onBulkUploadClick,
+  showDragToggle = false,
+  isDragMode = false,
+  onToggleDragMode
 }: TopBarProps) {
   return (
     <header className="bg-card border-b border-border px-4 sm:px-6 py-3 sm:py-4">
@@ -70,6 +76,22 @@ export function TopBar({
           </div>
         </div>
       </div>
+      
+      {/* Drag Toggle - positioned in top right edge below main header */}
+      {showDragToggle && onToggleDragMode && (
+        <div className="flex justify-end pt-2">
+          <Button
+            variant={isDragMode ? "default" : "outline"}
+            size="sm"
+            onClick={onToggleDragMode}
+            data-testid="toggle-drag-mode"
+            className="text-xs h-6 px-3"
+          >
+            <Move className="h-3 w-3 mr-1" />
+            Drag
+          </Button>
+        </div>
+      )}
     </header>
   );
 }
