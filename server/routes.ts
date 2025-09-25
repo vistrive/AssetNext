@@ -2382,10 +2382,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Check if user already exists (same tenant)
+      // Check if user already exists (globally, since email constraint is global)
       const existingUser = await storage.getUserByEmail(inviteData.email);
-      if (existingUser && existingUser.tenantId === req.user!.tenantId) {
-        return res.status(400).json({ message: "User already exists in your organization" });
+      if (existingUser) {
+        if (existingUser.tenantId === req.user!.tenantId) {
+          return res.status(400).json({ message: "User already exists in your organization" });
+        } else {
+          return res.status(400).json({ message: "This email address is already registered in the system" });
+        }
       }
 
       // Generate secure temporary password
