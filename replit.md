@@ -12,6 +12,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**September 25, 2025**
+- **Fixed Section Headings Implementation**: Enhanced dashboard UX with fixed section headings while maintaining full tile mobility
+  - **Fixed Headers**: Added 6 clear section headers that remain stationary while tiles are draggable: Asset Overview, Asset Lifecycle, Expiring Warranties & Licenses, ITAM Insights, Activities, Global Distribution
+  - **Professional Styling**: Section headers feature backdrop blur, borders, and shadows for professional appearance with bg-background/90 transparency
+  - **Layered Architecture**: Headers positioned with z-index layering and pointer-events-none to ensure tiles can be dragged underneath without interference
+  - **Position Adjustments**: Updated all tile default positions to accommodate section headers, maintaining proper visual hierarchy
+  - **Testing Coverage**: Added comprehensive data-testid attributes (heading-asset-overview, heading-asset-lifecycle, etc.) for automation testing
+  - **Context Preservation**: Section titles provide consistent visual context and organization while preserving complete drag-and-drop functionality
+
 **September 23, 2025**
 - **Asset Creation Review Step Implementation**: Added comprehensive review confirmation before asset creation with robust validation
   - **Review Flow**: When creating new assets, users now see a detailed review dialog after clicking "Create Asset" but before the asset is actually created

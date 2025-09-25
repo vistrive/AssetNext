@@ -46,7 +46,7 @@ function createDashboardTiles(
       id: 'hardware-tile',
       title: 'Hardware Assets',
       section: 'asset-overview',
-      defaultPosition: { x: 50, y: 120 },
+      defaultPosition: { x: 50, y: 160 },
       width: 320,
       height: 180,
       component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -55,7 +55,7 @@ function createDashboardTiles(
       id: 'software-tile',
       title: 'Software Assets',
       section: 'asset-overview',
-      defaultPosition: { x: 390, y: 120 },
+      defaultPosition: { x: 390, y: 160 },
       width: 320,
       height: 180,
       component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -64,7 +64,7 @@ function createDashboardTiles(
       id: 'peripherals-tile',
       title: 'Peripheral Devices',
       section: 'asset-overview',
-      defaultPosition: { x: 730, y: 120 },
+      defaultPosition: { x: 730, y: 160 },
       width: 320,
       height: 180,
       component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -73,7 +73,7 @@ function createDashboardTiles(
       id: 'others-tile',
       title: 'Other Assets',
       section: 'asset-overview',
-      defaultPosition: { x: 1070, y: 120 },
+      defaultPosition: { x: 1070, y: 160 },
       width: 320,
       height: 180,
       component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -84,7 +84,7 @@ function createDashboardTiles(
       id: 'deployed-assets',
       title: 'Deployed Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 50, y: 320 },
+      defaultPosition: { x: 50, y: 250 },
       width: 240,
       height: 150,
       component: (
@@ -105,7 +105,7 @@ function createDashboardTiles(
       id: 'in-stock-assets',
       title: 'In Stock Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 310, y: 320 },
+      defaultPosition: { x: 310, y: 250 },
       width: 240,
       height: 150,
       component: (
@@ -126,7 +126,7 @@ function createDashboardTiles(
       id: 'in-repair-assets',
       title: 'In Repair Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 570, y: 320 },
+      defaultPosition: { x: 570, y: 250 },
       width: 240,
       height: 150,
       component: (
@@ -147,7 +147,7 @@ function createDashboardTiles(
       id: 'retired-assets',
       title: 'Retired Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 830, y: 320 },
+      defaultPosition: { x: 830, y: 250 },
       width: 240,
       height: 150,
       component: (
@@ -170,7 +170,7 @@ function createDashboardTiles(
       id: 'expiring-warranties',
       title: 'Expiring Warranties',
       section: 'expiring',
-      defaultPosition: { x: 50, y: 490 },
+      defaultPosition: { x: 50, y: 420 },
       width: 420,
       height: 300,
       component: (
@@ -230,7 +230,7 @@ function createDashboardTiles(
       id: 'expiring-licenses',
       title: 'Expiring Licenses',
       section: 'expiring',
-      defaultPosition: { x: 490, y: 490 },
+      defaultPosition: { x: 490, y: 420 },
       width: 420,
       height: 300,
       component: (
@@ -292,7 +292,7 @@ function createDashboardTiles(
       id: 'unused-hardware',
       title: 'Unused Hardware',
       section: 'insights',
-      defaultPosition: { x: 50, y: 810 },
+      defaultPosition: { x: 50, y: 740 },
       width: 280,
       height: 180,
       component: <UnusedHardwareTile metrics={metrics} />
@@ -301,7 +301,7 @@ function createDashboardTiles(
       id: 'unused-licenses',
       title: 'Unused Licenses',
       section: 'insights',
-      defaultPosition: { x: 350, y: 810 },
+      defaultPosition: { x: 350, y: 740 },
       width: 280,
       height: 180,
       component: <UnusedLicensesTile metrics={metrics} />
@@ -310,7 +310,7 @@ function createDashboardTiles(
       id: 'expiring-items',
       title: 'Expiring Items Summary',
       section: 'insights',
-      defaultPosition: { x: 650, y: 810 },
+      defaultPosition: { x: 650, y: 740 },
       width: 280,
       height: 180,
       component: <ExpiringItemsTile metrics={metrics} />
@@ -319,7 +319,7 @@ function createDashboardTiles(
       id: 'compliance-risk',
       title: 'Compliance Risk',
       section: 'insights',
-      defaultPosition: { x: 950, y: 810 },
+      defaultPosition: { x: 950, y: 740 },
       width: 280,
       height: 180,
       component: <ComplianceRiskTile metrics={metrics} />
@@ -330,7 +330,7 @@ function createDashboardTiles(
       id: 'recent-activities',
       title: 'Recent Activities',
       section: 'activities',
-      defaultPosition: { x: 50, y: 1010 },
+      defaultPosition: { x: 50, y: 940 },
       width: 480,
       height: 320,
       component: <RecentActivitiesTile metrics={metrics} />
@@ -339,7 +339,7 @@ function createDashboardTiles(
       id: 'ai-recommendations',
       title: 'AI Recommendations',
       section: 'activities',
-      defaultPosition: { x: 550, y: 1010 },
+      defaultPosition: { x: 550, y: 940 },
       width: 480,
       height: 320,
       component: (
@@ -356,7 +356,7 @@ function createDashboardTiles(
       id: 'world-map',
       title: 'Global Asset Distribution',
       section: 'visual',
-      defaultPosition: { x: 50, y: 1350 },
+      defaultPosition: { x: 50, y: 1280 },
       width: 980,
       height: 400,
       component: (
@@ -543,11 +543,77 @@ export default function Dashboard() {
         <DashboardHeaderControls totalAssets={metrics?.totalAssets || 0} />
         
         
-        {/* Draggable Dashboard Content */}
+        {/* Dashboard with Fixed Section Headings and Draggable Tiles */}
         {metrics && (
-          <IndependentDraggableTiles 
-            tiles={createDashboardTiles(metrics, recommendations, handleNavigateToAssets, handleViewAllRecommendations, handleViewRecommendation, navigate)}
-          />
+          <div className="relative">
+            {/* Fixed Section Headings */}
+            <div className="relative z-10 pointer-events-none">
+              {/* Asset Overview Section Header */}
+              <div className="absolute left-6 top-6" data-testid="heading-asset-overview">
+                <h2 className="text-lg font-semibold text-foreground mb-1 bg-background/90 backdrop-blur px-2 py-1 rounded-md border shadow-sm">
+                  Asset Overview
+                </h2>
+                <p className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded">
+                  Hardware, Software, Peripherals and Other Assets
+                </p>
+              </div>
+
+              {/* Asset Lifecycle Section Header */}
+              <div className="absolute left-6 top-[210px]" data-testid="heading-asset-lifecycle">
+                <h2 className="text-lg font-semibold text-foreground mb-1 bg-background/90 backdrop-blur px-2 py-1 rounded-md border shadow-sm">
+                  Asset Lifecycle
+                </h2>
+                <p className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded">
+                  Asset Status Distribution and Lifecycle Management
+                </p>
+              </div>
+
+              {/* Expiring Warranties & Licenses Section Header */}
+              <div className="absolute left-6 top-[380px]" data-testid="heading-expiring-items">
+                <h2 className="text-lg font-semibold text-foreground mb-1 bg-background/90 backdrop-blur px-2 py-1 rounded-md border shadow-sm">
+                  Expiring Warranties & Licenses
+                </h2>
+                <p className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded">
+                  Upcoming Hardware Warranty and Software License Expirations
+                </p>
+              </div>
+
+              {/* ITAM Insights Section Header */}
+              <div className="absolute left-6 top-[700px]" data-testid="heading-itam-insights">
+                <h2 className="text-lg font-semibold text-foreground mb-1 bg-background/90 backdrop-blur px-2 py-1 rounded-md border shadow-sm">
+                  ITAM Insights
+                </h2>
+                <p className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded">
+                  Unused Assets, License Optimization and Compliance Monitoring
+                </p>
+              </div>
+
+              {/* Activities Section Header */}
+              <div className="absolute left-6 top-[900px]" data-testid="heading-activities">
+                <h2 className="text-lg font-semibold text-foreground mb-1 bg-background/90 backdrop-blur px-2 py-1 rounded-md border shadow-sm">
+                  Activities
+                </h2>
+                <p className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded">
+                  Recent Activities and AI-Powered Recommendations
+                </p>
+              </div>
+
+              {/* Global Distribution Section Header */}
+              <div className="absolute left-6 top-[1240px]" data-testid="heading-global-distribution">
+                <h2 className="text-lg font-semibold text-foreground mb-1 bg-background/90 backdrop-blur px-2 py-1 rounded-md border shadow-sm">
+                  Global Distribution
+                </h2>
+                <p className="text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded">
+                  Worldwide Asset Location and Regional Overview
+                </p>
+              </div>
+            </div>
+
+            {/* Draggable Tiles */}
+            <IndependentDraggableTiles 
+              tiles={createDashboardTiles(metrics, recommendations, handleNavigateToAssets, handleViewAllRecommendations, handleViewRecommendation, navigate)}
+            />
+          </div>
         )}
       </main>
     </div>
