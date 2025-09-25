@@ -656,6 +656,7 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
     switch (fieldName) {
       case 'category':
       case 'manufacturer':
+        return false; // Made optional as per user request
       case 'model':
       case 'serialNumber':
         return currentType === 'Hardware';
