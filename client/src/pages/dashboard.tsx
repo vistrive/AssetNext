@@ -188,30 +188,113 @@ export default function Dashboard() {
               </p>
             </div>
             
-            {/* Expiring Items - Two Column Layout */}
+            {/* Expiring Items - Detailed Lists */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+              {/* Hardware Warranties */}
               <div className="max-w-full">
-                <div className="bg-card rounded-lg border p-3 h-32" data-testid="card-expiring-warranties">
-                  <div className="flex items-center mb-2">
-                    <div className="w-2 h-2 rounded-full bg-yellow-600 mr-2"></div>
-                    <p className="text-sm font-medium text-foreground">Hardware Warranties</p>
+                <div className="bg-card rounded-lg border" data-testid="card-expiring-warranties">
+                  <div className="flex items-center justify-between p-3 border-b">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 rounded-full bg-yellow-600 mr-2"></div>
+                      <p className="text-sm font-medium text-foreground">Hardware Warranties</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {metrics?.itamInsights?.expiringItems?.warranties?.length || 0} expiring
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold text-yellow-600 mb-1" data-testid="count-expiring-warranties">
-                    {metrics?.itamInsights?.summary?.totalExpiringWarranties || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Expiring within 30 days</p>
+                  <div className="max-h-64 overflow-y-auto">
+                    {metrics?.itamInsights?.expiringItems?.warranties?.length > 0 ? (
+                      metrics.itamInsights.expiringItems.warranties.map((item: any) => (
+                        <div
+                          key={item.id}
+                          className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
+                          data-testid={`expiring-warranty-${item.id}`}
+                          onClick={() => navigate(`/assets?selectedId=${item.id}`)}
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                            <p className="text-xs text-yellow-600 font-medium ml-2">
+                              {(() => {
+                                const date = item.expiryDate || item.warrantyExpiry || item.amcExpiry;
+                                return date ? new Date(date).toLocaleDateString() : 'No date';
+                              })()}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {item.manufacturer} {item.model} • {item.category}
+                          </p>
+                          <div className="flex justify-between items-center text-xs text-muted-foreground">
+                            <span>Serial: {item.serialNumber || 'N/A'}</span>
+                            <span>Purchase: {item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between items-center mt-1">
+                            <p className="text-xs text-muted-foreground">
+                              {item.assignedUser || item.location || 'Unassigned'}
+                            </p>
+                            <p className="text-xs text-yellow-600">{item.contractType}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-center text-xs text-muted-foreground">
+                        No warranties expiring in next 30 days
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+              
+              {/* Software Licenses */}
               <div className="max-w-full">
-                <div className="bg-card rounded-lg border p-3 h-32" data-testid="card-expiring-licenses">
-                  <div className="flex items-center mb-2">
-                    <div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div>
-                    <p className="text-sm font-medium text-foreground">Software Licenses</p>
+                <div className="bg-card rounded-lg border" data-testid="card-expiring-licenses">
+                  <div className="flex items-center justify-between p-3 border-b">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div>
+                      <p className="text-sm font-medium text-foreground">Software Licenses</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {metrics?.itamInsights?.expiringItems?.licenses?.length || 0} expiring
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold text-red-600 mb-1" data-testid="count-expiring-licenses">
-                    {metrics?.itamInsights?.summary?.totalExpiringLicenses || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Expiring within 30 days</p>
+                  <div className="max-h-64 overflow-y-auto">
+                    {metrics?.itamInsights?.expiringItems?.licenses?.length > 0 ? (
+                      metrics.itamInsights.expiringItems.licenses.map((item: any) => (
+                        <div
+                          key={item.id}
+                          className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
+                          data-testid={`expiring-license-${item.id}`}
+                          onClick={() => navigate(`/software?selectedId=${item.id}`)}
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                            <p className="text-xs text-red-600 font-medium ml-2">
+                              {(() => {
+                                const date = item.expiryDate || item.renewalDate;
+                                return date ? new Date(date).toLocaleDateString() : 'No date';
+                              })()}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {item.vendor} v{item.version} • {item.totalLicenses} licenses
+                          </p>
+                          <div className="flex justify-between items-center text-xs text-muted-foreground">
+                            <span>Cost: ${item.costPerLicense || 0}/license</span>
+                            <span>Purchase: {item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString() : 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between items-center mt-1">
+                            <p className="text-xs text-muted-foreground">
+                              License Key: {item.licenseKey || 'N/A'}
+                            </p>
+                            <p className="text-xs text-red-600">{item.contractType}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-center text-xs text-muted-foreground">
+                        No licenses expiring in next 30 days
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
