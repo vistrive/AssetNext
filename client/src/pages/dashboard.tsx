@@ -46,7 +46,7 @@ function createDashboardTiles(
       id: 'hardware-tile',
       title: 'Hardware Assets',
       section: 'asset-overview',
-      defaultPosition: { x: 24, y: 120 },
+      defaultPosition: { x: 0, y: 120 },
       width: 300,
       height: 180,
       component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -55,7 +55,7 @@ function createDashboardTiles(
       id: 'software-tile',
       title: 'Software Assets',
       section: 'asset-overview',
-      defaultPosition: { x: 348, y: 120 },
+      defaultPosition: { x: 324, y: 120 },
       width: 300,
       height: 180,
       component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -64,7 +64,7 @@ function createDashboardTiles(
       id: 'peripherals-tile',
       title: 'Peripheral Devices',
       section: 'asset-overview',
-      defaultPosition: { x: 672, y: 120 },
+      defaultPosition: { x: 648, y: 120 },
       width: 300,
       height: 180,
       component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -73,7 +73,7 @@ function createDashboardTiles(
       id: 'others-tile',
       title: 'Other Assets',
       section: 'asset-overview',
-      defaultPosition: { x: 996, y: 120 },
+      defaultPosition: { x: 972, y: 120 },
       width: 300,
       height: 180,
       component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
@@ -84,7 +84,7 @@ function createDashboardTiles(
       id: 'deployed-assets',
       title: 'Deployed Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 24, y: 320 },
+      defaultPosition: { x: 0, y: 320 },
       width: 320,
       height: 150,
       component: (
@@ -105,7 +105,7 @@ function createDashboardTiles(
       id: 'in-stock-assets',
       title: 'In Stock Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 368, y: 320 },
+      defaultPosition: { x: 344, y: 320 },
       width: 320,
       height: 150,
       component: (
@@ -126,7 +126,7 @@ function createDashboardTiles(
       id: 'in-repair-assets',
       title: 'In Repair Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 712, y: 320 },
+      defaultPosition: { x: 688, y: 320 },
       width: 320,
       height: 150,
       component: (
@@ -147,7 +147,7 @@ function createDashboardTiles(
       id: 'retired-assets',
       title: 'Retired Assets',
       section: 'lifecycle',
-      defaultPosition: { x: 1056, y: 320 },
+      defaultPosition: { x: 1032, y: 320 },
       width: 320,
       height: 150,
       component: (
@@ -292,7 +292,7 @@ function createDashboardTiles(
       id: 'unused-hardware',
       title: 'Unused Hardware',
       section: 'insights',
-      defaultPosition: { x: 24, y: 820 },
+      defaultPosition: { x: 0, y: 820 },
       width: 324,
       height: 180,
       component: <UnusedHardwareTile metrics={metrics} />
@@ -301,7 +301,7 @@ function createDashboardTiles(
       id: 'unused-licenses',
       title: 'Unused Licenses',
       section: 'insights',
-      defaultPosition: { x: 372, y: 820 },
+      defaultPosition: { x: 348, y: 820 },
       width: 324,
       height: 180,
       component: <UnusedLicensesTile metrics={metrics} />
@@ -310,7 +310,7 @@ function createDashboardTiles(
       id: 'expiring-items',
       title: 'Expiring Items Summary',
       section: 'insights',
-      defaultPosition: { x: 720, y: 820 },
+      defaultPosition: { x: 696, y: 820 },
       width: 324,
       height: 180,
       component: <ExpiringItemsTile metrics={metrics} />
@@ -319,7 +319,7 @@ function createDashboardTiles(
       id: 'compliance-risk',
       title: 'Compliance Risk',
       section: 'insights',
-      defaultPosition: { x: 1068, y: 820 },
+      defaultPosition: { x: 1044, y: 820 },
       width: 324,
       height: 180,
       component: <ComplianceRiskTile metrics={metrics} />
@@ -330,7 +330,7 @@ function createDashboardTiles(
       id: 'recent-activities',
       title: 'Recent Activities',
       section: 'activities',
-      defaultPosition: { x: 24, y: 1040 },
+      defaultPosition: { x: 0, y: 1040 },
       width: 680,
       height: 320,
       component: <RecentActivitiesTile metrics={metrics} />
@@ -339,7 +339,7 @@ function createDashboardTiles(
       id: 'ai-recommendations',
       title: 'AI Recommendations',
       section: 'activities',
-      defaultPosition: { x: 720, y: 1040 },
+      defaultPosition: { x: 696, y: 1040 },
       width: 672,
       height: 320,
       component: (
@@ -356,7 +356,7 @@ function createDashboardTiles(
       id: 'world-map',
       title: 'Global Asset Distribution',
       section: 'visual',
-      defaultPosition: { x: 24, y: 1400 },
+      defaultPosition: { x: 0, y: 1400 },
       width: 640,
       height: 380,
       component: (
