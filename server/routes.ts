@@ -2385,11 +2385,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user already exists (globally, since email constraint is global)
       const existingUser = await storage.getUserByEmail(inviteData.email);
       if (existingUser) {
-        if (existingUser.tenantId === req.user!.tenantId) {
-          return res.status(400).json({ message: "User already exists in your organization" });
-        } else {
-          return res.status(400).json({ message: "This email address is already registered in the system" });
-        }
+        // Use neutral messaging to prevent cross-tenant email enumeration
+        return res.status(400).json({ message: "This email address is not available for registration" });
       }
 
       // Generate secure temporary password
@@ -2487,19 +2484,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const invitations = await storage.getTenantInvitations(req.user!.tenantId);
       
-      // Include inviter information
+      // Include inviter information with proper error handling
       const invitationsWithInviter = await Promise.all(
         invitations.map(async (invitation) => {
-          const inviter = await storage.getUser(invitation.invitedBy);
-          return {
-            ...invitation,
-            inviterName: inviter ? `${inviter.firstName} ${inviter.lastName}` : "Unknown",
-          };
+          try {
+            const inviter = await storage.getUser(invitation.invitedBy);
+            return {
+              ...invitation,
+              inviterName: inviter ? `${inviter.firstName} ${inviter.lastName}` : "Unknown",
+            };
+          } catch (inviterError) {
+            console.warn(`Failed to fetch inviter for invitation ${invitation.id}:`, inviterError);
+            return {
+              ...invitation,
+              inviterName: "Unknown",
+            };
+          }
         })
       );
       
       res.json(invitationsWithInviter);
     } catch (error) {
+      console.error("Error fetching invitations:", error);
       res.status(500).json({ message: "Failed to fetch invitations" });
     }
   });
@@ -2799,14 +2805,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasErrors = true;
           }
 
-          // Check if email already exists in database
+          // Check if email already exists in database (globally, since email constraint is global)
           try {
-            const existingUser = await storage.getUserByEmail(row.email, req.user!.tenantId);
+            const existingUser = await storage.getUserByEmail(row.email);
             if (existingUser) {
+              // Use neutral messaging to prevent cross-tenant email enumeration
               warnings.push({
                 row: rowNumber,
                 field: 'email',
-                message: 'User with this email already exists and will be skipped'
+                message: 'Email address is not available for registration and will be skipped'
               });
             }
           } catch (error) {
@@ -2914,14 +2921,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasErrors = true;
           }
 
-          // Check if user already exists
+          // Check if user already exists (globally, since email constraint is global)
           try {
-            const existingUser = await storage.getUserByEmail(row.email, req.user!.tenantId);
+            const existingUser = await storage.getUserByEmail(row.email);
             if (existingUser) {
+              // Use neutral messaging to prevent cross-tenant email enumeration
               skipped.push({
                 row: rowNumber,
                 email: row.email,
-                message: 'User already exists'
+                message: 'Email address is not available for registration'
               });
               hasErrors = true;
             }
