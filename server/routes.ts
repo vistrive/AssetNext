@@ -468,7 +468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let user: User | undefined;
       
       if (email && typeof email === 'string') {
-        user = await storage.getUserByEmail(email);
+        user = await storage.getUserByEmail(email, req.user!.tenantId);
       } else if (employeeId && typeof employeeId === 'string') {
         user = await storage.getUserByEmployeeId(employeeId, req.user!.tenantId);
       }

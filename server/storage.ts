@@ -58,7 +58,7 @@ import { normalizeEmail, normalizeName, generateNextUserID } from "@shared/utils
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByEmail(email: string, tenantId?: string): Promise<User | undefined>;
   getUserByEmployeeId(employeeId: string, tenantId: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
@@ -169,8 +169,12 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+  async getUserByEmail(email: string, tenantId?: string): Promise<User | undefined> {
+    const normalizedEmail = email.toLowerCase();
+    const whereCondition = tenantId 
+      ? and(eq(users.email, normalizedEmail), eq(users.tenantId, tenantId))
+      : eq(users.email, normalizedEmail);
+    const [user] = await db.select().from(users).where(whereCondition);
     return user || undefined;
   }
 
