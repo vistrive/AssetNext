@@ -40,36 +40,36 @@ export function AIRecommendations({
   };
 
   return (
-    <div className="bg-card rounded-lg border border-border p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-foreground">AI Recommendations</h3>
-        <div className="w-8 h-8 bg-secondary/10 rounded-lg flex items-center justify-center">
-          <Bot className="text-secondary h-4 w-4" />
+    <div className="bg-card rounded-lg border border-border p-3 h-80">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-foreground">AI Recommendations</h3>
+        <div className="w-6 h-6 bg-secondary/10 rounded-lg flex items-center justify-center">
+          <Bot className="text-secondary h-3 w-3" />
         </div>
       </div>
       
-      <div className="space-y-4">
-        {recommendations.slice(0, 3).map((recommendation) => {
+      <div className="space-y-2 overflow-y-auto max-h-56">
+        {recommendations.slice(0, 4).map((recommendation) => {
           const Icon = getRecommendationIcon(recommendation.type);
           const iconColorClass = getIconColor(recommendation.type);
           
           return (
             <div 
               key={recommendation.id}
-              className="border border-border rounded-lg p-4 hover:bg-accent/50 cursor-pointer transition-colors"
+              className="border border-border rounded p-2 hover:bg-accent/50 cursor-pointer transition-colors"
               onClick={() => onViewRecommendation(recommendation.id)}
               data-testid={`recommendation-${recommendation.id}`}
             >
-              <div className="flex items-start space-x-3">
-                <div className={`w-8 h-8 ${iconColorClass} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                  <Icon className="h-4 w-4" />
+              <div className="flex items-start space-x-2">
+                <div className={`w-6 h-6 ${iconColorClass} rounded flex items-center justify-center flex-shrink-0`}>
+                  <Icon className="h-3 w-3" />
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-foreground text-sm">{recommendation.title}</h4>
-                  <p className="text-muted-foreground text-xs mt-1">{recommendation.description}</p>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-foreground text-xs truncate">{recommendation.title}</h4>
+                  <p className="text-muted-foreground text-xs mt-1 line-clamp-2">{recommendation.description}</p>
                   {recommendation.potentialSavings && parseFloat(recommendation.potentialSavings) > 0 && (
-                    <p className="text-secondary text-xs mt-2 font-medium">
-                      Potential savings: ${parseFloat(recommendation.potentialSavings).toLocaleString()}
+                    <p className="text-secondary text-xs mt-1 font-medium">
+                      ${parseFloat(recommendation.potentialSavings).toLocaleString()}
                     </p>
                   )}
                 </div>
@@ -79,24 +79,25 @@ export function AIRecommendations({
         })}
         
         {recommendations.length === 0 && (
-          <div className="text-center py-8">
-            <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No recommendations available</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Generate new recommendations to see AI insights
+          <div className="text-center py-4">
+            <Bot className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">No recommendations</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Generate AI insights
             </p>
           </div>
         )}
       </div>
       
-      {recommendations.length > 0 && (
+      {recommendations.length > 4 && (
         <Button 
-          variant="ghost" 
-          className="w-full mt-4" 
+          variant="outline" 
+          size="sm" 
+          className="w-full mt-2 text-xs h-7" 
           onClick={onViewAll}
           data-testid="button-view-all-recommendations"
         >
-          View All Recommendations
+          View All {recommendations.length}
         </Button>
       )}
     </div>

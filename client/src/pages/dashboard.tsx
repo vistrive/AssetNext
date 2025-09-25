@@ -5,8 +5,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
-import { IndependentDraggableTiles } from "@/components/dashboard/independent-draggable-tile";
-import { AssetAgeAnalysis } from "@/components/dashboard/asset-age-analysis";
 import { WorldMap } from "@/components/dashboard/world-map";
 import { HardwareTile } from "@/components/dashboard/individual-tiles/hardware-tile";
 import { SoftwareTile } from "@/components/dashboard/individual-tiles/software-tile";
@@ -20,7 +18,7 @@ import { RecentActivitiesTile } from "@/components/dashboard/individual-tiles/re
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 import { authenticatedRequest } from "@/lib/auth";
-import type { Asset, Recommendation } from "@shared/schema";
+import type { Recommendation } from "@shared/schema";
 
 export default function Dashboard() {
   const [, navigate] = useLocation();

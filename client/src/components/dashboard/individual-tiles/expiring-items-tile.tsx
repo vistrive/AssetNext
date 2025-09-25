@@ -11,21 +11,20 @@ export function ExpiringItemsTile({ metrics }: ExpiringItemsTileProps) {
   const totalExpiring = expiringWarranties + expiringLicenses;
 
   return (
-    <Card data-testid="card-expiring-items" className="hover:shadow-lg transition-shadow">
-      <CardContent className="pt-6">
-        <div className="flex items-center">
-          <AlertTriangle className="h-8 w-8 text-yellow-600" />
-          <div className="ml-4 flex-1">
-            <p className="text-sm font-medium text-muted-foreground">Expiring Warranties & Licenses</p>
-            <p className="text-2xl font-bold" data-testid="count-expiring-items">
+    <Card data-testid="card-expiring-items" className="hover:shadow-sm transition-shadow h-28">
+      <CardContent className="pt-3 pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Expiring Items</p>
+            <p className="text-xl font-bold" data-testid="count-expiring-items">
               {totalExpiring}
             </p>
-            <div className="mt-2 text-xs text-muted-foreground">
-              <div className="flex gap-4">
-                <span>{expiringWarranties} Warranties</span>
-                <span>{expiringLicenses} Licenses</span>
-              </div>
+            <div className="text-xs text-muted-foreground">
+              {expiringWarranties}W + {expiringLicenses}L
             </div>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
           </div>
         </div>
       </CardContent>
