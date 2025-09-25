@@ -99,20 +99,6 @@ const assetFormSchema = insertAssetSchema.extend({
 
   // Hardware-specific validation
   if (data.type === 'Hardware') {
-    if (!data.category) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Category is required for hardware assets (e.g., Laptop, Desktop, Server)",
-        path: ["category"],
-      });
-    }
-    if (!data.manufacturer) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Manufacturer is required for hardware assets (e.g., Dell, HP, Lenovo)",
-        path: ["manufacturer"],
-      });
-    }
     if (!data.model) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
