@@ -755,15 +755,21 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
                     {columnVisibility.assignedUserName && (
                       <td className="py-3 px-4">
-                        {asset.assignedUserId && asset.assignedUserName ? (
-                          <Link href={`/users/${asset.assignedUserId}`}>
-                            <span 
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
-                              data-testid={`link-assigned-${asset.id}`}
-                            >
+                        {asset.assignedUserName ? (
+                          asset.assignedUserId ? (
+                            <Link href={`/users/${asset.assignedUserId}`}>
+                              <span 
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
+                                data-testid={`link-assigned-${asset.id}`}
+                              >
+                                {asset.assignedUserName}
+                              </span>
+                            </Link>
+                          ) : (
+                            <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
                               {asset.assignedUserName}
                             </span>
-                          </Link>
+                          )
                         ) : (
                           <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
                             Unassigned
@@ -774,15 +780,21 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
                     {columnVisibility.assignedUserEmail && (
                       <td className="py-3 px-4">
-                        {asset.assignedUserId && asset.assignedUserEmail ? (
-                          <Link href={`/users/${asset.assignedUserId}`}>
-                            <span 
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
-                              data-testid={`link-email-${asset.id}`}
-                            >
+                        {asset.assignedUserEmail ? (
+                          asset.assignedUserId ? (
+                            <Link href={`/users/${asset.assignedUserId}`}>
+                              <span 
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
+                                data-testid={`link-email-${asset.id}`}
+                              >
+                                {asset.assignedUserEmail}
+                              </span>
+                            </Link>
+                          ) : (
+                            <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
                               {asset.assignedUserEmail}
                             </span>
-                          </Link>
+                          )
                         ) : (
                           <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
                             N/A
@@ -793,15 +805,21 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
                     {columnVisibility.assignedUserEmployeeId && (
                       <td className="py-3 px-4">
-                        {asset.assignedUserId && asset.assignedUserEmployeeId ? (
-                          <Link href={`/users/${asset.assignedUserId}`}>
-                            <span 
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
-                              data-testid={`link-employee-id-${asset.id}`}
-                            >
+                        {asset.assignedUserEmployeeId ? (
+                          asset.assignedUserId ? (
+                            <Link href={`/users/${asset.assignedUserId}`}>
+                              <span 
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
+                                data-testid={`link-employee-id-${asset.id}`}
+                              >
+                                {asset.assignedUserEmployeeId}
+                              </span>
+                            </Link>
+                          ) : (
+                            <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
                               {asset.assignedUserEmployeeId}
                             </span>
-                          </Link>
+                          )
                         ) : (
                           <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
                             N/A
