@@ -47,7 +47,7 @@ function createDashboardTiles(
       title: 'Hardware Assets',
       section: 'asset-overview',
       defaultPosition: { x: 0, y: 120 },
-      width: 300,
+      width: 336,
       height: 180,
       component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
     },
@@ -56,7 +56,7 @@ function createDashboardTiles(
       title: 'Software Assets',
       section: 'asset-overview',
       defaultPosition: { x: 324, y: 120 },
-      width: 300,
+      width: 336,
       height: 180,
       component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
     },
@@ -65,7 +65,7 @@ function createDashboardTiles(
       title: 'Peripheral Devices',
       section: 'asset-overview',
       defaultPosition: { x: 648, y: 120 },
-      width: 300,
+      width: 336,
       height: 180,
       component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
     },
@@ -74,7 +74,7 @@ function createDashboardTiles(
       title: 'Other Assets',
       section: 'asset-overview',
       defaultPosition: { x: 972, y: 120 },
-      width: 300,
+      width: 336,
       height: 180,
       component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
     },
@@ -85,8 +85,8 @@ function createDashboardTiles(
       title: 'Deployed Assets',
       section: 'lifecycle',
       defaultPosition: { x: 0, y: 320 },
-      width: 320,
-      height: 150,
+      width: 336,
+      height: 112,
       component: (
         <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-deployed-assets">
           <div>
@@ -106,8 +106,8 @@ function createDashboardTiles(
       title: 'In Stock Assets',
       section: 'lifecycle',
       defaultPosition: { x: 344, y: 320 },
-      width: 320,
-      height: 150,
+      width: 336,
+      height: 112,
       component: (
         <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-stock-assets">
           <div>
@@ -127,8 +127,8 @@ function createDashboardTiles(
       title: 'In Repair Assets',
       section: 'lifecycle',
       defaultPosition: { x: 688, y: 320 },
-      width: 320,
-      height: 150,
+      width: 336,
+      height: 112,
       component: (
         <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-repair-assets">
           <div>
@@ -148,8 +148,8 @@ function createDashboardTiles(
       title: 'Retired Assets',
       section: 'lifecycle',
       defaultPosition: { x: 1032, y: 320 },
-      width: 320,
-      height: 150,
+      width: 336,
+      height: 112,
       component: (
         <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-retired-assets">
           <div>
@@ -170,8 +170,8 @@ function createDashboardTiles(
       id: 'expiring-warranties',
       title: 'Expiring Warranties',
       section: 'expiring',
-      defaultPosition: { x: 24, y: 500 },
-      width: 680,
+      defaultPosition: { x: 0, y: 500 },
+      width: 688,
       height: 300,
       component: (
         <div className="bg-card rounded-lg border h-full" data-testid="card-expiring-warranties">
@@ -230,8 +230,8 @@ function createDashboardTiles(
       id: 'expiring-licenses',
       title: 'Expiring Licenses',
       section: 'expiring',
-      defaultPosition: { x: 720, y: 500 },
-      width: 672,
+      defaultPosition: { x: 704, y: 500 },
+      width: 688,
       height: 300,
       component: (
         <div className="bg-card rounded-lg border h-full" data-testid="card-expiring-licenses">
@@ -293,7 +293,7 @@ function createDashboardTiles(
       title: 'Unused Hardware',
       section: 'insights',
       defaultPosition: { x: 0, y: 820 },
-      width: 324,
+      width: 336,
       height: 180,
       component: <UnusedHardwareTile metrics={metrics} />
     },
@@ -302,7 +302,7 @@ function createDashboardTiles(
       title: 'Unused Licenses',
       section: 'insights',
       defaultPosition: { x: 348, y: 820 },
-      width: 324,
+      width: 336,
       height: 180,
       component: <UnusedLicensesTile metrics={metrics} />
     },
@@ -311,7 +311,7 @@ function createDashboardTiles(
       title: 'Expiring Items Summary',
       section: 'insights',
       defaultPosition: { x: 696, y: 820 },
-      width: 324,
+      width: 336,
       height: 180,
       component: <ExpiringItemsTile metrics={metrics} />
     },
@@ -320,7 +320,7 @@ function createDashboardTiles(
       title: 'Compliance Risk',
       section: 'insights',
       defaultPosition: { x: 1044, y: 820 },
-      width: 324,
+      width: 336,
       height: 180,
       component: <ComplianceRiskTile metrics={metrics} />
     },
@@ -331,7 +331,7 @@ function createDashboardTiles(
       title: 'Recent Activities',
       section: 'activities',
       defaultPosition: { x: 0, y: 1040 },
-      width: 680,
+      width: 688,
       height: 320,
       component: <RecentActivitiesTile metrics={metrics} />
     },
@@ -340,7 +340,7 @@ function createDashboardTiles(
       title: 'AI Recommendations',
       section: 'activities',
       defaultPosition: { x: 696, y: 1040 },
-      width: 672,
+      width: 688,
       height: 320,
       component: (
         <AIRecommendations
@@ -357,7 +357,7 @@ function createDashboardTiles(
       title: 'Global Asset Distribution',
       section: 'visual',
       defaultPosition: { x: 0, y: 1400 },
-      width: 640,
+      width: 1392,
       height: 380,
       component: (
         <div className="bg-card rounded-lg border p-3 h-full">
