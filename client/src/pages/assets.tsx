@@ -71,11 +71,16 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
         const user = await response.json();
         // Navigate to user detail page with the found user ID
         window.location.href = `/users/${user.id}`;
+      } else if (response.status === 404) {
+        // User not found - show friendly message
+        alert('User profile not found. This user may not have been created in the system yet.');
       } else {
-        console.error('User not found');
+        // Other error
+        alert('Unable to load user profile. Please try again.');
       }
     } catch (error) {
       console.error('Error finding user:', error);
+      alert('Unable to load user profile. Please try again.');
     }
   };
   const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
