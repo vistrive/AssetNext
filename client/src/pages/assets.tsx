@@ -53,38 +53,51 @@ interface EnhancedAssetsTableProps {
 function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: EnhancedAssetsTableProps) {
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [, setLocation] = useLocation();
 
   // Function to navigate to user profile by user ID, email, or employee ID
   const navigateToUserProfile = async (email?: string, employeeId?: string, userId?: string) => {
     try {
-      // If we have a direct user ID, navigate immediately
-      if (userId) {
-        window.location.href = `/users/${userId}`;
+      // If we have an employee ID (numeric User ID), use it directly
+      if (employeeId) {
+        setLocation(`/users/${employeeId}`);
         return;
       }
 
-      // Otherwise, look up the user by email or employee ID
-      let queryParam = '';
+      // If we have email, look up the user to get their numeric User ID
       if (email) {
-        queryParam = `email=${encodeURIComponent(email)}`;
-      } else if (employeeId) {
-        queryParam = `employeeId=${encodeURIComponent(employeeId)}`;
-      } else {
+        const queryParam = `email=${encodeURIComponent(email)}`;
+        const response = await authenticatedRequest('GET', `/api/users/find?${queryParam}`);
+        if (response.ok) {
+          const user = await response.json();
+          // Use numeric User ID if available, otherwise fall back to UUID
+          const userIdentifier = user.userID || user.id;
+          setLocation(`/users/${userIdentifier}`);
+        } else if (response.status === 404) {
+          alert('User profile not found. This user may not have been created in the system yet.');
+        } else {
+          alert('Unable to load user profile. Please try again.');
+        }
         return;
       }
 
-      const response = await authenticatedRequest('GET', `/api/users/find?${queryParam}`);
-      if (response.ok) {
-        const user = await response.json();
-        // Navigate to user detail page with the found user ID
-        window.location.href = `/users/${user.id}`;
-      } else if (response.status === 404) {
-        // User not found - show friendly message
-        alert('User profile not found. This user may not have been created in the system yet.');
-      } else {
-        // Other error
-        alert('Unable to load user profile. Please try again.');
+      // If we only have UUID (legacy), look up the user to get their numeric ID
+      if (userId) {
+        const response = await authenticatedRequest('GET', `/api/users/${userId}`);
+        if (response.ok) {
+          const user = await response.json();
+          // Use numeric User ID if available, otherwise fall back to UUID
+          const userIdentifier = user.userID || user.id;
+          setLocation(`/users/${userIdentifier}`);
+        } else if (response.status === 404) {
+          alert('User profile not found.');
+        } else {
+          alert('Unable to load user profile. Please try again.');
+        }
+        return;
       }
+
+      console.error('No valid identifier provided for user lookup');
     } catch (error) {
       console.error('Error finding user:', error);
       alert('Unable to load user profile. Please try again.');
@@ -796,7 +809,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <span 
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
                             data-testid={`link-assigned-${asset.id}`}
-                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId, asset.assignedUserId)}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail || undefined, asset.assignedUserEmployeeId || undefined, asset.assignedUserId || undefined)}
                           >
                             {asset.assignedUserName}
                           </span>
@@ -814,7 +827,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <span 
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
                             data-testid={`link-email-${asset.id}`}
-                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId, asset.assignedUserId)}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail || undefined, asset.assignedUserEmployeeId || undefined, asset.assignedUserId || undefined)}
                           >
                             {asset.assignedUserEmail}
                           </span>
@@ -832,7 +845,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <span 
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
                             data-testid={`link-employee-id-${asset.id}`}
-                            onClick={() => navigateToUserProfile(asset.assignedUserEmail, asset.assignedUserEmployeeId, asset.assignedUserId)}
+                            onClick={() => navigateToUserProfile(asset.assignedUserEmail || undefined, asset.assignedUserEmployeeId || undefined, asset.assignedUserId || undefined)}
                           >
                             {asset.assignedUserEmployeeId}
                           </span>

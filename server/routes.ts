@@ -419,7 +419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user by ID (for user detail page)
+  // Get user by ID (for user detail page) - supports both UUID and numeric User ID
   app.get("/api/users/:id", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -428,7 +428,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User ID is required" });
       }
       
-      const user = await storage.getUser(id);
+      let user: User | undefined;
+      
+      // Try to find user by numeric User ID first (if it's a number)
+      if (/^\d+$/.test(id)) {
+        user = await storage.getUserByEmployeeId(id, req.user!.tenantId);
+      }
+      
+      // If not found or not a number, try UUID lookup
+      if (!user) {
+        user = await storage.getUser(id);
+      }
+      
       if (!user || user.tenantId !== req.user!.tenantId) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -965,7 +976,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User ID is required" });
       }
       
-      const assets = await storage.getAssetsByUserId(userId, req.user!.tenantId);
+      let assets: Asset[] = [];
+      
+      // Try to find assets by numeric User ID first (if it's a number)
+      if (/^\d+$/.test(userId)) {
+        assets = await storage.getAssetsByUserEmployeeId(userId, req.user!.tenantId);
+      }
+      
+      // If not found or not a number, try UUID lookup
+      if (assets.length === 0) {
+        assets = await storage.getAssetsByUserId(userId, req.user!.tenantId);
+      }
+      
       res.json(assets);
     } catch (error) {
       console.error("Error fetching assets by user ID:", error);
