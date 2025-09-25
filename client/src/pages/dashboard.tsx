@@ -78,10 +78,10 @@ export default function Dashboard() {
         />
         
         {/* Dashboard Controls Header */}
-        <div className="px-6 py-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="px-6 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Drag tiles to customize your dashboard layout • Asset Overview, Metrics, Analytics & Visual sections
+              Drag tiles to customize your dashboard layout • Asset Overview, Lifecycle, Metrics & Visual sections
             </div>
             <div className="flex items-center gap-2">
               {/* Global Reset */}
@@ -163,206 +163,191 @@ export default function Dashboard() {
         </div>
         
         
-        {/* Dashboard Content with Responsive Section Headings and Tiles */}
+        {/* Dashboard Content with Responsive Grid Layout */}
         {metrics && (
-          <div className="relative">
-            {/* Responsive section headings that adjust positioning based on screen size */}
-            <div className="px-6 pb-4">
-              {/* Asset Overview Section Heading */}
-              <div className="mb-6 mt-8">
-                <h2 className="text-xl font-semibold text-foreground mb-2">Asset Overview</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Hardware, Software, Peripherals and Other Assets
-                </p>
+          <div className="p-4">
+            {/* Asset Overview Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-1">Asset Overview</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Hardware, Software, Peripherals and Other Assets
+              </p>
+            </div>
+            {/* Asset Overview Tiles - Responsive Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <div className="max-w-full">
+                <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+              </div>
+              <div className="max-w-full">
+                <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+              </div>
+              <div className="max-w-full">
+                <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
+              </div>
+              <div className="max-w-full">
+                <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
               </div>
             </div>
-            {/* Asset Overview Tiles Container */}
-            <div className="px-6">
-              <IndependentDraggableTiles
-                onLayoutChange={(layouts) => {
-                  console.log('Layout updated:', layouts);
-                }}
-                tiles={[
-              // Asset Overview Section - Row 1 (improved spacing with proper margins)
-              {
-                id: 'hardware-tile',
-                title: 'Hardware Assets',
-                component: <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 32, y: 60 },
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              {
-                id: 'software-tile',
-                title: 'Software Assets',
-                component: <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 344, y: 60 }, // 32 + 280 + 32
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              {
-                id: 'peripherals-tile',
-                title: 'Peripherals Assets',
-                component: <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 656, y: 60 }, // 344 + 280 + 32
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              {
-                id: 'others-tile',
-                title: 'Other Assets',
-                component: <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />,
-                defaultPosition: { x: 968, y: 60 }, // 656 + 280 + 32
-                width: 280,
-                height: 200,
-                section: 'asset-overview'
-              },
-              ]}
-              />
+            
+            {/* Asset Lifecycle Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-1">Asset Lifecycle</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Asset Status Distribution and Lifecycle Management
+              </p>
+            </div>
+            
+            {/* Asset Lifecycle Tiles - Responsive Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <div className="max-w-full">
+                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-deployed-assets">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Deployed</p>
+                    <p className="text-xl font-bold text-green-600" data-testid="count-deployed">
+                      {metrics?.assetStatusCounts?.deployed || 0}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <div className="w-3 h-3 rounded-full bg-green-600"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="max-w-full">
+                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-stock-assets">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">In Stock</p>
+                    <p className="text-xl font-bold text-blue-600" data-testid="count-in-stock">
+                      {metrics?.assetStatusCounts?.inStock || 0}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                    <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="max-w-full">
+                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-repair-assets">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">In Repair</p>
+                    <p className="text-xl font-bold text-orange-600" data-testid="count-in-repair">
+                      {metrics?.assetStatusCounts?.inRepair || 0}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                    <div className="w-3 h-3 rounded-full bg-orange-600"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="max-w-full">
+                <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-retired-assets">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Retired</p>
+                    <p className="text-xl font-bold text-gray-600" data-testid="count-retired">
+                      {metrics?.assetStatusCounts?.retired || 0}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                    <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Expiring Warranties & Licenses Section */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-1">Expiring Warranties & Licenses</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Upcoming Hardware Warranty and Software License Expirations
+              </p>
+            </div>
+            
+            {/* Expiring Items - Two Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+              <div className="max-w-full">
+                <div className="bg-card rounded-lg border p-3 h-32" data-testid="card-expiring-warranties">
+                  <div className="flex items-center mb-2">
+                    <div className="w-2 h-2 rounded-full bg-yellow-600 mr-2"></div>
+                    <p className="text-sm font-medium text-foreground">Hardware Warranties</p>
+                  </div>
+                  <p className="text-2xl font-bold text-yellow-600 mb-1" data-testid="count-expiring-warranties">
+                    {metrics?.itamInsights?.summary?.totalExpiringWarranties || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Expiring within 30 days</p>
+                </div>
+              </div>
+              <div className="max-w-full">
+                <div className="bg-card rounded-lg border p-3 h-32" data-testid="card-expiring-licenses">
+                  <div className="flex items-center mb-2">
+                    <div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div>
+                    <p className="text-sm font-medium text-foreground">Software Licenses</p>
+                  </div>
+                  <p className="text-2xl font-bold text-red-600 mb-1" data-testid="count-expiring-licenses">
+                    {metrics?.itamInsights?.summary?.totalExpiringLicenses || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Expiring within 30 days</p>
+                </div>
+              </div>
             </div>
             
             {/* ITAM Insights Section */}
-            <div className="px-6 pb-4">
-              <div className="mb-6 mt-8">
-                <h2 className="text-xl font-semibold text-foreground mb-2">ITAM Insights</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Unused Assets, License Optimization and Compliance Monitoring
-                </p>
-              </div>
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-1">ITAM Insights</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Unused Assets, License Optimization and Compliance Monitoring
+              </p>
             </div>
             
-            <div className="px-6">
-              <IndependentDraggableTiles
-                onLayoutChange={(layouts) => {
-                  console.log('ITAM Insights layout updated:', layouts);
-                }}
-                tiles={[
-                  // ITAM Insights Section tiles
-              {
-                id: 'unused-hardware-tile',
-                title: 'Unused Hardware',
-                component: <UnusedHardwareTile metrics={metrics} />,
-                defaultPosition: { x: 32, y: 60 },
-                width: 280,
-                height: 160,
-                section: 'metrics'
-              },
-              {
-                id: 'unused-licenses-tile',
-                title: 'Unused Licenses',
-                component: <UnusedLicensesTile metrics={metrics} />,
-                defaultPosition: { x: 344, y: 60 },
-                width: 280,
-                height: 160,
-                section: 'metrics'
-              },
-              {
-                id: 'expiring-items-tile',
-                title: 'Expiring Warranties & Licenses',
-                component: <ExpiringItemsTile metrics={metrics} />,
-                defaultPosition: { x: 656, y: 60 },
-                width: 280,
-                height: 160,
-                section: 'metrics'
-              },
-              {
-                id: 'compliance-risk-tile',
-                title: 'Compliance Risk',
-                component: <ComplianceRiskTile metrics={metrics} />,
-                defaultPosition: { x: 968, y: 60 },
-                width: 280,
-                height: 160,
-                section: 'metrics'
-              },
-                ]}
-              />
+            {/* ITAM Insights Tiles - Responsive Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <div className="max-w-full">
+                <UnusedHardwareTile metrics={metrics} />
+              </div>
+              <div className="max-w-full">
+                <UnusedLicensesTile metrics={metrics} />
+              </div>
+              <div className="max-w-full">
+                <ExpiringItemsTile metrics={metrics} />
+              </div>
+              <div className="max-w-full">
+                <ComplianceRiskTile metrics={metrics} />
+              </div>
             </div>
             
             {/* Activities Section */}
-            <div className="px-6 pb-4">
-              <div className="mb-6 mt-8">
-                <h2 className="text-xl font-semibold text-foreground mb-2">Activities</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Recent Activities, Asset Analysis and AI-Powered Recommendations
-                </p>
-              </div>
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-1">Activities</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Recent Activities and AI-Powered Recommendations
+              </p>
             </div>
             
-            <div className="px-6">
-              <IndependentDraggableTiles
-                onLayoutChange={(layouts) => {
-                  console.log('Activities layout updated:', layouts);
-                }}
-                tiles={[
-                  // Activities Section tiles
-              {
-                id: 'recent-activities-tile',
-                title: 'Recent Activities',
-                component: <RecentActivitiesTile metrics={metrics} />,
-                defaultPosition: { x: 32, y: 60 },
-                width: 380,
-                height: 360,
-                section: 'analytics'
-              },
-              {
-                id: 'asset-age-analysis',
-                title: 'Asset Age Analysis',
-                component: metrics?.assetAgeAnalysis ? <AssetAgeAnalysis assetAgeAnalysis={metrics.assetAgeAnalysis} /> : <div className="text-muted-foreground p-4">Asset age analysis loading...</div>,
-                defaultPosition: { x: 444, y: 60 }, // 32 + 380 + 32
-                width: 380,
-                height: 360,
-                section: 'analytics'
-              },
-              {
-                id: 'ai-recommendations',
-                title: 'AI Recommendations',
-                component: (
-                  <AIRecommendations
-                    recommendations={recommendations}
-                    onViewAll={handleViewAllRecommendations}
-                    onViewRecommendation={handleViewRecommendation}
-                  />
-                ),
-                defaultPosition: { x: 856, y: 60 }, // 444 + 380 + 32
-                width: 380,
-                height: 360,
-                section: 'analytics'
-              },
-                ]}
-              />
+            {/* Activities Tiles - Responsive Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+              <div className="max-w-full">
+                <RecentActivitiesTile metrics={metrics} />
+              </div>
+              <div className="max-w-full">
+                <AIRecommendations
+                  recommendations={recommendations}
+                  onViewAll={handleViewAllRecommendations}
+                  onViewRecommendation={handleViewRecommendation}
+                />
+              </div>
             </div>
             
             {/* Global Distribution Section */}
-            <div className="px-6 pb-4">
-              <div className="mb-6 mt-8">
-                <h2 className="text-xl font-semibold text-foreground mb-2">Global Distribution</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Worldwide Asset Location and Regional Overview
-                </p>
-              </div>
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-1">Global Distribution</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Worldwide Asset Location and Regional Overview
+              </p>
             </div>
             
-            <div className="px-6 pb-8">
-              <IndependentDraggableTiles
-                onLayoutChange={(layouts) => {
-                  console.log('Global Distribution layout updated:', layouts);
-                }}
-                tiles={[
-                  // Global Distribution Section tiles
-              {
-                id: 'world-map',
-                title: 'Global Asset Distribution',
-                component: <WorldMap />,
-                defaultPosition: { x: 244, y: 60 }, // centered
-                width: 760,
-                height: 400,
-                section: 'visual'
-              },
-                ]}
-              />
+            {/* World Map - Full Width */}
+            <div className="max-w-full overflow-hidden">
+              <div className="bg-card rounded-lg border p-3">
+                <WorldMap />
+              </div>
             </div>
           </div>
         )}

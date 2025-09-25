@@ -30,36 +30,33 @@ export function RecentActivitiesTile({ metrics }: RecentActivitiesTileProps) {
   };
 
   return (
-    <Card data-testid="card-recent-activities" className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Activity className="h-5 w-5" />
+    <Card data-testid="card-recent-activities" className="hover:shadow-sm transition-shadow h-80">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Activity className="h-4 w-4" />
           Recent Activities
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-80">
-          <div className="space-y-3">
+      <CardContent className="pt-0">
+        <ScrollArea className="h-60">
+          <div className="space-y-2">
             {activities.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No recent activities</p>
+              <p className="text-xs text-muted-foreground">No recent activities</p>
             ) : (
-              activities.map((activity: any) => (
-                <div key={activity.id} className="flex items-start space-x-3">
+              activities.slice(0, 5).map((activity: any) => (
+                <div key={activity.id} className="flex items-start space-x-2 p-2 rounded-sm bg-muted/30">
                   <div className="flex-shrink-0">
-                    <User className="h-4 w-4 text-muted-foreground" />
+                    <User className="h-3 w-3 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className={`text-xs ${getActionColor(activity.action)}`}>
+                    <div className="flex items-center gap-1 mb-1">
+                      <Badge className={`text-xs h-4 ${getActionColor(activity.action)}`}>
                         {activity.action.replace('_', ' ')}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {activity.timeAgo || formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
-                      </span>
                     </div>
-                    <p className="text-sm font-medium">{activity.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      by {activity.userEmail} ({activity.userRole})
+                    <p className="text-xs font-medium truncate">{activity.description}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {activity.userEmail} • {activity.timeAgo || formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
                     </p>
                   </div>
                 </div>
