@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -350,7 +351,15 @@ export default function ActivityLogs() {
                           <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
                             <span className="flex items-center">
                               <User className="w-3 h-3 mr-1" />
-                              {log.userEmail} ({log.userRole})
+                              <Link href={`/users/${log.userId}`}>
+                                <span 
+                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline"
+                                  data-testid={`link-user-email-${log.id}`}
+                                >
+                                  {log.userEmail}
+                                </span>
+                              </Link>
+                              <span className="ml-1">({log.userRole})</span>
                             </span>
                             <span className="flex items-center">
                               <Calendar className="w-3 h-3 mr-1" />

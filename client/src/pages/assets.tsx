@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "@/hooks/use-search";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import { AssetForm } from "@/components/assets/asset-form";
@@ -755,25 +755,58 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
                     {columnVisibility.assignedUserName && (
                       <td className="py-3 px-4">
-                        <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
-                          {asset.assignedUserName || "Unassigned"}
-                        </span>
+                        {asset.assignedUserId && asset.assignedUserName ? (
+                          <Link href={`/users/${asset.assignedUserId}`}>
+                            <span 
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
+                              data-testid={`link-assigned-${asset.id}`}
+                            >
+                              {asset.assignedUserName}
+                            </span>
+                          </Link>
+                        ) : (
+                          <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
+                            Unassigned
+                          </span>
+                        )}
                       </td>
                     )}
 
                     {columnVisibility.assignedUserEmail && (
                       <td className="py-3 px-4">
-                        <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
-                          {asset.assignedUserEmail || "N/A"}
-                        </span>
+                        {asset.assignedUserId && asset.assignedUserEmail ? (
+                          <Link href={`/users/${asset.assignedUserId}`}>
+                            <span 
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline" 
+                              data-testid={`link-email-${asset.id}`}
+                            >
+                              {asset.assignedUserEmail}
+                            </span>
+                          </Link>
+                        ) : (
+                          <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
+                            N/A
+                          </span>
+                        )}
                       </td>
                     )}
 
                     {columnVisibility.assignedUserEmployeeId && (
                       <td className="py-3 px-4">
-                        <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
-                          {asset.assignedUserEmployeeId || "N/A"}
-                        </span>
+                        {asset.assignedUserId && asset.assignedUserEmployeeId ? (
+                          <Link href={`/users/${asset.assignedUserId}`}>
+                            <span 
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline font-mono text-sm" 
+                              data-testid={`link-employee-id-${asset.id}`}
+                            >
+                              {asset.assignedUserEmployeeId}
+                            </span>
+                          </Link>
+                        ) : (
+                          <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
+                            N/A
+                          </span>
+                        )}
                       </td>
                     )}
 

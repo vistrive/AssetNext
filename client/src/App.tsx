@@ -17,6 +17,7 @@ import AIResponse from "@/pages/ai-response";
 import Software from "@/pages/software";
 import Settings from "@/pages/settings";
 import Users from "@/pages/users";
+import UserDetail from "@/pages/user-detail";
 import Vendors from "@/pages/vendors";
 import Tickets from "@/pages/tickets";
 import ActivityLogs from "@/pages/activity-logs";
@@ -80,6 +81,11 @@ function Router() {
       <Route path="/users/new">
         <ProtectedRoute requiredRole="admin">
           <Users key="new" />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/users/:userId">
+        <ProtectedRoute requiredRole="technician">
+          <UserDetail />
         </ProtectedRoute>
       </Route>
       <Route path="/vendors">

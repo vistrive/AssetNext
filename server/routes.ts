@@ -412,9 +412,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        userID: user.userID,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+  });
+
+  // Get user by ID (for user detail page)
+  app.get("/api/users/:id", authenticateToken, requireRole("technician"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      if (!id) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+      
+      const user = await storage.getUser(id);
+      if (!user || user.tenantId !== req.user!.tenantId) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        department: user.department,
+        jobTitle: user.jobTitle,
+        manager: user.manager,
+        avatar: user.avatar,
+        role: user.role,
+        isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        userID: user.userID,
+      });
+    } catch (error) {
+      console.error("Error fetching user by ID:", error);
+      res.status(500).json({ message: "Failed to fetch user details" });
     }
   });
 

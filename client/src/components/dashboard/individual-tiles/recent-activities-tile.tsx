@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Activity, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { Link } from "wouter";
 
 interface RecentActivitiesTileProps {
   metrics: any;
@@ -56,7 +57,18 @@ export function RecentActivitiesTile({ metrics }: RecentActivitiesTileProps) {
                     </div>
                     <p className="text-xs font-medium truncate">{activity.description}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {activity.userEmail} • {activity.timeAgo || formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
+                      {activity.userId ? (
+                        <Link href={`/users/${activity.userId}`}>
+                          <span 
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer underline"
+                            data-testid={`link-user-email-${activity.id}`}
+                          >
+                            {activity.userEmail}
+                          </span>
+                        </Link>
+                      ) : (
+                        activity.userEmail
+                      )} • {activity.timeAgo || formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
                     </p>
                   </div>
                 </div>
