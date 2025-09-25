@@ -99,14 +99,10 @@ export default function Users() {
     },
   });
 
-  // Fetch invitations
-  const { data: allInvitations = [], isLoading: invitationsLoading, error: invitationsError } = useQuery<Invitation[]>({
-    queryKey: ["/api/users/invitations"],
-    queryFn: async () => {
-      const response = await authenticatedRequest("GET", "/api/users/invitations");
-      return response.json();
-    },
-  });
+  // Temporarily disable invitations to focus on user list
+  const allInvitations: Invitation[] = [];
+  const invitationsLoading = false;
+  const invitationsError = null;
 
   // Invite user form
   const inviteForm = useForm<InviteUser>({
