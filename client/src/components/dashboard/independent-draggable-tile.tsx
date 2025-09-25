@@ -57,13 +57,13 @@ function DraggableTileInternal({
     transition,
     opacity: isDragging ? 0.8 : 1,
     zIndex: isDragging ? 50 : 10,
-    width: tile.width || 400,
-    height: tile.height || 300,
+    width: tile.width,
+    height: tile.height,
     // Enforce exact dimensions from grid mode - no responsive resizing in drag mode
-    minWidth: tile.width || 400,
-    maxWidth: tile.width || 400,
-    minHeight: tile.height || 300,
-    maxHeight: tile.height || 300,
+    minWidth: tile.width,
+    maxWidth: tile.width,
+    minHeight: tile.height,
+    maxHeight: tile.height,
     boxSizing: 'border-box' as const,
   };
 
@@ -202,8 +202,8 @@ function IndependentDraggableTileWithContext({
       
       const containerBounds = mainContainer.getBoundingClientRect();
       const maxWidth = window.innerWidth; // Use full screen width as boundary
-      const tileWidth = tile.width || 400;
-      const tileHeight = tile.height || 300;
+      const tileWidth = tile.width;
+      const tileHeight = tile.height;
       
       // Clear init and skipSave flags for user-driven position changes
       isInit.current = false;
@@ -459,8 +459,8 @@ export function IndependentDraggableTiles({ tiles, onLayoutChange }: Independent
               tileId: tile.id,
               canvasWidth,
               canvasHeight,
-              tileWidth: tile.width || 400,
-              tileHeight: tile.height || 300
+              tileWidth: tile.width,
+              tileHeight: tile.height
             } 
           }));
         });

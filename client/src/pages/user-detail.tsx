@@ -60,10 +60,6 @@ const getStatusColor = (status: string) => {
 export default function UserDetail() {
   const params = useParams();
   const userId = params?.userId;
-  
-  console.log("UserDetail component mounted");
-  console.log("URL params:", params);
-  console.log("User ID from params:", userId);
 
   // Fetch user details
   const { data: user, isLoading: isLoadingUser } = useQuery<User>({
