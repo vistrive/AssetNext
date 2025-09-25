@@ -94,6 +94,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Development/maintenance route - Migrate existing users to add userID values
+  app.post("/api/dev/migrate-user-ids", async (req: Request, res: Response) => {
+    try {
+      await storage.migrateExistingUsersWithUserIDs();
+      res.json({
+        message: "User ID migration completed successfully"
+      });
+    } catch (error) {
+      console.error("User ID migration error:", error);
+      res.status(500).json({ message: "User ID migration failed", error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {

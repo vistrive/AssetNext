@@ -53,6 +53,7 @@ import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
 import { db } from "./db";
 import { eq, and, or, desc, sql, ilike, isNotNull, ne } from "drizzle-orm";
+import { normalizeEmail, normalizeName, generateNextUserID } from "@shared/utils";
 
 export interface IStorage {
   // Users
@@ -177,8 +178,81 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const [newUser] = await db.insert(users).values(user).returning();
+    // Get existing user IDs to generate the next unique numeric ID
+    const existingUsers = await db.select({ userID: users.userID })
+      .from(users)
+      .where(eq(users.tenantId, user.tenantId))
+      .orderBy(desc(users.userID));
+    
+    const existingUserIDs = existingUsers.map(u => u.userID).filter(id => id !== null);
+    const nextUserID = generateNextUserID(existingUserIDs);
+    
+    // Normalize user data
+    const normalizedUser = {
+      ...user,
+      userID: nextUserID,
+      email: normalizeEmail(user.email),
+      firstName: normalizeName(user.firstName),
+      lastName: normalizeName(user.lastName)
+    };
+    
+    const [newUser] = await db.insert(users).values(normalizedUser).returning();
     return newUser;
+  }
+
+  // Migration function to assign userID values to existing users
+  async migrateExistingUsersWithUserIDs(): Promise<void> {
+    console.log("Migrating existing users to add userID values...");
+    
+    // Get all users without userID values
+    const usersWithoutUserID = await db.select()
+      .from(users)
+      .where(eq(users.userID, sql`NULL`))
+      .orderBy(users.createdAt);
+    
+    if (usersWithoutUserID.length === 0) {
+      console.log("All users already have userID values.");
+      return;
+    }
+    
+    // Group by tenant to assign sequential IDs per tenant
+    const usersByTenant = usersWithoutUserID.reduce((acc, user) => {
+      if (!acc[user.tenantId]) {
+        acc[user.tenantId] = [];
+      }
+      acc[user.tenantId].push(user);
+      return acc;
+    }, {} as Record<string, typeof usersWithoutUserID>);
+    
+    for (const [tenantId, tenantUsers] of Object.entries(usersByTenant)) {
+      console.log(`Processing ${tenantUsers.length} users for tenant ${tenantId}`);
+      
+      // Get existing user IDs for this tenant
+      const existingUsers = await db.select({ userID: users.userID })
+        .from(users)
+        .where(and(eq(users.tenantId, tenantId), isNotNull(users.userID)))
+        .orderBy(desc(users.userID));
+      
+      const existingUserIDs = existingUsers.map(u => u.userID).filter(id => id !== null);
+      let nextUserID = generateNextUserID(existingUserIDs);
+      
+      // Update each user with a unique userID
+      for (const user of tenantUsers) {
+        await db.update(users)
+          .set({
+            userID: nextUserID,
+            email: normalizeEmail(user.email),
+            firstName: normalizeName(user.firstName),
+            lastName: normalizeName(user.lastName)
+          })
+          .where(eq(users.id, user.id));
+        
+        console.log(`Assigned userID ${nextUserID} to user ${user.email}`);
+        nextUserID++;
+      }
+    }
+    
+    console.log("Migration completed successfully.");
   }
 
   async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> {
