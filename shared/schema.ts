@@ -69,6 +69,8 @@ export const assets = pgTable("assets", {
   city: text("city"),
   assignedUserId: varchar("assigned_user_id"),
   assignedUserName: text("assigned_user_name"),
+  assignedUserEmail: text("assigned_user_email"),
+  assignedUserEmployeeId: text("assigned_user_employee_id"),
   purchaseDate: timestamp("purchase_date"),
   purchaseCost: decimal("purchase_cost", { precision: 10, scale: 2 }),
   warrantyExpiry: timestamp("warranty_expiry"),

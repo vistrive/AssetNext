@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, FileText, AlertCircle, CheckCircle, XCircle, ArrowUpDown, ArrowUp, ArrowDown, Settings, Calendar, DollarSign, Package, MapPin, User, Hash, Building, Wrench } from "lucide-react";
+import { Laptop, Monitor, Code, Edit, Eye, Trash2, Search, Upload, Download, FileText, AlertCircle, CheckCircle, XCircle, ArrowUpDown, ArrowUp, ArrowDown, Settings, Calendar, DollarSign, Package, MapPin, User, Hash, Building, Wrench, Mail, BadgeCheck } from "lucide-react";
 import type { Asset, InsertAsset } from "@shared/schema";
 import { AssetTypeEnum } from "@shared/schema";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -34,6 +34,8 @@ interface ColumnVisibility {
   status: boolean;
   location: boolean;
   assignedUserName: boolean;
+  assignedUserEmail: boolean;
+  assignedUserEmployeeId: boolean;
   purchaseDate: boolean;
   warrantyExpiry: boolean;
   purchaseCost: boolean;
@@ -63,6 +65,8 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
     status: true,
     location: true,
     assignedUserName: true,
+    assignedUserEmail: true,
+    assignedUserEmployeeId: true,
     purchaseDate: true,
     warrantyExpiry: true,
     purchaseCost: true,
@@ -509,6 +513,56 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                   </th>
                 )}
 
+                {columnVisibility.assignedUserEmail && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[180px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('assignedUserEmail')}
+                        data-testid="sort-assignedUserEmail"
+                      >
+                        <Mail className="h-4 w-4 mr-1" />
+                        Email ID
+                        {React.createElement(getSortIcon('assignedUserEmail'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search email..."
+                      value={columnSearch.assignedUserEmail || ''}
+                      onChange={(e) => handleColumnSearch('assignedUserEmail', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-assignedUserEmail"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.assignedUserEmployeeId && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        onClick={() => handleSort('assignedUserEmployeeId')}
+                        data-testid="sort-assignedUserEmployeeId"
+                      >
+                        <BadgeCheck className="h-4 w-4 mr-1" />
+                        Employee ID
+                        {React.createElement(getSortIcon('assignedUserEmployeeId'), { className: "h-3 w-3 ml-1" })}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search ID..."
+                      value={columnSearch.assignedUserEmployeeId || ''}
+                      onChange={(e) => handleColumnSearch('assignedUserEmployeeId', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-assignedUserEmployeeId"
+                    />
+                  </th>
+                )}
+
                 {columnVisibility.purchaseDate && (
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
                     <div className="flex items-center space-x-2">
@@ -703,6 +757,22 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                       <td className="py-3 px-4">
                         <span className="text-foreground" data-testid={`text-assigned-${asset.id}`}>
                           {asset.assignedUserName || "Unassigned"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.assignedUserEmail && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground" data-testid={`text-email-${asset.id}`}>
+                          {asset.assignedUserEmail || "N/A"}
+                        </span>
+                      </td>
+                    )}
+
+                    {columnVisibility.assignedUserEmployeeId && (
+                      <td className="py-3 px-4">
+                        <span className="text-foreground font-mono text-sm" data-testid={`text-employee-id-${asset.id}`}>
+                          {asset.assignedUserEmployeeId || "N/A"}
                         </span>
                       </td>
                     )}
@@ -1254,6 +1324,8 @@ export default function Assets() {
         asset.companyGstNumber,
         asset.location,
         asset.assignedUserName,
+        asset.assignedUserEmail,
+        asset.assignedUserEmployeeId,
         asset.purchaseCost?.toString()
       ];
 

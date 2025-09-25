@@ -427,6 +427,8 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       state: asset.state || "",
       city: asset.city || "",
       assignedUserName: asset.assignedUserName || "",
+      assignedUserEmail: asset.assignedUserEmail || "",
+      assignedUserEmployeeId: asset.assignedUserEmployeeId || "",
       purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : "",
       purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : undefined,
       warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : "",
@@ -445,14 +447,16 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
       companyGstNumber: asset.companyGstNumber || "",
     } : {
       name: "",
-      type: "",
-      status: "",
+      type: "Hardware",
+      status: "in-stock",
       category: "",
       manufacturer: "",
       model: "",
       serialNumber: "",
       location: "",
       assignedUserName: "",
+      assignedUserEmail: "",
+      assignedUserEmployeeId: "",
       purchaseDate: "",
       purchaseCost: undefined,
       warrantyExpiry: "",
@@ -1066,6 +1070,27 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
                 {...register("assignedUserName")}
                 placeholder="e.g., John Smith"
                 data-testid="input-assigned-user"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="assignedUserEmail">Email ID</Label>
+              <Input
+                id="assignedUserEmail"
+                type="email"
+                {...register("assignedUserEmail")}
+                placeholder="e.g., john.smith@company.com"
+                data-testid="input-assigned-user-email"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="assignedUserEmployeeId">Employee ID</Label>
+              <Input
+                id="assignedUserEmployeeId"
+                {...register("assignedUserEmployeeId")}
+                placeholder="e.g., EMP001"
+                data-testid="input-assigned-user-employee-id"
               />
             </div>
 
