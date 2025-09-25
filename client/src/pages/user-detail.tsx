@@ -5,6 +5,7 @@ import { authenticatedRequest } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ArrowLeft, 
@@ -20,7 +21,8 @@ import {
   Camera,
   Router,
   Monitor,
-  Package
+  Package,
+  AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -115,7 +117,7 @@ export default function UserDetail() {
     );
   }
 
-  if (!user) {
+  if (!user && assets.length === 0) {
     return (
       <div className="p-6">
         <div className="text-center">
@@ -154,55 +156,67 @@ export default function UserDetail() {
         </div>
       </div>
 
-      {/* User Information Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card data-testid="card-user-name">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Full Name</CardTitle>
-            <UserIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-user-name">
-              {user.firstName} {user.lastName}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {user.role === "admin" ? "Administrator" : 
-               user.role === "it-manager" ? "IT Manager" : 
-               user.role === "technician" ? "Technician" : "Read Only"}
-            </p>
-          </CardContent>
-        </Card>
+      {/* User profile not found banner */}
+      {!user && assets.length > 0 && (
+        <Alert className="mb-6" data-testid="alert-user-not-found">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            User profile information could not be loaded, but showing assigned assets for User ID: {userId}
+          </AlertDescription>
+        </Alert>
+      )}
 
-        <Card data-testid="card-user-email">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Email Address</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold break-all" data-testid="text-user-email">
-              {user.email}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {user.isActive ? "Active Account" : "Inactive Account"}
-            </p>
-          </CardContent>
-        </Card>
+      {/* User Information Cards - only show if user data is available */}
+      {user && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card data-testid="card-user-name">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Full Name</CardTitle>
+              <UserIcon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-user-name">
+                {user.firstName} {user.lastName}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {user.role === "admin" ? "Administrator" : 
+                 user.role === "it-manager" ? "IT Manager" : 
+                 user.role === "technician" ? "Technician" : "Read Only"}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card data-testid="card-user-id">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">User ID</CardTitle>
-            <Hash className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-user-id">
-              {user.userID || "Not assigned"}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Unique identifier
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card data-testid="card-user-email">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Email Address</CardTitle>
+              <Mail className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold break-all" data-testid="text-user-email">
+                {user.email}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {user.isActive ? "Active Account" : "Inactive Account"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-user-id">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">User ID</CardTitle>
+              <Hash className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-user-id">
+                {user.userID || "Not assigned"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Unique identifier
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Assets Summary */}
       <Card data-testid="card-assets-summary">
@@ -220,56 +234,118 @@ export default function UserDetail() {
               <p className="text-gray-500">This user currently has no assets assigned to them.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Asset</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Serial Number</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Purchase Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assets.map((asset) => (
-                  <TableRow key={asset.id} data-testid={`row-asset-${asset.id}`}>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        {getAssetTypeIcon(asset.type, asset.category)}
-                        <span className="font-medium" data-testid={`text-asset-name-${asset.id}`}>
-                          {asset.name}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell data-testid={`text-asset-type-${asset.id}`}>
-                      {asset.type}
-                    </TableCell>
-                    <TableCell data-testid={`text-asset-category-${asset.id}`}>
-                      {asset.category || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        className={getStatusColor(asset.status)} 
-                        data-testid={`badge-asset-status-${asset.id}`}
-                      >
-                        {asset.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell data-testid={`text-asset-serial-${asset.id}`}>
-                      {asset.serialNumber || "—"}
-                    </TableCell>
-                    <TableCell data-testid={`text-asset-location-${asset.id}`}>
-                      {asset.location || "—"}
-                    </TableCell>
-                    <TableCell data-testid={`text-asset-purchase-date-${asset.id}`}>
-                      {asset.purchaseDate ? format(new Date(asset.purchaseDate), "MMM dd, yyyy") : "—"}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Asset</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Manufacturer</TableHead>
+                    <TableHead>Model</TableHead>
+                    <TableHead>Serial Number</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Purchase Date</TableHead>
+                    <TableHead>Purchase Cost</TableHead>
+                    <TableHead>Warranty Expiry</TableHead>
+                    <TableHead>Notes</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {assets.map((asset) => (
+                    <TableRow key={asset.id} data-testid={`row-asset-${asset.id}`}>
+                      <TableCell>
+                        <div className="flex items-center space-x-2 min-w-[200px]">
+                          {getAssetTypeIcon(asset.type, asset.category)}
+                          <div className="flex flex-col">
+                            <span className="font-medium" data-testid={`text-asset-name-${asset.id}`}>
+                              {asset.name}
+                            </span>
+                            {asset.type === "Software" && asset.softwareName && (
+                              <span className="text-xs text-muted-foreground">
+                                {asset.softwareName} {asset.version && `v${asset.version}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-type-${asset.id}`}>
+                        <div className="min-w-[80px]">
+                          {asset.type}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-category-${asset.id}`}>
+                        <div className="min-w-[100px]">
+                          {asset.category || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-manufacturer-${asset.id}`}>
+                        <div className="min-w-[120px]">
+                          {asset.manufacturer || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-model-${asset.id}`}>
+                        <div className="min-w-[120px]">
+                          {asset.model || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-serial-${asset.id}`}>
+                        <div className="min-w-[120px] font-mono text-xs">
+                          {asset.serialNumber || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          className={getStatusColor(asset.status)} 
+                          data-testid={`badge-asset-status-${asset.id}`}
+                        >
+                          {asset.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-location-${asset.id}`}>
+                        <div className="min-w-[150px]">
+                          {asset.country && asset.state && asset.city 
+                            ? `${asset.city}, ${asset.state}, ${asset.country}`
+                            : asset.location || "—"
+                          }
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-purchase-date-${asset.id}`}>
+                        <div className="min-w-[100px]">
+                          {asset.purchaseDate ? format(new Date(asset.purchaseDate), "MMM dd, yyyy") : "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-purchase-cost-${asset.id}`}>
+                        <div className="min-w-[100px] text-right">
+                          {asset.purchaseCost ? `$${parseFloat(asset.purchaseCost.toString()).toFixed(2)}` : "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-warranty-${asset.id}`}>
+                        <div className="min-w-[100px]">
+                          {asset.warrantyExpiry ? (
+                            <div className="flex flex-col">
+                              <span>{format(new Date(asset.warrantyExpiry), "MMM dd, yyyy")}</span>
+                              {new Date(asset.warrantyExpiry) < new Date() && (
+                                <span className="text-xs text-red-600">Expired</span>
+                              )}
+                            </div>
+                          ) : "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell data-testid={`text-asset-notes-${asset.id}`}>
+                        <div className="min-w-[200px] max-w-[300px]">
+                          {asset.notes && asset.notes.length > 100 
+                            ? `${asset.notes.substring(0, 100)}...` 
+                            : asset.notes || "—"
+                          }
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
