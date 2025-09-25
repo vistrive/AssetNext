@@ -99,18 +99,32 @@ const assetFormSchema = insertAssetSchema.extend({
 
   // Hardware-specific validation
   if (data.type === 'Hardware') {
-    if (!data.model) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Model is required for hardware assets (e.g., Latitude 5520, ThinkPad T14)",
-        path: ["model"],
-      });
-    }
     if (!data.serialNumber) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Serial number is required for hardware assets for warranty and tracking",
         path: ["serialNumber"],
+      });
+    }
+    if (!data.assignedUserName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Assigned user name is required for hardware assets",
+        path: ["assignedUserName"],
+      });
+    }
+    if (!data.assignedUserEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Assigned user email is required for hardware assets",
+        path: ["assignedUserEmail"],
+      });
+    }
+    if (!data.assignedUserEmployeeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Assigned user employee ID is required for hardware assets",
+        path: ["assignedUserEmployeeId"],
       });
     }
   }
@@ -656,9 +670,13 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
     switch (fieldName) {
       case 'category':
       case 'manufacturer':
-        return false; // Made optional as per user request
       case 'model':
+      case 'country':
+        return false; // Made optional as per user request
       case 'serialNumber':
+      case 'assignedUserName':
+      case 'assignedUserEmail':
+      case 'assignedUserEmployeeId':
         return currentType === 'Hardware';
       case 'softwareName':
       case 'version':
@@ -668,8 +686,6 @@ export function AssetForm({ isOpen, onClose, onSubmit, asset, isLoading }: Asset
         return currentType === 'Software';
       case 'usedLicenses':
         return currentType === 'Software';
-      case 'country':
-        return currentType === 'Hardware' && currentStatus === 'deployed';
       default:
         return false;
     }
