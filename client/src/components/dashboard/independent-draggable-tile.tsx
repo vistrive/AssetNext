@@ -59,8 +59,11 @@ function DraggableTileInternal({
     zIndex: isDragging ? 50 : 10,
     width: tile.width || 400,
     height: tile.height || 300,
-    // Ensure tiles don't exceed viewport on mobile
-    maxWidth: '100%',
+    // Enforce exact dimensions from grid mode - no responsive resizing in drag mode
+    minWidth: tile.width || 400,
+    maxWidth: tile.width || 400,
+    minHeight: tile.height || 300,
+    maxHeight: tile.height || 300,
     boxSizing: 'border-box' as const,
   };
 
@@ -193,21 +196,31 @@ function IndependentDraggableTileWithContext({
     const { delta } = event;
     
     if (delta) {
-      // Get the canvas container bounds for proper clamping
-      const canvasElement = document.getElementById('dashboard-canvas');
-      if (!canvasElement) return;
+      // Get the main dashboard container bounds for proper screen width clamping
+      const mainContainer = document.querySelector('main');
+      if (!mainContainer) return;
       
-      const canvasBounds = canvasElement.getBoundingClientRect();
-      const canvasWidth = canvasBounds.width;
-      const canvasHeight = Math.max(canvasBounds.height, 1400); // Ensure minimum canvas height for scrolling
+      const containerBounds = mainContainer.getBoundingClientRect();
+      const maxWidth = window.innerWidth; // Use full screen width as boundary
+      const tileWidth = tile.width || 400;
+      const tileHeight = tile.height || 300;
       
       // Clear init and skipSave flags for user-driven position changes
       isInit.current = false;
       skipSave.current = false;
       
+      // Calculate new position with screen width boundary enforcement
+      const newX = position.x + delta.x;
+      const newY = position.y + delta.y;
+      
+      // Ensure tile never goes past screen width (right edge)
+      const boundedX = Math.max(24, Math.min(maxWidth - tileWidth - 24, newX));
+      // Allow vertical movement with reasonable bounds
+      const boundedY = Math.max(20, Math.min(2000, newY)); // Large Y range for scrolling
+      
       const newPosition = {
-        x: Math.max(20, Math.min(canvasWidth - (tile.width || 400) - 20, position.x + delta.x)),
-        y: Math.max(20, Math.min(canvasHeight - (tile.height || 300) - 20, position.y + delta.y)),
+        x: boundedX,
+        y: boundedY,
       };
       setPosition(newPosition);
     }

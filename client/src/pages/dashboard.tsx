@@ -437,41 +437,15 @@ export default function Dashboard() {
               // Drag-and-Drop Mode with Container Boundaries and Reset Controls
               <div className="w-full max-w-[100vw] mx-auto px-4 sm:px-6 py-6 box-border overflow-hidden relative">
                 {/* Reset Controls - Only visible in drag mode */}
-                <div className="mb-4 flex justify-end gap-2">
+                <div className="mb-4 flex justify-end">
                   <Button 
                     variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'asset-overview' } }));
-                    }}
-                    className="text-xs"
-                    data-testid="reset-overview-section"
-                    title="Reset Asset Overview tiles"
-                  >
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                    Reset Overview
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent('reset-section', { detail: { section: 'insights' } }));
-                    }}
-                    className="text-xs"
-                    data-testid="reset-insights-section"
-                    title="Reset ITAM Insights tiles"
-                  >
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                    Reset Insights
-                  </Button>
-                  <Button 
-                    variant="destructive" 
                     size="sm" 
                     onClick={() => {
                       localStorage.removeItem('dashboard-layout-v1');
                       window.dispatchEvent(new CustomEvent('reset-all-tiles'));
                     }}
-                    className="text-xs"
+                    className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground"
                     data-testid="reset-all-tiles"
                     title="Reset all dashboard tiles to default positions"
                   >
