@@ -66,7 +66,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
         return;
       }
 
-      const response = await authenticatedRequest(`/api/users/find?${queryParam}`);
+      const response = await authenticatedRequest('GET', `/api/users/find?${queryParam}`);
       if (response.ok) {
         const user = await response.json();
         // Navigate to user detail page with the found user ID
