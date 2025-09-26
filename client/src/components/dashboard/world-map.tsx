@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogOverlay } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MapPin, Package, Navigation, Eye, Calendar, DollarSign, User, Building } from "lucide-react";
+import { MapPin, Package, Navigation, Eye, Calendar, DollarSign, User, Building, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -382,103 +382,121 @@ export function WorldMap() {
       </CardContent>
 
       {/* Asset Details Modal */}
-      <Dialog open={showAssetModal} onOpenChange={setShowAssetModal}>
-        <div className={`fixed inset-0 bg-black/50 z-[2000] ${showAssetModal ? 'block' : 'hidden'}`} />
-        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg z-[2001] relative">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <Building className="h-6 w-6" />
-              Assets in {selectedCountry}
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              Detailed information for {countryAssets.length} {countryAssets.length === 1 ? 'asset' : 'assets'} located in {selectedCountry}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="overflow-hidden">
-            <ScrollArea className="h-[70vh]">
-              {countryAssets.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Asset Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Serial Number</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Assigned To</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Purchase Date</TableHead>
-                      <TableHead>Purchase Cost</TableHead>
-                      <TableHead>Warranty Expiry</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {countryAssets.map((asset: any, index: number) => (
-                      <TableRow key={asset.id || index} data-testid={`asset-row-${index}`}>
-                        <TableCell className="font-medium">
-                          {asset.name || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {asset.type || 'N/A'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{asset.category || 'N/A'}</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {asset.serialNumber || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={asset.status === 'deployed' ? 'default' : 
-                                   asset.status === 'in-stock' ? 'secondary' : 'destructive'}
-                            className="text-xs"
-                          >
-                            {asset.status || 'N/A'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {asset.assignedUserName ? (
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span className="text-xs">{asset.assignedUserName}</span>
-                            </div>
-                          ) : 'Unassigned'}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(asset.purchaseDate)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {formatCurrency(asset.purchaseCost)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(asset.warrantyExpiry)}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No assets found for {selectedCountry}
+      {showAssetModal && (
+        <div className="fixed inset-0 bg-black/50 z-[2000] flex items-center justify-center p-4" onClick={() => setShowAssetModal(false)}>
+          <div 
+            className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg rounded-lg z-[2001] relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 pb-4 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="flex items-center gap-2 text-xl font-semibold">
+                    <Building className="h-6 w-6" />
+                    Assets in {selectedCountry}
+                  </h2>
+                  <p className="text-base text-muted-foreground mt-1">
+                    Detailed information for {countryAssets.length} {countryAssets.length === 1 ? 'asset' : 'assets'} located in {selectedCountry}
+                  </p>
                 </div>
-              )}
-            </ScrollArea>
+                <button 
+                  onClick={() => setShowAssetModal(false)}
+                  className="h-6 w-6 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  data-testid="button-close-modal"
+                >
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="overflow-hidden">
+              <ScrollArea className="h-[70vh]">
+                {countryAssets.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Asset Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Serial Number</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Assigned To</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Purchase Date</TableHead>
+                        <TableHead>Purchase Cost</TableHead>
+                        <TableHead>Warranty Expiry</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {countryAssets.map((asset: any, index: number) => (
+                        <TableRow key={asset.id || index} data-testid={`asset-row-${index}`}>
+                          <TableCell className="font-medium">
+                            {asset.name || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {asset.type || 'N/A'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{asset.category || 'N/A'}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {asset.serialNumber || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={asset.status === 'deployed' ? 'default' : 
+                                     asset.status === 'in-stock' ? 'secondary' : 'destructive'}
+                              className="text-xs"
+                            >
+                              {asset.status || 'N/A'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {asset.assignedUserName ? (
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                <span className="text-xs">{asset.assignedUserName}</span>
+                              </div>
+                            ) : 'Unassigned'}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(asset.purchaseDate)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {formatCurrency(asset.purchaseCost)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(asset.warrantyExpiry)}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No assets found for {selectedCountry}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </Card>
   );
 }
