@@ -126,7 +126,7 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
             className="rounded-full w-10 h-10 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
             data-testid="button-ai-assistant"
           >
-            <Bot className="h-4 w-4" />
+            <Bot className="h-5 w-5" />
           </Button>
         </DialogTrigger>
         
@@ -219,7 +219,7 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
 export function FloatingAIAssistant() {
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('ai-assistant-position');
-    const defaultPosition = { x: window.innerWidth - 120, y: 200 };
+    const defaultPosition = { x: window.innerWidth - 60, y: window.innerHeight / 2 - 20 };
     
     if (saved) {
       try {
