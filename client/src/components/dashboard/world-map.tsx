@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
+import { authenticatedRequest } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Package } from "lucide-react";
@@ -80,17 +81,21 @@ export function WorldMap() {
   const [locationData, setLocationData] = useState<AssetLocationData[]>([]);
 
   // Fetch assets and aggregate by location
-  const { data: assets, isLoading } = useQuery({
+  const { data: assetsData, isLoading } = useQuery({
     queryKey: ['/api/assets'],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/assets");
+      return response.json();
+    },
     enabled: true,
   });
 
   useEffect(() => {
-    if (assets && Array.isArray(assets)) {
+    if (assetsData?.assets && Array.isArray(assetsData.assets)) {
       // Aggregate assets by location
       const locationMap = new Map<string, AssetLocationData>();
       
-      assets.forEach((asset: any) => {
+      assetsData.assets.forEach((asset: any) => {
         if (asset.country && asset.state && asset.city) {
           const locationKey = `${asset.country},${asset.state},${asset.city}`;
           
@@ -112,7 +117,7 @@ export function WorldMap() {
 
       setLocationData(Array.from(locationMap.values()));
     }
-  }, [assets]);
+  }, [assetsData]);
 
   if (isLoading) {
     return (
