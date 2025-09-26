@@ -19,8 +19,6 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 interface AssetLocationData {
   country: string;
-  state: string;
-  city: string;
   asset_count: number;
   coordinates?: [number, number];
 }
@@ -101,43 +99,24 @@ export function WorldMap() {
 
   useEffect(() => {
     if (assetsData?.assets && Array.isArray(assetsData.assets) && availableCoordinates) {
-      // Aggregate assets by location
-      const locationMap = new Map<string, AssetLocationData>();
+      // Aggregate assets by country
+      const countryMap = new Map<string, AssetLocationData>();
       
       assetsData.assets.forEach((asset: any) => {
-        if (asset.country && asset.state && asset.city) {
-          const locationKey = `${asset.country},${asset.state},${asset.city}`;
-          
-          if (locationMap.has(locationKey)) {
-            const existing = locationMap.get(locationKey)!;
+        if (asset.country) {
+          if (countryMap.has(asset.country)) {
+            const existing = countryMap.get(asset.country)!;
             existing.asset_count += 1;
           } else {
-            // Try to find coordinates for this location
+            // Get country coordinates
             let coordinates: [number, number] | undefined;
-            
-            // First try exact match (country,state,city)
-            let coordData = availableCoordinates[locationKey];
+            const coordData = availableCoordinates[asset.country];
             if (coordData) {
               coordinates = [coordData.lat, coordData.lng];
-            } else {
-              // Try state level (country,state)
-              const stateKey = `${asset.country},${asset.state}`;
-              coordData = availableCoordinates[stateKey];
-              if (coordData) {
-                coordinates = [coordData.lat, coordData.lng];
-              } else {
-                // Fall back to country level
-                coordData = availableCoordinates[asset.country];
-                if (coordData) {
-                  coordinates = [coordData.lat, coordData.lng];
-                }
-              }
             }
 
-            locationMap.set(locationKey, {
+            countryMap.set(asset.country, {
               country: asset.country,
-              state: asset.state,
-              city: asset.city,
               asset_count: 1,
               coordinates: coordinates
             });
@@ -145,7 +124,7 @@ export function WorldMap() {
         }
       });
 
-      setLocationData(Array.from(locationMap.values()));
+      setLocationData(Array.from(countryMap.values()));
     }
   }, [assetsData, availableCoordinates]);
 
@@ -184,8 +163,8 @@ export function WorldMap() {
       <CardContent>
         <div className="h-[400px] w-full rounded-lg overflow-hidden border" data-testid="map-container">
           <MapContainer
-            center={[20, 0]}
-            zoom={2}
+            center={[30, 20]}
+            zoom={3}
             style={{ height: '100%', width: '100%' }}
             data-testid="leaflet-map"
           >
@@ -199,21 +178,18 @@ export function WorldMap() {
               
               return (
                 <Marker
-                  key={`${location.country}-${location.state}-${location.city}-${index}`}
+                  key={`${location.country}-${index}`}
                   position={location.coordinates}
                   icon={createCustomMarker(location.asset_count)}
-                  data-testid={`marker-${location.city.toLowerCase().replace(/\s+/g, '-')}`}
+                  data-testid={`marker-${location.country.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   <Popup>
                     <div className="p-2 min-w-[200px]">
                       <h3 className="font-semibold text-lg mb-2">
-                        {location.city}, {location.state}
-                      </h3>
-                      <p className="text-sm text-muted-foreground mb-2">
                         {location.country}
-                      </p>
+                      </h3>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm">Assets:</span>
+                        <span className="text-sm">Total Assets:</span>
                         <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
                           {location.asset_count} {location.asset_count === 1 ? 'asset' : 'assets'}
                         </Badge>
