@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
 import { authenticatedRequest } from "@/lib/auth";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,12 +86,62 @@ function MapController({ onMapReady }: { onMapReady: (map: L.Map) => void }) {
 }
 
 export function WorldMap() {
+  const [, setLocation] = useLocation();
   const [locationData, setLocationData] = useState<AssetLocationData[]>([]);
   const [availableCoordinates, setAvailableCoordinates] = useState<LocationCoordinates>({});
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [countryAssets, setCountryAssets] = useState<any[]>([]);
   const [showAssetModal, setShowAssetModal] = useState(false);
+
+  // Function to navigate to user profile by user ID, email, or employee ID
+  const navigateToUserProfile = async (email?: string, employeeId?: string, userId?: string) => {
+    try {
+      // If we have an employee ID (numeric User ID), use it directly
+      if (employeeId) {
+        setLocation(`/users/${employeeId}`);
+        return;
+      }
+
+      // If we have email, look up the user to get their numeric User ID
+      if (email) {
+        const queryParam = `email=${encodeURIComponent(email)}`;
+        const response = await authenticatedRequest('GET', `/api/users/find?${queryParam}`);
+        if (response.ok) {
+          const user = await response.json();
+          // Use numeric User ID if available, otherwise fall back to UUID
+          const userIdentifier = user.userID || user.id;
+          setLocation(`/users/${userIdentifier}`);
+        } else if (response.status === 404) {
+          alert('User profile not found. This user may not have been created in the system yet.');
+        } else {
+          alert('Unable to load user profile. Please try again.');
+        }
+        return;
+      }
+
+      // If we only have UUID (legacy), look up the user to get their numeric ID
+      if (userId) {
+        const response = await authenticatedRequest('GET', `/api/users/${userId}`);
+        if (response.ok) {
+          const user = await response.json();
+          // Use numeric User ID if available, otherwise fall back to UUID
+          const userIdentifier = user.userID || user.id;
+          setLocation(`/users/${userIdentifier}`);
+        } else if (response.status === 404) {
+          alert('User profile not found.');
+        } else {
+          alert('Unable to load user profile. Please try again.');
+        }
+        return;
+      }
+
+      alert('No user information available to navigate to profile.');
+    } catch (error) {
+      console.error('Error navigating to user profile:', error);
+      alert('Unable to load user profile. Please try again.');
+    }
+  };
 
   // Fetch assets and aggregate by location
   const { data: assetsData, isLoading } = useQuery({
@@ -414,84 +465,90 @@ export function WorldMap() {
             {/* Modal Content */}
             <div className="overflow-hidden">
               <ScrollArea className="h-[70vh]">
-                {countryAssets.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Asset Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Serial Number</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Assigned To</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Purchase Date</TableHead>
-                        <TableHead>Purchase Cost</TableHead>
-                        <TableHead>Warranty Expiry</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {countryAssets.map((asset: any, index: number) => (
-                        <TableRow key={asset.id || index} data-testid={`asset-row-${index}`}>
-                          <TableCell className="font-medium">
-                            {asset.name || 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {asset.type || 'N/A'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{asset.category || 'N/A'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {asset.serialNumber || 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={asset.status === 'deployed' ? 'default' : 
-                                     asset.status === 'in-stock' ? 'secondary' : 'destructive'}
-                              className="text-xs"
-                            >
-                              {asset.status || 'N/A'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {asset.assignedUserName ? (
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                <span className="text-xs">{asset.assignedUserName}</span>
-                              </div>
-                            ) : 'Unassigned'}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(asset.purchaseDate)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              {formatCurrency(asset.purchaseCost)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(asset.warrantyExpiry)}
-                            </div>
-                          </TableCell>
+                <div className="overflow-x-auto min-w-full">
+                  {countryAssets.length > 0 ? (
+                    <Table className="min-w-[1200px]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[120px]">Asset Name</TableHead>
+                          <TableHead className="min-w-[100px]">Type</TableHead>
+                          <TableHead className="min-w-[100px]">Category</TableHead>
+                          <TableHead className="min-w-[120px]">Serial Number</TableHead>
+                          <TableHead className="min-w-[80px]">Status</TableHead>
+                          <TableHead className="min-w-[120px]">Assigned To</TableHead>
+                          <TableHead className="min-w-[150px]">Location</TableHead>
+                          <TableHead className="min-w-[120px]">Purchase Date</TableHead>
+                          <TableHead className="min-w-[120px]">Purchase Cost</TableHead>
+                          <TableHead className="min-w-[120px]">Warranty Expiry</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No assets found for {selectedCountry}
-                  </div>
-                )}
+                      </TableHeader>
+                      <TableBody>
+                        {countryAssets.map((asset: any, index: number) => (
+                          <TableRow key={asset.id || index} data-testid={`asset-row-${index}`}>
+                            <TableCell className="font-medium min-w-[120px]">
+                              {asset.name || 'N/A'}
+                            </TableCell>
+                            <TableCell className="min-w-[100px]">
+                              <Badge variant="outline" className="text-xs">
+                                {asset.type || 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="min-w-[100px]">{asset.category || 'N/A'}</TableCell>
+                            <TableCell className="font-mono text-xs min-w-[120px]">
+                              {asset.serialNumber || 'N/A'}
+                            </TableCell>
+                            <TableCell className="min-w-[80px]">
+                              <Badge 
+                                variant={asset.status === 'deployed' ? 'default' : 
+                                       asset.status === 'in-stock' ? 'secondary' : 'destructive'}
+                                className="text-xs"
+                              >
+                                {asset.status || 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="min-w-[120px]">
+                              {asset.assignedUserName ? (
+                                <button
+                                  onClick={() => navigateToUserProfile(asset.assignedUserEmail || undefined, asset.assignedUserEmployeeId || undefined, asset.assignedUserId || undefined)}
+                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-xs transition-colors"
+                                  data-testid={`link-user-${index}`}
+                                >
+                                  <User className="h-3 w-3" />
+                                  <span>{asset.assignedUserName}</span>
+                                </button>
+                              ) : 'Unassigned'}
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[150px]">
+                              {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[120px]">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(asset.purchaseDate)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[120px]">
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                {formatCurrency(asset.purchaseCost)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[120px]">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(asset.warrantyExpiry)}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No assets found for {selectedCountry}
+                    </div>
+                  )}
+                </div>
               </ScrollArea>
             </div>
           </div>
