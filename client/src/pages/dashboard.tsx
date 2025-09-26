@@ -6,7 +6,9 @@ import { TopBar } from "@/components/layout/topbar";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { WorldMap } from "@/components/dashboard/world-map";
-import { IndependentDraggableTiles, useTileReset } from "@/components/dashboard/independent-draggable-tile";
+import { DraggableTileWrapper } from "@/components/dashboard/draggable-tile-wrapper";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 
 interface DashboardTile {
   id: string;
@@ -373,6 +375,25 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   const [isDragMode, setIsDragMode] = useState(false);
 
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Add small distance to prevent accidental drags
+      },
+    })
+  );
+
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      // Handle reordering if needed
+      console.log('Reordering:', active.id, 'to', over.id);
+    }
+  };
+
   // Fetch dashboard metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ["/api/dashboard/metrics"],
@@ -430,13 +451,16 @@ export default function Dashboard() {
         />
         
         
-        {/* Conditional Layout: Grid vs Drag-and-Drop */}
+        {/* Unified Layout with Optional Drag Functionality */}
         {metrics && (
-          <>
-            {isDragMode ? (
-              // Drag-and-Drop Mode with Container Boundaries and Reset Controls
-              <div className="w-full max-w-[100vw] mx-auto px-6 py-6 box-border overflow-hidden relative">
-                {/* Reset Controls - Only visible in drag mode */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="w-full max-w-[1440px] mx-auto px-6 py-6 box-border overflow-hidden">
+              {/* Reset Controls - Only visible in drag mode */}
+              {isDragMode && (
                 <div className="mb-2 flex justify-end">
                   <Button 
                     variant="outline" 
@@ -453,13 +477,17 @@ export default function Dashboard() {
                     Reset All
                   </Button>
                 </div>
-                <IndependentDraggableTiles 
-                  tiles={createDashboardTiles(metrics, recommendations, handleNavigateToAssets, handleViewAllRecommendations, handleViewRecommendation, navigate)}
-                />
-              </div>
-            ) : (
-              // Responsive Grid Layout Mode
-              <div className="w-full max-w-[1440px] mx-auto px-6 py-6 box-border overflow-hidden">
+              )}
+              
+              <SortableContext 
+                items={isDragMode ? [
+                  'hardware-tile', 'software-tile', 'peripherals-tile', 'others-tile',
+                  'deployed-assets', 'in-stock-assets', 'in-repair-assets', 'retired-assets',
+                  'unused-hardware', 'unused-licenses', 'expiring-items', 'compliance-risk',
+                  'recent-activities', 'ai-recommendations', 'world-map'
+                ] : []} 
+                strategy={rectSortingStrategy}
+              >
                 {/* Asset Overview Section */}
             <div className="mb-8" data-testid="section-asset-overview">
               <div className="mb-6" data-testid="heading-asset-overview">
@@ -467,18 +495,18 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Hardware, Software, Peripherals and Other Assets</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div className="min-w-0 max-w-full">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="hardware-tile">
                   <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="software-tile">
                   <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="peripherals-tile">
                   <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="others-tile">
                   <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
-                </div>
+                </DraggableTileWrapper>
               </div>
             </div>
 
@@ -489,7 +517,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Asset Status Distribution and Lifecycle Management</p>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div className="min-w-0 max-w-full">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="deployed-assets">
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-deployed-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Deployed</p>
@@ -501,8 +529,8 @@ export default function Dashboard() {
                       <div className="w-3 h-3 rounded-full bg-green-600"></div>
                     </div>
                   </div>
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="in-stock-assets">
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-in-stock-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">In Stock</p>
@@ -514,8 +542,8 @@ export default function Dashboard() {
                       <div className="w-3 h-3 rounded-full bg-blue-600"></div>
                     </div>
                   </div>
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="in-repair-assets">
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-in-repair-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">In Repair</p>
@@ -527,8 +555,8 @@ export default function Dashboard() {
                       <div className="w-3 h-3 rounded-full bg-orange-600"></div>
                     </div>
                   </div>
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="retired-assets">
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-retired-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Retired</p>
@@ -540,7 +568,7 @@ export default function Dashboard() {
                       <div className="w-3 h-3 rounded-full bg-gray-600"></div>
                     </div>
                   </div>
-                </div>
+                </DraggableTileWrapper>
               </div>
             </div>
 
@@ -665,18 +693,18 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Unused Assets, License Optimization and Compliance Monitoring</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div className="min-w-0 max-w-full">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-hardware">
                   <UnusedHardwareTile metrics={metrics} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-licenses">
                   <UnusedLicensesTile metrics={metrics} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="expiring-items">
                   <ExpiringItemsTile metrics={metrics} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="compliance-risk">
                   <ComplianceRiskTile metrics={metrics} />
-                </div>
+                </DraggableTileWrapper>
               </div>
             </div>
 
@@ -687,16 +715,16 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Recent Activities and AI-Powered Recommendations</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                <div className="min-w-0 max-w-full">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="recent-activities">
                   <RecentActivitiesTile metrics={metrics} />
-                </div>
-                <div className="min-w-0 max-w-full">
+                </DraggableTileWrapper>
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="ai-recommendations">
                   <AIRecommendations
                     recommendations={recommendations || []}
                     onViewAll={handleViewAllRecommendations}
                     onViewRecommendation={handleViewRecommendation}
                   />
-                </div>
+                </DraggableTileWrapper>
               </div>
             </div>
 
@@ -706,15 +734,15 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold text-foreground mb-1">Global Distribution</h2>
                 <p className="text-xs text-muted-foreground">Worldwide Asset Location and Regional Overview</p>
               </div>
-              <div className="w-full min-w-0 max-w-full">
+              <DraggableTileWrapper isDragMode={isDragMode} tileId="world-map">
                 <div className="bg-card rounded-lg border p-3 box-border">
                   <WorldMap />
                 </div>
-              </div>
+              </DraggableTileWrapper>
             </div>
-              </div>
-            )}
-          </>
+              </SortableContext>
+            </div>
+          </DndContext>
         )}
       </main>
     </div>
