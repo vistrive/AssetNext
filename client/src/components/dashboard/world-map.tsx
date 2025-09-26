@@ -383,8 +383,7 @@ export function WorldMap() {
 
       {/* Asset Details Modal */}
       <Dialog open={showAssetModal} onOpenChange={setShowAssetModal}>
-        <div className={`fixed inset-0 bg-background z-[9998] ${showAssetModal ? 'block' : 'hidden'}`} />
-        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg z-[9999] relative">
+        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg">
           <DialogHeader className="pb-4">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Building className="h-6 w-6" />
