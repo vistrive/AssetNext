@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Package, Navigation } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { MapPin, Package, Navigation, Eye, Calendar, DollarSign, User, Building } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -86,6 +88,9 @@ export function WorldMap() {
   const [locationData, setLocationData] = useState<AssetLocationData[]>([]);
   const [availableCoordinates, setAvailableCoordinates] = useState<LocationCoordinates>({});
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [countryAssets, setCountryAssets] = useState<any[]>([]);
+  const [showAssetModal, setShowAssetModal] = useState(false);
 
   // Fetch assets and aggregate by location
   const { data: assetsData, isLoading } = useQuery({
@@ -161,6 +166,46 @@ export function WorldMap() {
         animate: true,
         duration: 1.0
       });
+    }
+  };
+
+  // Function to get assets for a specific country
+  const getAssetsForCountry = (country: string) => {
+    let assets: any[] = [];
+    if (assetsData?.assets && Array.isArray(assetsData.assets)) {
+      assets = assetsData.assets;
+    } else if (assetsData && typeof assetsData === 'object') {
+      assets = Object.values(assetsData);
+    }
+    
+    return assets.filter((asset: any) => asset.country === country);
+  };
+
+  // Function to show asset details for a country
+  const showCountryAssets = (country: string) => {
+    const assets = getAssetsForCountry(country);
+    setSelectedCountry(country);
+    setCountryAssets(assets);
+    setShowAssetModal(true);
+  };
+
+  // Function to format date for display
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  // Function to format currency
+  const formatCurrency = (amount: string | number | null) => {
+    if (!amount) return 'N/A';
+    try {
+      return `$${Number(amount).toLocaleString()}`;
+    } catch {
+      return 'N/A';
     }
   };
 
@@ -271,15 +316,24 @@ export function WorldMap() {
                   >
                     <Popup>
                       <div className="p-2 min-w-[200px]">
-                        <h3 className="font-semibold text-lg mb-2">
+                        <h3 className="font-semibold text-lg mb-3">
                           {location.country}
                         </h3>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-3">
                           <span className="text-sm">Total Assets:</span>
                           <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
                             {location.asset_count} {location.asset_count === 1 ? 'asset' : 'assets'}
                           </Badge>
                         </div>
+                        <Button 
+                          size="sm" 
+                          onClick={() => showCountryAssets(location.country)}
+                          className="w-full"
+                          data-testid={`view-assets-${location.country.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Asset Details
+                        </Button>
                       </div>
                     </Popup>
                   </Marker>
@@ -316,6 +370,104 @@ export function WorldMap() {
           </div>
         </div>
       </CardContent>
+
+      {/* Asset Details Modal */}
+      <Dialog open={showAssetModal} onOpenChange={setShowAssetModal}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5" />
+              Assets in {selectedCountry}
+            </DialogTitle>
+            <DialogDescription>
+              Detailed information for {countryAssets.length} {countryAssets.length === 1 ? 'asset' : 'assets'} located in {selectedCountry}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="overflow-hidden">
+            <ScrollArea className="h-[60vh]">
+              {countryAssets.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Asset Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Serial Number</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Assigned To</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Purchase Date</TableHead>
+                      <TableHead>Purchase Cost</TableHead>
+                      <TableHead>Warranty Expiry</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {countryAssets.map((asset: any, index: number) => (
+                      <TableRow key={asset.id || index} data-testid={`asset-row-${index}`}>
+                        <TableCell className="font-medium">
+                          {asset.name || 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {asset.type || 'N/A'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{asset.category || 'N/A'}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {asset.serialNumber || 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={asset.status === 'deployed' ? 'default' : 
+                                   asset.status === 'in-stock' ? 'secondary' : 'destructive'}
+                            className="text-xs"
+                          >
+                            {asset.status || 'N/A'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {asset.assignedUserName ? (
+                            <div className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              <span className="text-xs">{asset.assignedUserName}</span>
+                            </div>
+                          ) : 'Unassigned'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(asset.purchaseDate)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {formatCurrency(asset.purchaseCost)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(asset.warrantyExpiry)}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No assets found for {selectedCountry}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
