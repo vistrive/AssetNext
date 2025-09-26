@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Upload, Move } from "lucide-react";
+import { Search, Plus, Upload, Move, RotateCcw } from "lucide-react";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { RoleNotifications } from "@/components/notifications/role-notifications";
 
@@ -14,6 +14,7 @@ interface TopBarProps {
   showDragToggle?: boolean;
   isDragMode?: boolean;
   onToggleDragMode?: () => void;
+  onResetAll?: () => void;
 }
 
 export function TopBar({ 
@@ -25,7 +26,8 @@ export function TopBar({
   onBulkUploadClick,
   showDragToggle = false,
   isDragMode = false,
-  onToggleDragMode
+  onToggleDragMode,
+  onResetAll
 }: TopBarProps) {
   return (
     <header className="bg-card border-b border-border px-4 sm:px-6 py-3 sm:py-4">
@@ -77,9 +79,9 @@ export function TopBar({
         </div>
       </div>
       
-      {/* Drag Toggle - positioned in top right edge below main header */}
+      {/* Drag Toggle and Reset - positioned in top right edge below main header */}
       {showDragToggle && onToggleDragMode && (
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end pt-2 gap-2">
           <Button
             variant={isDragMode ? "default" : "outline"}
             size="sm"
@@ -90,6 +92,19 @@ export function TopBar({
             <Move className="h-3 w-3 mr-1" />
             Drag
           </Button>
+          {isDragMode && onResetAll && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onResetAll}
+              data-testid="reset-all-tiles"
+              className="text-xs h-6 px-3 text-muted-foreground hover:text-foreground"
+              title="Reset all dashboard tiles to default positions"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Reset All
+            </Button>
+          )}
         </div>
       )}
     </header>

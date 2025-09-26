@@ -479,6 +479,13 @@ export default function Dashboard() {
           showDragToggle={true}
           isDragMode={isDragMode}
           onToggleDragMode={() => setIsDragMode(!isDragMode)}
+          onResetAll={() => {
+            // Clear tile positions from state and localStorage
+            setTilePositions({});
+            localStorage.removeItem('dashboard-tile-positions-v1');
+            // Also remove old key if it exists
+            localStorage.removeItem('dashboard-layout-v1');
+          }}
         />
         
         
