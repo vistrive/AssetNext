@@ -25,10 +25,23 @@ export function DraggableTileWrapper({
     disabled: !isDragMode,
   });
 
-  // Apply both the stored position and the current drag transform (always, not just in drag mode)
+  // Apply transforms only when in drag mode - separate states for drag and grid modes
   const hasPosition = position.x !== 0 || position.y !== 0;
+  
+  // If not in drag mode, use default grid layout (no transforms)
+  if (!isDragMode) {
+    return (
+      <div 
+        className="min-w-0 max-w-full"
+      >
+        {children}
+      </div>
+    );
+  }
+
+  // In drag mode, apply stored positions and current drag transforms
   const style = {
-    transform: hasPosition || (isDragMode && transform) 
+    transform: hasPosition || transform 
       ? `translate3d(${position.x + (transform?.x || 0)}px, ${position.y + (transform?.y || 0)}px, 0)`
       : undefined,
     opacity: isDragging ? 0.8 : 1,
@@ -39,19 +52,7 @@ export function DraggableTileWrapper({
     })
   };
 
-  // If not in drag mode, still apply position styling but without drag functionality
-  if (!isDragMode) {
-    return (
-      <div 
-        className="min-w-0 max-w-full"
-        style={style}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  // In drag mode, add drag handle and functionality but maintain same layout
+  // In drag mode, add drag handle and functionality with position transforms
   return (
     <div 
       ref={setNodeRef}
