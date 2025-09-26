@@ -467,19 +467,23 @@ export function WorldMap() {
               <ScrollArea className="h-[70vh]">
                 <div className="overflow-x-auto min-w-full">
                   {countryAssets.length > 0 ? (
-                    <Table className="min-w-[1200px]">
+                    <Table className="min-w-[1600px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[120px]">Asset Name</TableHead>
-                          <TableHead className="min-w-[100px]">Type</TableHead>
-                          <TableHead className="min-w-[100px]">Category</TableHead>
                           <TableHead className="min-w-[120px]">Serial Number</TableHead>
+                          <TableHead className="min-w-[120px]">Model</TableHead>
+                          <TableHead className="min-w-[130px]">Manufacturer</TableHead>
+                          <TableHead className="min-w-[100px]">Category</TableHead>
+                          <TableHead className="min-w-[100px]">Type</TableHead>
                           <TableHead className="min-w-[80px]">Status</TableHead>
-                          <TableHead className="min-w-[120px]">Assigned To</TableHead>
                           <TableHead className="min-w-[150px]">Location</TableHead>
+                          <TableHead className="min-w-[120px]">Assigned To</TableHead>
+                          <TableHead className="min-w-[160px]">Assigned Email</TableHead>
+                          <TableHead className="min-w-[100px]">Employee ID</TableHead>
                           <TableHead className="min-w-[120px]">Purchase Date</TableHead>
-                          <TableHead className="min-w-[120px]">Purchase Cost</TableHead>
                           <TableHead className="min-w-[120px]">Warranty Expiry</TableHead>
+                          <TableHead className="min-w-[120px]">Purchase Cost</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -488,14 +492,20 @@ export function WorldMap() {
                             <TableCell className="font-medium min-w-[120px]">
                               {asset.name || 'N/A'}
                             </TableCell>
+                            <TableCell className="font-mono text-xs min-w-[120px]">
+                              {asset.serialNumber || 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[120px]">
+                              {asset.model || 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[130px]">
+                              {asset.manufacturer || 'N/A'}
+                            </TableCell>
+                            <TableCell className="min-w-[100px]">{asset.category || 'N/A'}</TableCell>
                             <TableCell className="min-w-[100px]">
                               <Badge variant="outline" className="text-xs">
                                 {asset.type || 'N/A'}
                               </Badge>
-                            </TableCell>
-                            <TableCell className="min-w-[100px]">{asset.category || 'N/A'}</TableCell>
-                            <TableCell className="font-mono text-xs min-w-[120px]">
-                              {asset.serialNumber || 'N/A'}
                             </TableCell>
                             <TableCell className="min-w-[80px]">
                               <Badge 
@@ -505,6 +515,9 @@ export function WorldMap() {
                               >
                                 {asset.status || 'N/A'}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[150px]">
+                              {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
                             </TableCell>
                             <TableCell className="min-w-[120px]">
                               {asset.assignedUserName ? (
@@ -518,8 +531,27 @@ export function WorldMap() {
                                 </button>
                               ) : 'Unassigned'}
                             </TableCell>
-                            <TableCell className="text-xs min-w-[150px]">
-                              {[asset.city, asset.state, asset.country].filter(Boolean).join(', ') || 'N/A'}
+                            <TableCell className="text-xs min-w-[160px]">
+                              {asset.assignedUserEmail ? (
+                                <button
+                                  onClick={() => navigateToUserProfile(asset.assignedUserEmail || undefined, asset.assignedUserEmployeeId || undefined, asset.assignedUserId || undefined)}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-xs transition-colors break-all"
+                                  data-testid={`link-user-email-${index}`}
+                                >
+                                  {asset.assignedUserEmail}
+                                </button>
+                              ) : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs min-w-[100px]">
+                              {asset.assignedUserEmployeeId ? (
+                                <button
+                                  onClick={() => navigateToUserProfile(asset.assignedUserEmail || undefined, asset.assignedUserEmployeeId || undefined, asset.assignedUserId || undefined)}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-xs transition-colors font-mono"
+                                  data-testid={`link-user-employee-id-${index}`}
+                                >
+                                  {asset.assignedUserEmployeeId}
+                                </button>
+                              ) : 'N/A'}
                             </TableCell>
                             <TableCell className="text-xs min-w-[120px]">
                               <div className="flex items-center gap-1">
@@ -529,14 +561,14 @@ export function WorldMap() {
                             </TableCell>
                             <TableCell className="text-xs min-w-[120px]">
                               <div className="flex items-center gap-1">
-                                <DollarSign className="h-3 w-3" />
-                                {formatCurrency(asset.purchaseCost)}
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(asset.warrantyExpiry)}
                               </div>
                             </TableCell>
                             <TableCell className="text-xs min-w-[120px]">
                               <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(asset.warrantyExpiry)}
+                                <DollarSign className="h-3 w-3" />
+                                {formatCurrency(asset.purchaseCost)}
                               </div>
                             </TableCell>
                           </TableRow>
