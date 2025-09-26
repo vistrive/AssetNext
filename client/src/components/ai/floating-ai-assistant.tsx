@@ -99,6 +99,7 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
     opacity: isDragging ? 0.8 : 1,
     zIndex: 60,
   };
+  
 
   return (
     <div
@@ -218,7 +219,22 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
 export function FloatingAIAssistant() {
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('ai-assistant-position');
-    return saved ? JSON.parse(saved) : { x: window.innerWidth - 100, y: window.innerHeight / 2 };
+    const defaultPosition = { x: window.innerWidth - 120, y: 200 };
+    
+    if (saved) {
+      try {
+        const parsedPosition = JSON.parse(saved);
+        // Safety check: ensure position is within reasonable bounds
+        if (parsedPosition.x >= 0 && parsedPosition.x <= window.innerWidth && 
+            parsedPosition.y >= 0 && parsedPosition.y <= window.innerHeight) {
+          return parsedPosition;
+        }
+      } catch (error) {
+        console.error('Failed to parse AI assistant position:', error);
+      }
+    }
+    
+    return defaultPosition;
   });
 
   const sensors = useSensors(
