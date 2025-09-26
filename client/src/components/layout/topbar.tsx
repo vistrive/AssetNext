@@ -82,6 +82,21 @@ export function TopBar({
       {/* Drag Toggle and Reset - positioned in top right edge below main header */}
       {showDragToggle && onToggleDragMode && (
         <div className="flex justify-end pt-2 gap-2">
+          {/* Reset All Button - always takes up space to maintain consistent drag toggle position */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onResetAll}
+            data-testid="reset-all-tiles"
+            className={`text-xs h-6 px-3 text-muted-foreground hover:text-foreground ${
+              isDragMode && onResetAll ? 'visible' : 'invisible'
+            }`}
+            title="Reset all dashboard tiles to default positions"
+            disabled={!isDragMode || !onResetAll}
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            Reset All
+          </Button>
           <Button
             variant={isDragMode ? "default" : "outline"}
             size="sm"
@@ -92,19 +107,6 @@ export function TopBar({
             <Move className="h-3 w-3 mr-1" />
             Drag
           </Button>
-          {isDragMode && onResetAll && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onResetAll}
-              data-testid="reset-all-tiles"
-              className="text-xs h-6 px-3 text-muted-foreground hover:text-foreground"
-              title="Reset all dashboard tiles to default positions"
-            >
-              <RotateCcw className="h-3 w-3 mr-1" />
-              Reset All
-            </Button>
-          )}
         </div>
       )}
     </header>
