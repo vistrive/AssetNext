@@ -75,7 +75,7 @@ export default function UserDetail() {
   });
 
   // Fetch user assets
-  const { data: assets = [], isLoading: isLoadingAssets } = useQuery<Asset[]>({
+  const { data: assetsData, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['/api/assets/user', userId],
     queryFn: async () => {
       const response = await authenticatedRequest('GET', `/api/assets/user/${userId}`);
@@ -83,6 +83,22 @@ export default function UserDetail() {
     },
     enabled: !!userId
   });
+
+  // Handle both array and object formats for assets data
+  let assets: Asset[] = [];
+  if (assetsData?.assets && Array.isArray(assetsData.assets)) {
+    assets = assetsData.assets;
+  } else if (assetsData && typeof assetsData === 'object') {
+    // Convert object with numeric keys to array
+    assets = Object.values(assetsData);
+  }
+
+  // Extract user information from assets when user profile doesn't exist
+  const userInfoFromAssets = assets.length > 0 ? {
+    employeeId: assets[0].assignedUserEmployeeId,
+    name: assets[0].assignedUserName,
+    email: assets[0].assignedUserEmail
+  } : null;
 
   if (!userId) {
     return (
@@ -156,18 +172,8 @@ export default function UserDetail() {
         </div>
       </div>
 
-      {/* User profile not found banner */}
-      {!user && assets.length > 0 && (
-        <Alert className="mb-6" data-testid="alert-user-not-found">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            User profile information could not be loaded, but showing assigned assets for User ID: {userId}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* User Information Cards - only show if user data is available */}
-      {user && (
+      {/* User Information Cards - show either from user profile or extracted from assets */}
+      {(user || userInfoFromAssets) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card data-testid="card-user-name">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -176,12 +182,14 @@ export default function UserDetail() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-user-name">
-                {user.firstName} {user.lastName}
+                {user ? `${user.firstName} ${user.lastName}` : userInfoFromAssets?.name || "Not specified"}
               </div>
               <p className="text-xs text-muted-foreground">
-                {user.role === "admin" ? "Administrator" : 
-                 user.role === "it-manager" ? "IT Manager" : 
-                 user.role === "technician" ? "Technician" : "Read Only"}
+                {user ? (
+                  user.role === "admin" ? "Administrator" : 
+                  user.role === "it-manager" ? "IT Manager" : 
+                  user.role === "technician" ? "Technician" : "Read Only"
+                ) : "Role not available"}
               </p>
             </CardContent>
           </Card>
@@ -193,10 +201,10 @@ export default function UserDetail() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold break-all" data-testid="text-user-email">
-                {user.email}
+                {user ? user.email : userInfoFromAssets?.email || "Not specified"}
               </div>
               <p className="text-xs text-muted-foreground">
-                {user.isActive ? "Active Account" : "Inactive Account"}
+                {user ? (user.isActive ? "Active Account" : "Inactive Account") : "Account status not available"}
               </p>
             </CardContent>
           </Card>
@@ -208,14 +216,24 @@ export default function UserDetail() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-user-id">
-                {user.userID || "Not assigned"}
+                {user ? (user.userID || "Not assigned") : userInfoFromAssets?.employeeId || "Not specified"}
               </div>
               <p className="text-xs text-muted-foreground">
-                Unique identifier
+                {user ? "Unique identifier" : "Employee ID from assets"}
               </p>
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Show notice when user info is extracted from assets */}
+      {!user && userInfoFromAssets && (
+        <Alert className="mb-6" data-testid="alert-user-info-from-assets">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            User profile not found in system. Displaying employee information extracted from assigned assets.
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Assets Summary */}
