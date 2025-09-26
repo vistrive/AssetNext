@@ -1506,6 +1506,8 @@ export class DatabaseStorage implements IStorage {
           category: assets.category,
           manufacturer: assets.manufacturer,
           model: assets.model,
+          serialNumber: assets.serialNumber,
+          purchaseDate: assets.purchaseDate,
           warrantyExpiry: assets.warrantyExpiry,
           amcExpiry: assets.amcExpiry,
           location: assets.location,
@@ -1537,6 +1539,8 @@ export class DatabaseStorage implements IStorage {
           name: softwareLicenses.name,
           vendor: softwareLicenses.vendor,
           version: softwareLicenses.version,
+          licenseKey: softwareLicenses.licenseKey,
+          createdAt: softwareLicenses.createdAt,
           renewalDate: softwareLicenses.renewalDate,
           totalLicenses: softwareLicenses.totalLicenses,
           costPerLicense: softwareLicenses.costPerLicense
@@ -1770,7 +1774,7 @@ export class DatabaseStorage implements IStorage {
               vendor: license.vendor,
               version: license.version,
               licenseKey: license.licenseKey,
-              purchaseDate: license.purchaseDate,
+              purchaseDate: license.createdAt, // Use createdAt as purchase date equivalent
               renewalDate: license.renewalDate,
               totalLicenses: license.totalLicenses,
               costPerLicense: license.costPerLicense,
