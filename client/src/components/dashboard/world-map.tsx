@@ -201,9 +201,14 @@ export function WorldMap() {
 
   // Function to format currency
   const formatCurrency = (amount: string | number | null) => {
-    if (!amount) return 'N/A';
+    if (amount === null || amount === undefined || amount === '') return 'N/A';
     try {
-      return `$${Number(amount).toLocaleString()}`;
+      const num = Number(amount);
+      if (isNaN(num)) return 'N/A';
+      return new Intl.NumberFormat('en-US', { 
+        style: 'currency', 
+        currency: 'USD' 
+      }).format(num);
     } catch {
       return 'N/A';
     }
@@ -353,7 +358,7 @@ export function WorldMap() {
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#16a34a' }}></div>
-              <span>2-3 assets</span>
+              <span>2 assets</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#ca8a04' }}></div>
