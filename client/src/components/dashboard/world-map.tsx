@@ -301,11 +301,11 @@ export function WorldMap() {
           </div>
           
           {/* Map Container */}
-          <div className="flex-1 rounded-lg overflow-hidden border" data-testid="map-container">
+          <div className="flex-1 rounded-lg overflow-hidden border relative z-[1000]" data-testid="map-container">
             <MapContainer
               center={[30, 20]}
               zoom={3}
-              style={{ height: '100%', width: '100%' }}
+              style={{ height: '100%', width: '100%', zIndex: 1000 }}
               data-testid="leaflet-map"
             >
               <MapController onMapReady={setMapInstance} />
@@ -383,7 +383,8 @@ export function WorldMap() {
 
       {/* Asset Details Modal */}
       <Dialog open={showAssetModal} onOpenChange={setShowAssetModal}>
-        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg">
+        <div className={`fixed inset-0 bg-black/50 z-[2000] ${showAssetModal ? 'block' : 'hidden'}`} />
+        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg z-[2001] relative">
           <DialogHeader className="pb-4">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Building className="h-6 w-6" />
