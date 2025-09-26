@@ -463,11 +463,10 @@ export function WorldMap() {
             </div>
             
             {/* Modal Content */}
-            <div className="overflow-hidden">
-              <ScrollArea className="h-[70vh]">
-                <div className="overflow-x-auto min-w-full">
-                  {countryAssets.length > 0 ? (
-                    <Table className="min-w-[1600px]">
+            <div className="h-[70vh] overflow-hidden">
+              <div className="h-full overflow-auto">
+                {countryAssets.length > 0 ? (
+                  <Table className="min-w-[1600px] w-auto">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[120px]">Asset Name</TableHead>
@@ -580,8 +579,7 @@ export function WorldMap() {
                       No assets found for {selectedCountry}
                     </div>
                   )}
-                </div>
-              </ScrollArea>
+              </div>
             </div>
           </div>
         </div>
