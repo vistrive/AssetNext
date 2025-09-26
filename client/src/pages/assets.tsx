@@ -798,7 +798,9 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                     {columnVisibility.location && (
                       <td className="py-3 px-4">
                         <span className="text-foreground" data-testid={`text-location-${asset.id}`}>
-                          {asset.location || "N/A"}
+                          {asset.city && asset.state && asset.country ? 
+                            `${asset.city}, ${asset.state}, ${asset.country}` : 
+                            asset.location || "N/A"}
                         </span>
                       </td>
                     )}
