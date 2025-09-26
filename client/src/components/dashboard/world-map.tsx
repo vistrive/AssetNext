@@ -187,6 +187,11 @@ export function WorldMap() {
     setSelectedCountry(country);
     setCountryAssets(assets);
     setShowAssetModal(true);
+    
+    // Close any open popups when modal opens
+    if (mapInstance) {
+      mapInstance.closePopup();
+    }
   };
 
   // Function to format date for display
