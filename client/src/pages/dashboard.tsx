@@ -7,6 +7,7 @@ import { GlobalSearch } from "@/components/dashboard/global-search";
 import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { WorldMap } from "@/components/dashboard/world-map";
 import { DraggableTileWrapper } from "@/components/dashboard/draggable-tile-wrapper";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { restrictToParentElement, restrictToWindowEdges } from '@dnd-kit/modifiers';
 
@@ -770,6 +771,9 @@ export default function Dashboard() {
           </DndContext>
         )}
       </main>
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </div>
   );
 }
