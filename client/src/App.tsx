@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { QuickActionsButton } from "@/components/layout/quick-actions-button";
 import { useState } from "react";
 import NotFound from "@/pages/not-found";
@@ -125,7 +124,6 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
-          <FloatingAIAssistant />
           <QuickActionsButton />
         </TooltipProvider>
       </AuthProvider>

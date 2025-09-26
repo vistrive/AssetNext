@@ -122,11 +122,11 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button
-            size="lg"
-            className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+            size="sm"
+            className="rounded-full w-10 h-10 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
             data-testid="button-ai-assistant"
           >
-            <Bot className="h-6 w-6" />
+            <Bot className="h-4 w-4" />
           </Button>
         </DialogTrigger>
         
