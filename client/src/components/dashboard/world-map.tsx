@@ -383,20 +383,19 @@ export function WorldMap() {
 
       {/* Asset Details Modal */}
       <Dialog open={showAssetModal} onOpenChange={setShowAssetModal}>
-        <DialogOverlay className="bg-black backdrop-blur-none" />
-        <DialogContent className="max-w-[100vw] w-[100vw] max-h-[100vh] h-[100vh] overflow-hidden bg-background border-none shadow-2xl p-6 rounded-none fixed inset-0 z-[9999] flex flex-col">
-          <DialogHeader className="pb-6 flex-shrink-0">
-            <DialogTitle className="flex items-center gap-2 text-2xl">
-              <Building className="h-7 w-7" />
+        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden bg-background border shadow-lg">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Building className="h-6 w-6" />
               Assets in {selectedCountry}
             </DialogTitle>
-            <DialogDescription className="text-lg">
+            <DialogDescription className="text-base">
               Detailed information for {countryAssets.length} {countryAssets.length === 1 ? 'asset' : 'assets'} located in {selectedCountry}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="overflow-hidden flex-1">
-            <ScrollArea className="h-full">
+          <div className="overflow-hidden">
+            <ScrollArea className="h-[70vh]">
               {countryAssets.length > 0 ? (
                 <Table>
                   <TableHeader>
