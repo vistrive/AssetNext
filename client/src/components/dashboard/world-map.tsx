@@ -114,11 +114,20 @@ export function WorldMap() {
   }, [coordinatesData]);
 
   useEffect(() => {
-    if (assetsData?.assets && Array.isArray(assetsData.assets) && availableCoordinates) {
+    // Handle both array and object formats for assets data
+    let assets: any[] = [];
+    if (assetsData?.assets && Array.isArray(assetsData.assets)) {
+      assets = assetsData.assets;
+    } else if (assetsData && typeof assetsData === 'object') {
+      // Convert object with numeric keys to array
+      assets = Object.values(assetsData);
+    }
+    
+    if (assets.length > 0 && availableCoordinates && Object.keys(availableCoordinates).length > 0) {
       // Aggregate assets by country
       const countryMap = new Map<string, AssetLocationData>();
       
-      assetsData.assets.forEach((asset: any) => {
+      assets.forEach((asset: any) => {
         if (asset.country) {
           if (countryMap.has(asset.country)) {
             const existing = countryMap.get(asset.country)!;
@@ -140,7 +149,8 @@ export function WorldMap() {
         }
       });
 
-      setLocationData(Array.from(countryMap.values()));
+      const locationData = Array.from(countryMap.values());
+      setLocationData(locationData);
     }
   }, [assetsData, availableCoordinates]);
 
