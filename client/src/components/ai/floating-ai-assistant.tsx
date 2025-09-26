@@ -219,7 +219,7 @@ function DraggableAIAssistant({ position }: { position: { x: number; y: number }
 export function FloatingAIAssistant() {
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('ai-assistant-position');
-    const defaultPosition = { x: window.innerWidth - 30, y: window.innerHeight / 2 };
+    const defaultPosition = { x: window.innerWidth - 140, y: 80 };
     
     if (saved) {
       try {
