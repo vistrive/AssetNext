@@ -90,7 +90,7 @@ export function WorldMap() {
   });
 
   useEffect(() => {
-    if (assets) {
+    if (assets && Array.isArray(assets)) {
       // Aggregate assets by location
       const locationMap = new Map<string, AssetLocationData>();
       
