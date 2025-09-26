@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogOverlay } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MapPin, Package, Navigation, Eye, Calendar, DollarSign, User, Building } from "lucide-react";
 import L from "leaflet";
@@ -378,19 +378,20 @@ export function WorldMap() {
 
       {/* Asset Details Modal */}
       <Dialog open={showAssetModal} onOpenChange={setShowAssetModal}>
-        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] overflow-hidden bg-background border-2 shadow-2xl">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <Building className="h-6 w-6" />
+        <DialogOverlay className="bg-black/80 backdrop-blur-sm" />
+        <DialogContent className="max-w-[100vw] w-[100vw] max-h-[100vh] h-[100vh] overflow-hidden bg-background border-none shadow-2xl p-6 rounded-none fixed inset-0 z-[9999] flex flex-col">
+          <DialogHeader className="pb-6 flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <Building className="h-7 w-7" />
               Assets in {selectedCountry}
             </DialogTitle>
-            <DialogDescription className="text-base">
+            <DialogDescription className="text-lg">
               Detailed information for {countryAssets.length} {countryAssets.length === 1 ? 'asset' : 'assets'} located in {selectedCountry}
             </DialogDescription>
           </DialogHeader>
           
           <div className="overflow-hidden flex-1">
-            <ScrollArea className="h-[calc(95vh-120px)]">
+            <ScrollArea className="h-full">
               {countryAssets.length > 0 ? (
                 <Table>
                   <TableHeader>
