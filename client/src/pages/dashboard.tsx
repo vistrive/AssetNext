@@ -30,7 +30,6 @@ import { ExpiringItemsTile } from "@/components/dashboard/individual-tiles/expir
 import { ComplianceRiskTile } from "@/components/dashboard/individual-tiles/compliance-risk-tile";
 import { RecentActivitiesTile } from "@/components/dashboard/individual-tiles/recent-activities-tile";
 import { Button } from "@/components/ui/button";
-import { RotateCcw } from "lucide-react";
 import { authenticatedRequest } from "@/lib/auth";
 import type { Recommendation } from "@shared/schema";
 
@@ -492,28 +491,6 @@ export default function Dashboard() {
             modifiers={[restrictToWindowEdges]}
           >
             <div className="w-full max-w-[1440px] mx-auto px-6 py-6 box-border overflow-hidden">
-              {/* Reset Controls - Only visible in drag mode */}
-              {isDragMode && (
-                <div className="mb-2 flex justify-end">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      // Clear tile positions from state and localStorage
-                      setTilePositions({});
-                      localStorage.removeItem('dashboard-tile-positions-v1');
-                      // Also remove old key if it exists
-                      localStorage.removeItem('dashboard-layout-v1');
-                    }}
-                    className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground"
-                    data-testid="reset-all-tiles"
-                    title="Reset all dashboard tiles to default positions"
-                  >
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                    Reset All
-                  </Button>
-                </div>
-              )}
               
                 {/* Asset Overview Section */}
             <div className="mb-8" data-testid="section-asset-overview">
