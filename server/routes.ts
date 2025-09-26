@@ -2330,6 +2330,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get location coordinates for mapping
+  app.get("/api/geographic/coordinates", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const countriesPath = path.join(process.cwd(), 'server', 'data', 'countries.json');
+      const statesPath = path.join(process.cwd(), 'server', 'data', 'states.json');
+      const citiesPath = path.join(process.cwd(), 'server', 'data', 'cities.json');
+      
+      const coordinates: any = {};
+      
+      // Get country coordinates
+      if (fs.existsSync(countriesPath)) {
+        const countriesData = JSON.parse(fs.readFileSync(countriesPath, 'utf8'));
+        countriesData.forEach((country: any) => {
+          if (country.latitude && country.longitude) {
+            coordinates[country.name] = {
+              lat: parseFloat(country.latitude),
+              lng: parseFloat(country.longitude),
+              type: 'country'
+            };
+          }
+        });
+      }
+      
+      // Get state coordinates if available
+      if (fs.existsSync(statesPath)) {
+        const statesData = JSON.parse(fs.readFileSync(statesPath, 'utf8'));
+        statesData.forEach((state: any) => {
+          if (state.latitude && state.longitude) {
+            coordinates[`${state.country_name},${state.name}`] = {
+              lat: parseFloat(state.latitude),
+              lng: parseFloat(state.longitude),
+              type: 'state'
+            };
+          }
+        });
+      }
+      
+      // Get city coordinates if available  
+      if (fs.existsSync(citiesPath)) {
+        const citiesData = JSON.parse(fs.readFileSync(citiesPath, 'utf8'));
+        if (citiesData.cities) {
+          citiesData.cities.forEach((city: any) => {
+            if (city.latitude && city.longitude) {
+              coordinates[`${city.country_name},${city.state_name},${city.name}`] = {
+                lat: parseFloat(city.latitude),
+                lng: parseFloat(city.longitude),
+                type: 'city'
+              };
+            }
+          });
+        }
+      }
+      
+      res.json(coordinates);
+    } catch (error) {
+      console.error('Failed to load location coordinates:', error);
+      res.status(500).json({ message: "Failed to fetch location coordinates" });
+    }
+  });
+
   // Get technicians for ticket assignment (Managers and Admins only)
   app.get("/api/users/technicians", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
     try {

@@ -26,20 +26,12 @@ interface AssetLocationData {
 }
 
 interface LocationCoordinates {
-  [key: string]: [number, number]; // lat, lng
+  [key: string]: {
+    lat: number;
+    lng: number;
+    type: 'country' | 'state' | 'city';
+  };
 }
-
-// Common location coordinates for demo (in a real app, you'd use a geocoding service)
-const locationCoordinates: LocationCoordinates = {
-  "India,Tamil Nadu,Maturin": [11.0168, 76.9558], // Chennai area
-  "Australia,Western Australia,Pontypridd": [-31.9505, 115.8605], // Perth area
-  "United States,California,San Francisco": [37.7749, -122.4194],
-  "United Kingdom,England,London": [51.5074, -0.1278],
-  "Germany,Bavaria,Munich": [48.1351, 11.5820],
-  "Japan,Tokyo,Tokyo": [35.6762, 139.6503],
-  "Canada,Ontario,Toronto": [43.6532, -79.3832],
-  "France,Île-de-France,Paris": [48.8566, 2.3522],
-};
 
 // Function to get color based on asset count
 const getMarkerColor = (count: number): string => {
@@ -79,6 +71,7 @@ const createCustomMarker = (count: number) => {
 
 export function WorldMap() {
   const [locationData, setLocationData] = useState<AssetLocationData[]>([]);
+  const [availableCoordinates, setAvailableCoordinates] = useState<LocationCoordinates>({});
 
   // Fetch assets and aggregate by location
   const { data: assetsData, isLoading } = useQuery({
@@ -90,8 +83,24 @@ export function WorldMap() {
     enabled: true,
   });
 
+  // Fetch available coordinates from geographic data
+  const { data: coordinatesData, isLoading: isLoadingCoordinates } = useQuery({
+    queryKey: ['/api/geographic/coordinates'],
+    queryFn: async () => {
+      const response = await authenticatedRequest("GET", "/api/geographic/coordinates");
+      return response.json();
+    },
+    enabled: true,
+  });
+
   useEffect(() => {
-    if (assetsData?.assets && Array.isArray(assetsData.assets)) {
+    if (coordinatesData) {
+      setAvailableCoordinates(coordinatesData);
+    }
+  }, [coordinatesData]);
+
+  useEffect(() => {
+    if (assetsData?.assets && Array.isArray(assetsData.assets) && availableCoordinates) {
       // Aggregate assets by location
       const locationMap = new Map<string, AssetLocationData>();
       
@@ -103,7 +112,28 @@ export function WorldMap() {
             const existing = locationMap.get(locationKey)!;
             existing.asset_count += 1;
           } else {
-            const coordinates = locationCoordinates[locationKey];
+            // Try to find coordinates for this location
+            let coordinates: [number, number] | undefined;
+            
+            // First try exact match (country,state,city)
+            let coordData = availableCoordinates[locationKey];
+            if (coordData) {
+              coordinates = [coordData.lat, coordData.lng];
+            } else {
+              // Try state level (country,state)
+              const stateKey = `${asset.country},${asset.state}`;
+              coordData = availableCoordinates[stateKey];
+              if (coordData) {
+                coordinates = [coordData.lat, coordData.lng];
+              } else {
+                // Fall back to country level
+                coordData = availableCoordinates[asset.country];
+                if (coordData) {
+                  coordinates = [coordData.lat, coordData.lng];
+                }
+              }
+            }
+
             locationMap.set(locationKey, {
               country: asset.country,
               state: asset.state,
@@ -117,9 +147,9 @@ export function WorldMap() {
 
       setLocationData(Array.from(locationMap.values()));
     }
-  }, [assetsData]);
+  }, [assetsData, availableCoordinates]);
 
-  if (isLoading) {
+  if (isLoading || isLoadingCoordinates) {
     return (
       <Card>
         <CardHeader>
