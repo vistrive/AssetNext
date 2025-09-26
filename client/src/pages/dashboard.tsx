@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -8,7 +8,7 @@ import { AIRecommendations } from "@/components/dashboard/ai-recommendations";
 import { WorldMap } from "@/components/dashboard/world-map";
 import { DraggableTileWrapper } from "@/components/dashboard/draggable-tile-wrapper";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
+import { restrictToParentElement, restrictToWindowEdges } from '@dnd-kit/modifiers';
 
 interface DashboardTile {
   id: string;
@@ -374,6 +374,20 @@ function createDashboardTiles(
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const [isDragMode, setIsDragMode] = useState(false);
+  const [tilePositions, setTilePositions] = useState<Record<string, { x: number; y: number }>>({});
+
+  // Load positions from localStorage on mount
+  useEffect(() => {
+    const savedPositions = localStorage.getItem('dashboard-tile-positions-v1');
+    if (savedPositions) {
+      try {
+        const positions = JSON.parse(savedPositions);
+        setTilePositions(positions);
+      } catch (error) {
+        console.error('Failed to parse saved tile positions:', error);
+      }
+    }
+  }, []);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -384,13 +398,30 @@ export default function Dashboard() {
     })
   );
 
-  // Handle drag end
+  // Handle drag end - store new position
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+    const { active, delta } = event;
     
-    if (over && active.id !== over.id) {
-      // Handle reordering if needed
-      console.log('Reordering:', active.id, 'to', over.id);
+    if (delta.x !== 0 || delta.y !== 0) {
+      const tileId = active.id as string;
+      
+      setTilePositions(prev => {
+        const currentPosition = prev[tileId] || { x: 0, y: 0 };
+        const newPosition = {
+          x: currentPosition.x + delta.x,
+          y: currentPosition.y + delta.y,
+        };
+        
+        const updatedPositions = {
+          ...prev,
+          [tileId]: newPosition,
+        };
+        
+        // Persist to localStorage with the updated state
+        localStorage.setItem('dashboard-tile-positions-v1', JSON.stringify(updatedPositions));
+        
+        return updatedPositions;
+      });
     }
   };
 
@@ -457,6 +488,7 @@ export default function Dashboard() {
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
+            modifiers={[restrictToWindowEdges]}
           >
             <div className="w-full max-w-[1440px] mx-auto px-6 py-6 box-border overflow-hidden">
               {/* Reset Controls - Only visible in drag mode */}
@@ -466,8 +498,11 @@ export default function Dashboard() {
                     variant="outline" 
                     size="sm" 
                     onClick={() => {
+                      // Clear tile positions from state and localStorage
+                      setTilePositions({});
+                      localStorage.removeItem('dashboard-tile-positions-v1');
+                      // Also remove old key if it exists
                       localStorage.removeItem('dashboard-layout-v1');
-                      window.dispatchEvent(new CustomEvent('reset-all-tiles'));
                     }}
                     className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground"
                     data-testid="reset-all-tiles"
@@ -479,15 +514,6 @@ export default function Dashboard() {
                 </div>
               )}
               
-              <SortableContext 
-                items={isDragMode ? [
-                  'hardware-tile', 'software-tile', 'peripherals-tile', 'others-tile',
-                  'deployed-assets', 'in-stock-assets', 'in-repair-assets', 'retired-assets',
-                  'unused-hardware', 'unused-licenses', 'expiring-items', 'compliance-risk',
-                  'recent-activities', 'ai-recommendations', 'world-map'
-                ] : []} 
-                strategy={rectSortingStrategy}
-              >
                 {/* Asset Overview Section */}
             <div className="mb-8" data-testid="section-asset-overview">
               <div className="mb-6" data-testid="heading-asset-overview">
@@ -495,16 +521,16 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Hardware, Software, Peripherals and Other Assets</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="hardware-tile">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="hardware-tile" position={tilePositions["hardware-tile"]}>
                   <HardwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="software-tile">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="software-tile" position={tilePositions["software-tile"]}>
                   <SoftwareTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="peripherals-tile">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="peripherals-tile" position={tilePositions["peripherals-tile"]}>
                   <PeripheralsTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="others-tile">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="others-tile" position={tilePositions["others-tile"]}>
                   <OthersTile metrics={metrics} onNavigateToAssets={handleNavigateToAssets} />
                 </DraggableTileWrapper>
               </div>
@@ -517,7 +543,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Asset Status Distribution and Lifecycle Management</p>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="deployed-assets">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="deployed-assets" position={tilePositions["deployed-assets"]}>
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-deployed-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Deployed</p>
@@ -530,7 +556,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="in-stock-assets">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="in-stock-assets" position={tilePositions["in-stock-assets"]}>
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-in-stock-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">In Stock</p>
@@ -543,7 +569,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="in-repair-assets">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="in-repair-assets" position={tilePositions["in-repair-assets"]}>
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-in-repair-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">In Repair</p>
@@ -556,7 +582,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="retired-assets">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="retired-assets" position={tilePositions["retired-assets"]}>
                   <div className="bg-card rounded-lg border p-3 h-28 flex items-center justify-between hover:shadow-sm transition-shadow box-border" data-testid="card-retired-assets">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Retired</p>
@@ -693,16 +719,16 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Unused Assets, License Optimization and Compliance Monitoring</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-hardware">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-hardware" position={tilePositions["unused-hardware"]}>
                   <UnusedHardwareTile metrics={metrics} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-licenses">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-licenses" position={tilePositions["unused-licenses"]}>
                   <UnusedLicensesTile metrics={metrics} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="expiring-items">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="expiring-items" position={tilePositions["expiring-items"]}>
                   <ExpiringItemsTile metrics={metrics} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="compliance-risk">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="compliance-risk" position={tilePositions["compliance-risk"]}>
                   <ComplianceRiskTile metrics={metrics} />
                 </DraggableTileWrapper>
               </div>
@@ -715,10 +741,10 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Recent Activities and AI-Powered Recommendations</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="recent-activities">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="recent-activities" position={tilePositions["recent-activities"]}>
                   <RecentActivitiesTile metrics={metrics} />
                 </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="ai-recommendations">
+                <DraggableTileWrapper isDragMode={isDragMode} tileId="ai-recommendations" position={tilePositions["ai-recommendations"]}>
                   <AIRecommendations
                     recommendations={recommendations || []}
                     onViewAll={handleViewAllRecommendations}
@@ -734,13 +760,12 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold text-foreground mb-1">Global Distribution</h2>
                 <p className="text-xs text-muted-foreground">Worldwide Asset Location and Regional Overview</p>
               </div>
-              <DraggableTileWrapper isDragMode={isDragMode} tileId="world-map">
+              <DraggableTileWrapper isDragMode={isDragMode} tileId="world-map" position={tilePositions["world-map"]}>
                 <div className="bg-card rounded-lg border p-3 box-border">
                   <WorldMap />
                 </div>
               </DraggableTileWrapper>
             </div>
-              </SortableContext>
             </div>
           </DndContext>
         )}

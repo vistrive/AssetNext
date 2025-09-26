@@ -1,42 +1,54 @@
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, RotateCcw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useDraggable } from '@dnd-kit/core';
+import { GripVertical } from 'lucide-react';
 
 interface DraggableTileWrapperProps {
   children: React.ReactNode;
   isDragMode: boolean;
   tileId: string;
+  position?: { x: number; y: number };
 }
 
-export function DraggableTileWrapper({ children, isDragMode, tileId }: DraggableTileWrapperProps) {
+export function DraggableTileWrapper({ 
+  children, 
+  isDragMode, 
+  tileId, 
+  position = { x: 0, y: 0 }
+}: DraggableTileWrapperProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ 
+  } = useDraggable({
     id: tileId,
-    disabled: !isDragMode
+    disabled: !isDragMode,
   });
 
+  // Apply both the stored position and the current drag transform (always, not just in drag mode)
+  const hasPosition = position.x !== 0 || position.y !== 0;
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: hasPosition || (isDragMode && transform) 
+      ? `translate3d(${position.x + (transform?.x || 0)}px, ${position.y + (transform?.y || 0)}px, 0)`
+      : undefined,
     opacity: isDragging ? 0.8 : 1,
     zIndex: isDragging ? 50 : 'auto',
-    // When dragging, ensure content stays within screen bounds
-    ...(isDragging && {
-      maxWidth: '100vw',
+    transition: isDragging ? 'none' : 'transform 0.2s ease',
+    ...(hasPosition && {
       position: 'relative' as const,
     })
   };
 
-  // If not in drag mode, render children normally without any drag functionality
+  // If not in drag mode, still apply position styling but without drag functionality
   if (!isDragMode) {
-    return <div className="min-w-0 max-w-full">{children}</div>;
+    return (
+      <div 
+        className="min-w-0 max-w-full"
+        style={style}
+      >
+        {children}
+      </div>
+    );
   }
 
   // In drag mode, add drag handle and functionality but maintain same layout
