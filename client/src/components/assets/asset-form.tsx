@@ -20,6 +20,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { LocationSelector } from "@/components/ui/location-selector";
 
+
 const assetFormSchema = insertAssetSchema.extend({
   tenantId: z.string().optional(), // Make tenantId optional for form validation
   purchaseDate: z.string().optional(),

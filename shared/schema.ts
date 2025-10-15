@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, decimal, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, decimal, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -55,47 +55,71 @@ export const tenants = pgTable("tenants", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const assets = pgTable("assets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  type: text("type").notNull(), // Hardware, Software, Peripherals, Others
-  category: text("category"), // laptop, desktop, server, etc.
-  manufacturer: text("manufacturer"),
-  model: text("model"),
-  serialNumber: text("serial_number"),
-  status: text("status").notNull().default("in-stock"), // in-stock, deployed, in-repair, disposed
-  location: text("location"), // Legacy field, will be deprecated
-  country: text("country"),
-  state: text("state"), 
-  city: text("city"),
-  assignedUserId: varchar("assigned_user_id"),
-  assignedUserName: text("assigned_user_name"),
-  assignedUserEmail: text("assigned_user_email"),
-  assignedUserEmployeeId: text("assigned_user_employee_id"),
-  purchaseDate: timestamp("purchase_date"),
-  purchaseCost: decimal("purchase_cost", { precision: 10, scale: 2 }),
-  warrantyExpiry: timestamp("warranty_expiry"),
-  amcExpiry: timestamp("amc_expiry"), // Annual Maintenance Contract expiry
-  specifications: jsonb("specifications"), // CPU, RAM, Storage, etc.
-  notes: text("notes"),
-  // Software-specific fields (when type is 'software')
-  softwareName: text("software_name"),
-  version: text("version"),
-  licenseType: text("license_type"), // perpetual, subscription, volume
-  licenseKey: text("license_key"),
-  usedLicenses: integer("used_licenses"),
-  renewalDate: timestamp("renewal_date"),
-  // Vendor information
-  vendorName: text("vendor_name"),
-  vendorEmail: text("vendor_email"),
-  vendorPhone: text("vendor_phone"),
-  // Company information
-  companyName: text("company_name"),
-  companyGstNumber: text("company_gst_number"),
-  tenantId: varchar("tenant_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const assets = pgTable(
+  "assets",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+    name: text("name").notNull(),
+    type: text("type").notNull(), // Hardware, Software, Peripherals, Others
+    category: text("category"), // laptop, desktop, server, etc.
+    manufacturer: text("manufacturer"),
+    model: text("model"),
+    serialNumber: text("serial_number"),
+
+    status: text("status").notNull().default("in-stock"), // in-stock, deployed, in-repair, disposed
+    location: text("location"), // Legacy field, will be deprecated
+    country: text("country"),
+    state: text("state"),
+    city: text("city"),
+
+    assignedUserId: varchar("assigned_user_id"),
+    assignedUserName: text("assigned_user_name"),
+    assignedUserEmail: text("assigned_user_email"),
+    assignedUserEmployeeId: text("assigned_user_employee_id"),
+
+    purchaseDate: timestamp("purchase_date"),
+    purchaseCost: decimal("purchase_cost", { precision: 10, scale: 2 }),
+    warrantyExpiry: timestamp("warranty_expiry"),
+    amcExpiry: timestamp("amc_expiry"), // Annual Maintenance Contract expiry
+
+    specifications: jsonb("specifications"), // CPU, RAM, Storage, etc.
+    notes: text("notes"),
+
+    // Software-specific fields
+    softwareName: text("software_name"),
+    version: text("version"),
+    licenseType: text("license_type"), // perpetual, subscription, volume
+    licenseKey: text("license_key"),
+    usedLicenses: integer("used_licenses"),
+    renewalDate: timestamp("renewal_date"),
+
+    // Vendor information
+    vendorName: text("vendor_name"),
+    vendorEmail: text("vendor_email"),
+    vendorPhone: text("vendor_phone"),
+
+    // Company information
+    companyName: text("company_name"),
+    companyGstNumber: text("company_gst_number"),
+
+    tenantId: varchar("tenant_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => ({
+    // ✅ Add these unique indexes so ON CONFLICT works
+    uniqTenantSerial: uniqueIndex("uniq_assets_tenant_serial").on(
+      t.tenantId,
+      t.serialNumber
+    ),
+    uniqTenantName: uniqueIndex("uniq_assets_tenant_name").on(
+      t.tenantId,
+      t.name
+    ),
+  })
+);
+
 
 export const softwareLicenses = pgTable("software_licenses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

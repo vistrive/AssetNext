@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
+import { DeviceSoftware } from "@/components/assets/DeviceSoftware";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "@/hooks/use-search";
 import { useLocation, Link } from "wouter";
@@ -22,6 +24,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import useSyncHeartbeat from "@/hooks/useSyncHeartbeat";
+import { EnrollmentLinkCard } from "@/components/EnrollmentLinkCard";
 
 // Column visibility state
 interface ColumnVisibility {
@@ -48,9 +52,10 @@ interface EnhancedAssetsTableProps {
   isLoading: boolean;
   onEditAsset: (asset: Asset) => void;
   onDeleteAsset: (id: string) => void;
+  onViewAsset: (asset: Asset) => void; 
 }
 
-function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: EnhancedAssetsTableProps) {
+function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, onViewAsset }: EnhancedAssetsTableProps) {
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [, setLocation] = useLocation();
@@ -287,6 +292,10 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 
   return (
     <div className="space-y-4">
+      {/* Enrollment link (copyable) */}
+      <div className="max-w-xl">
+        <EnrollmentLinkCard />
+      </div>
       {/* Column Visibility Controls */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
@@ -741,7 +750,14 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                             <Icon className="text-muted-foreground h-4 w-4" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-foreground truncate" title={asset.name}>{asset.name}</p>
+                            <button
+                              onClick={() => onViewAsset(asset)}
+                              className="font-medium text-foreground truncate text-left hover:underline"
+                              title={asset.name}
+                              data-testid={`button-view-${asset.id}`}
+                            >
+                              {asset.name}
+                            </button>
                           </div>
                         </div>
                       </td>
@@ -896,6 +912,15 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => onViewAsset(asset)}
+                            data-testid={`button-view-action-${asset.id}`}
+                            title="View details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => onEditAsset(asset)}
                             data-testid={`button-edit-${asset.id}`}
                           >
@@ -938,6 +963,8 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset }: 
 }
 
 export default function Assets() {
+  useSyncHeartbeat();      // auto-refresh asset table when backend syncs
+
   const search = useSearch();
   const [location] = useLocation();
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
@@ -949,6 +976,8 @@ export default function Assets() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
+  const [viewingAsset, setViewingAsset] = useState<Asset | null>(null);
 
   // Detect if we're in "new" mode and auto-open the form
   useEffect(() => {
@@ -1185,6 +1214,13 @@ export default function Assets() {
     setEditingAsset(asset);
     setIsAssetFormOpen(true);
   };
+
+  // Opens the drawer to view asset details
+  const handleViewAsset = (asset: Asset) => {
+    setViewingAsset(asset);
+    setIsViewDrawerOpen(true);
+  };
+
 
   const handleAssetSubmit = (assetData: Omit<InsertAsset, 'tenantId'> | InsertAsset) => {
     console.log("handleAssetSubmit called with:", assetData);
@@ -1529,9 +1565,78 @@ export default function Assets() {
             isLoading={isLoading}
             onEditAsset={handleEditAsset}
             onDeleteAsset={handleDeleteAsset}
+            onViewAsset={handleViewAsset}
           />
         </div>
       </main>
+
+      <Drawer open={isViewDrawerOpen} onOpenChange={setIsViewDrawerOpen}>
+        <DrawerContent className="max-w-3xl mx-auto">
+          <DrawerHeader>
+            <DrawerTitle>
+              {viewingAsset?.name ?? "Asset"}
+            </DrawerTitle>
+            <DrawerDescription>
+              {viewingAsset?.type} {viewingAsset?.category ? `• ${viewingAsset.category}` : ""}
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div className="px-6 pb-6">
+            <Tabs defaultValue="details" className="w-full">
+              <TabsList>
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="software">Software</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="details" className="mt-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-muted-foreground">Serial Number</div>
+                    <div className="font-medium">{viewingAsset?.serialNumber || "N/A"}</div>
+                  </div>
+                <div>
+                  <div className="text-muted-foreground">Model</div>
+                  <div className="font-medium">{viewingAsset?.model || "N/A"}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Manufacturer</div>
+                  <div className="font-medium">{viewingAsset?.manufacturer || "N/A"}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Status</div>
+                  <div className="font-medium">{viewingAsset?.status || "N/A"}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-muted-foreground">Location</div>
+                  <div className="font-medium">
+                    {viewingAsset?.city && viewingAsset?.state && viewingAsset?.country
+                      ? `${viewingAsset.city}, ${viewingAsset.state}, ${viewingAsset.country}`
+                      : (viewingAsset?.location || "N/A")}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="software" className="mt-4">
+              {viewingAsset ? (
+                <DeviceSoftware
+                  assetId={viewingAsset.id}
+                  tenantId={(viewingAsset as any).tenantId}
+                />
+              ) : (
+                <div className="text-sm text-muted-foreground">No asset selected.</div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <div className="mt-6 flex justify-end">
+            <DrawerClose asChild>
+              <Button variant="outline">Close</Button>
+            </DrawerClose>
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
       
       <AssetForm
         isOpen={isAssetFormOpen}

@@ -1,7 +1,13 @@
-import type { Express, Request, Response } from "express";
+import express, { type Express, Request, Response, RequestHandler } from "express";
+import { and, eq , sql, InferInsertModel } from "drizzle-orm";
+import * as s from "@shared/schema";
+import { oaFetchDeviceSoftware, oaSubmitDeviceXML, oaFindDeviceId } from "./utils/openAuditClient";
+import { syncOpenAuditFirstPage } from "./services/openauditSync";
+import { getSyncStatus,markSyncChanged } from "./utils/syncHeartbeat";
+import { pool, db } from "./db";
 import { createServer, type Server } from "http";
 import fs from "fs";
-import path from "path";
+import path from "path";  
 import { storage } from "./storage";
 import { auditLogger, AuditActions, ResourceTypes } from "./audit-logger";
 import multer from "multer";
@@ -48,6 +54,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
+
 declare global {
   namespace Express {
     interface Request {
@@ -55,6 +62,47 @@ declare global {
     }
   }
 }
+
+function buildMinimalOAXml(input: {
+  hostname: string;
+  ip?: string | null;
+  serial?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+}) {
+  // Keep it minimal; OA accepts sparse XML
+  const now = new Date();
+  const ts = now.toISOString().slice(0, 19).replace("T", " ");
+  const esc = (s: any) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<system>
+  <sys>
+    <script_version>5.6.x</script_version>
+    <timestamp>${ts}</timestamp>
+    <hostname>${esc(input.hostname)}</hostname>
+    ${input.ip ? `<ip>${esc(input.ip)}</ip>` : ""}
+
+    <type>computer</type>
+
+    ${input.osName ? `<os_name>${esc(input.osName)}</os_name>` : ""}
+    ${input.osVersion ? `<os_version>${esc(input.osVersion)}</os_version>` : ""}
+
+    ${input.manufacturer ? `<manufacturer>${esc(input.manufacturer)}</manufacturer>` : ""}
+    ${input.model ? `<model>${esc(input.model)}</model>` : ""}
+    ${input.serial ? `<serial>${esc(input.serial)}</serial>` : ""}
+
+    <last_seen_by>agent</last_seen_by>
+  </sys>
+</system>`;
+}
+
 
 // Auth middleware
 const authenticateToken = (req: Request, res: Response, next: Function) => {
@@ -404,6 +452,451 @@ export async function registerRoutes(app: Express): Promise<Server> {
       tenant: tenant ? { id: tenant.id, name: tenant.name } : null,
     });
   });
+
+    // Sync Open-AudIT devices into assets
+  app.post("/api/assets/openaudit/sync", authenticateToken, async (req, res) => {
+    try {
+      const tenantId = req.user!.tenantId; // use authenticated tenant
+      const limit = req.body?.limit ? Number(req.body.limit) : 50;
+
+      const { imported, total } = await syncOpenAuditFirstPage(tenantId, limit);
+      res.json({ ok: true, imported, total });
+    } catch (err) {
+      console.error("Open-AudIT sync error:", err);
+      res.status(500).json({ message: "Failed to sync from Open-AudIT" });
+    }
+  });
+
+  // Simple OS-detecting enrollment page (no auth)
+  app.get("/enroll", (req, res) => {
+    // Allow manual override: /enroll?os=mac or /enroll?os=win
+    const osOverride = String(req.query.os ?? "").toLowerCase();
+
+    const ua = String(req.headers["user-agent"] || "").toLowerCase();
+    const isMacUA = ua.includes("mac os x") || ua.includes("macintosh");
+    const isWinUA = ua.includes("windows");
+
+    const isMac = osOverride === "mac" ? true : osOverride === "win" ? false : isMacUA;
+    const isWin = osOverride === "win" ? true : osOverride === "mac" ? false : isWinUA; // kept for future if needed
+
+    // Files placed under /static/installers/
+    const macUrl = "/static/installers/itam-agent-mac-dev.pkg";
+    const winUrl = "/static/installers/itam-agent-win-dev.exe";
+
+    const primaryUrl = isMac ? macUrl : winUrl;
+    const primaryLabel = isMac
+      ? "Download for macOS (.pkg)"
+      : "Download for Windows (.exe)";
+
+    const html = `<!doctype html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ITAM Agent Enrollment</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <style>
+      :root{color-scheme:dark}
+      body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e6edf3}
+      .card{max-width:720px;margin:0 auto;background:#111827;border:1px solid #263043;border-radius:16px;padding:1.5rem;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
+      h1{font-size:1.4rem;margin:0 0 .5rem}
+      p{opacity:.9;line-height:1.6}
+      .actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem}
+      a.btn{display:inline-block;padding:.75rem 1rem;border-radius:10px;border:1px solid #304156;text-decoration:none;color:#e6edf3}
+      a.btn.primary{background:#1f6feb;border-color:#1f6feb}
+      small{opacity:.75}
+      code{background:#0d1626;padding:.2rem .35rem;border-radius:6px}
+      .hint{margin-top:.75rem;color:#9fb3c8}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Install ITAM Agent</h1>
+      <p>This will silently install the agent and register your device with ITAM & Open-AudIT.</p>
+
+      <div class="actions">
+        <a class="btn primary" id="primary" href="${primaryUrl}">${primaryLabel}</a>
+        <a class="btn" href="${winUrl}">Windows (.msi)</a>
+        <a class="btn" href="${macUrl}">macOS (.pkg)</a>
+      </div>
+
+      <p class="hint"><small>The download should start automatically. If not, click the button above.</small></p>
+      <p class="hint"><small>No terminal or VPN required.</small></p>
+      <p class="hint"><small>Tip: append <code>?os=mac</code> or <code>?os=win</code> to test platform detection.</small></p>
+    </div>
+
+    <script>
+      // Auto-trigger the primary download after a short delay
+      setTimeout(function(){
+        var a = document.getElementById('primary');
+        if (a && a.href) window.location.href = a.href;
+      }, 1000);
+    </script>
+  </body>
+  </html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send(html);
+  });
+
+  // Receive one-shot enrollment from the agent, post to OA, upsert into ITAM
+  app.post("/api/agent/enroll", async (req, res) => {
+    try {
+      // 1) Parse & normalize input
+      const body = req.body ?? {};
+      const hostname = String(body.hostname ?? "").trim();
+      const serial = (body.serial ?? null) ? String(body.serial).trim() : null;
+      const osName = body?.os?.name ? String(body.os.name).trim() : null;
+      const osVersion = body?.os?.version ? String(body.os.version).trim() : null;
+      const username = (body.username ?? null) ? String(body.username).trim() : null;
+      const ipsArr: string[] = Array.isArray(body.ips) ? body.ips.map((x: any) => String(x)) : [];
+      const uptimeSeconds =
+        Number.isFinite(Number(body.uptimeSeconds)) ? Number(body.uptimeSeconds) : null;
+
+      if (!hostname) {
+        return res.status(400).json({ ok: false, error: "hostname is required" });
+      }
+
+      // 2) Choose tenant for dev (no auth in this step)
+      const devTenant =
+        process.env.ENROLL_DEFAULT_TENANT_ID ||
+        process.env.OA_TENANT_ID ||
+        process.env.DEFAULT_TENANT_ID;
+      if (!devTenant) {
+        return res.status(500).json({ ok: false, error: "No default tenant configured" });
+      }
+
+      // Optional: allow skipping OA during debugging
+      const skipOA = (process.env.ENROLL_SKIP_OA ?? "false").toLowerCase() === "true";
+      let oaId: string | null = null;
+
+      // 3) Upsert (by serial if present else by name)
+      type NewAsset = InferInsertModel<typeof s.assets>;
+      const now = new Date();
+
+      const baseRow: NewAsset = {
+        tenantId: devTenant,
+        name: hostname,
+        type: "Hardware",
+        category: "computer",
+        manufacturer: null,
+        model: null,
+        serialNumber: serial,
+        status: "in-stock",
+
+        location: null,
+        country: null,
+        state: null,
+        city: null,
+
+        assignedUserId: null,
+        assignedUserName: username ?? null,
+        assignedUserEmail: null,
+        assignedUserEmployeeId: null,
+
+        purchaseDate: null,
+        purchaseCost: null,
+        warrantyExpiry: null,
+        amcExpiry: null,
+
+        specifications: {
+          agent: {
+            platform: osName ?? null,
+            agentVersion: "dev",
+            enrollMethod: "link",
+            lastCheckInAt: now.toISOString(),
+            firstEnrolledAt: now.toISOString(),
+            uptimeSeconds,
+            lastIPs: ipsArr,
+          },
+        } as any,
+
+        notes: "Enrolled via /api/agent/enroll",
+
+        softwareName: null,
+        version: null,
+        licenseType: null,
+        licenseKey: null,
+        usedLicenses: null,
+        renewalDate: null,
+
+        vendorName: null,
+        vendorEmail: null,
+        vendorPhone: null,
+
+        companyName: null,
+        companyGstNumber: null,
+
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      if (serial && serial.trim() !== "") {
+        // ✅ Serial present → safe to use ON CONFLICT on (tenantId, serialNumber)
+        await db
+          .insert(s.assets)
+          .values(baseRow)
+          .onConflictDoUpdate({
+            target: [s.assets.tenantId, s.assets.serialNumber],
+            set: {
+              name: baseRow.name,
+              type: baseRow.type,
+              category: baseRow.category,
+              assignedUserName: baseRow.assignedUserName,
+              specifications: baseRow.specifications,
+              notes: baseRow.notes,
+              updatedAt: now,
+            },
+          });
+      } else {
+        // ❌ No serial → cannot use ON CONFLICT with the partial (tenantId,name) index.
+        //    Manual merge: UPDATE first (only rows where serial_number IS NULL), INSERT if none updated.
+        const updated = await db
+          .update(s.assets)
+          .set({
+            type: baseRow.type,
+            category: baseRow.category,
+            assignedUserName: baseRow.assignedUserName,
+            specifications: baseRow.specifications,
+            notes: baseRow.notes,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(s.assets.tenantId, baseRow.tenantId),
+              eq(s.assets.name, baseRow.name),
+              sql`${s.assets.serialNumber} IS NULL`
+            )
+          )
+          .returning({ id: s.assets.id });
+
+        if (updated.length === 0) {
+          await db.insert(s.assets).values(baseRow);
+        }
+      }
+
+      // Re-read the asset row to get its id
+      let assetId: string | null = null;
+      if (serial && serial.trim() !== "") {
+        const [row] = await db
+          .select({ id: s.assets.id })
+          .from(s.assets)
+          .where(and(eq(s.assets.tenantId, devTenant), eq(s.assets.serialNumber, serial)))
+          .limit(1);
+        assetId = row?.id ?? null;
+      }
+      if (!assetId) {
+        const [row] = await db
+          .select({ id: s.assets.id })
+          .from(s.assets)
+          .where(and(eq(s.assets.tenantId, devTenant), eq(s.assets.name, hostname)))
+          .limit(1);
+        assetId = row?.id ?? null;
+      }
+
+      // 4) Build minimal OA XML and POST to OA (unless skipping for debug)
+      if (!skipOA) {
+        const primaryIp = ipsArr.find((ip) => ip && ip.includes(".")) || ipsArr[0] || null;
+        const xml = buildMinimalOAXml({
+          hostname,
+          ip: primaryIp ?? null,
+          serial,
+          osName,
+          osVersion,
+          manufacturer: null,
+          model: null,
+        });
+        await oaSubmitDeviceXML(xml);
+
+        // 5) Resolve OA device id (prefer serial, fallback hostname)
+        oaId = await oaFindDeviceId({ serial, hostname });
+
+        // 6) Patch asset.specifications.openaudit.id if we got it
+        if (assetId && oaId) {
+          await db
+            .update(s.assets)
+            .set({
+              specifications: {
+                ...(baseRow.specifications as any),
+                openaudit: {
+                  id: oaId,
+                  hostname,
+                  ip: primaryIp,
+                  os: { name: osName, version: osVersion },
+                },
+              } as any,
+              updatedAt: new Date(),
+            })
+            .where(eq(s.assets.id, assetId));
+        }
+      }
+
+      // 7) Notify heartbeat and return
+      markSyncChanged();
+
+      return res.json({
+        ok: true,
+        assetId,
+        oa: { deviceId: oaId ?? null },
+        message: skipOA
+          ? "Device enrolled (OA skipped by ENROLL_SKIP_OA=true)."
+          : "Device enrolled and posted to Open-AudIT.",
+      });
+    } catch (e: any) {
+      console.error("[POST /api/agent/enroll] fail:", e?.message ?? e);
+      return res
+        .status(500)
+        .json({ ok: false, error: "Failed to enroll device", details: e?.message ?? String(e) });
+    }
+  });
+
+  // Heartbeat (unchanged)
+  app.get("/api/sync/status", (_req, res) => {
+    res.json(getSyncStatus());
+  });
+
+  /**
+   * GET software discovered for a device (by our Asset id).
+   * - Looks up the asset
+   * - Reads specifications.openaudit.id (with a few tolerant aliases)
+   * - Calls oaFetchDeviceSoftware and returns normalized items
+   */
+  app.get("/api/assets/:assetId/software", async (req, res) => {
+    try {
+      const assetId = String(req.params.assetId);
+
+      // Load asset
+      const [row] = await db
+        .select()
+        .from(s.assets)
+        .where(eq(s.assets.id, assetId))
+        .limit(1);
+
+      if (!row) {
+        return res.status(404).json({ error: "Asset not found" });
+      }
+
+      // Be tolerant of different shapes
+      const specs: any = (row as any)?.specifications ?? {};
+      const oaId =
+        specs?.openaudit?.id ??
+        specs?.openaudit_id ??
+        specs?.oaId ??
+        null;
+
+      if (!oaId) {
+        return res.status(400).json({
+          error: "Asset has no Open-AudIT id",
+          details:
+            "Expected specifications.openaudit.id to be set (our OA sync should populate this).",
+        });
+      }
+
+      // Will try /components first (with X-Requested-With), then fallbacks
+      const items = await oaFetchDeviceSoftware(String(oaId));
+      return res.json({ items });
+    } catch (e: any) {
+      // Add server-side visibility
+      console.error("[/api/assets/:assetId/software] failed:", e?.message ?? e);
+      return res.status(500).json({
+        error: "Failed to fetch software",
+        details: e?.message ?? String(e),
+      });
+    }
+  });
+
+  /**
+   * POST add selected software into inventory (as assets with type=Software).
+   * - Upserts on (tenantId, name, version)
+   *
+   * IMPORTANT: we normalize version to "" (empty string) so it matches
+   * the plain unique index (tenant_id, name, version) and the ON CONFLICT target.
+   */
+  app.post("/api/software/import", async (req, res) => {
+    try {
+      const { tenantId, deviceAssetId, items } = req.body as {
+        tenantId: string;
+        deviceAssetId?: string;
+        items: Array<{ name: string; version?: string | null; publisher?: string | null }>;
+      };
+
+      if (!tenantId || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "tenantId and items are required" });
+      }
+
+      const now = new Date();
+      let created = 0;
+
+      for (const it of items) {
+        const name = (it.name || "").trim();
+        if (!name) continue;
+
+        await db
+          .insert(s.assets)
+          .values({
+            tenantId,
+            type: "Software",
+            name,
+            // 🔧 normalize NULL -> "" so (tenant_id, name, version) uniqueness works
+            version: (it.version ?? "").trim(),
+            manufacturer: it.publisher ?? null,
+            status: "in-stock",
+            category: "Application",
+            notes: deviceAssetId
+              ? `Added from device ${deviceAssetId}`
+              : "Added from OA discovery",
+
+            // keep the rest null to satisfy schema
+            specifications: null,
+            location: null,
+            country: null,
+            state: null,
+            city: null,
+            assignedUserId: null,
+            assignedUserName: null,
+            assignedUserEmail: null,
+            assignedUserEmployeeId: null,
+            purchaseDate: null,
+            purchaseCost: null,
+            warrantyExpiry: null,
+            amcExpiry: null,
+            softwareName: null,
+            licenseType: null,
+            licenseKey: null,
+            usedLicenses: null,
+            renewalDate: null,
+            vendorName: null,
+            vendorEmail: null,
+            vendorPhone: null,
+            companyName: null,
+            companyGstNumber: null,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [s.assets.tenantId, s.assets.name, s.assets.version],
+            set: {
+              manufacturer: it.publisher ?? null,
+              updatedAt: now,
+              notes: deviceAssetId
+                ? `Added from device ${deviceAssetId}`
+                : "Added from OA discovery",
+            },
+          });
+
+        created += 1;
+      }
+
+      return res.json({ ok: true, created });
+    } catch (e: any) {
+      console.error("[/api/software/import] failed:", e?.message ?? e);
+      return res
+        .status(500)
+        .json({ error: "Failed to import software", details: e?.message ?? String(e) });
+    }
+  });
+
+
 
   // User Profile Management
   app.get("/api/users/me", authenticateToken, async (req: Request, res: Response) => {
@@ -3276,6 +3769,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+// POST /api/assets/tni/bulk
+// Body: { assets: Array<InsertAsset-like> }
+app.post("/api/assets/tni/bulk", async (req, res) => {
+  try {
+    const { assets } = req.body as { assets: any[] };
+    if (!Array.isArray(assets) || assets.length === 0) {
+      return res.status(400).json({ message: "assets[] required" });
+    }
+
+    const tenantFromHeader = (req.header("x-tenant-id") || "").trim();
+    let count = 0;
+
+    for (const a of assets) {
+      const row = {
+        tenantId: tenantFromHeader || a.tenantId,
+        name: a.name ?? a.hostname ?? "Unknown",
+        type: a.type ?? "Hardware",
+        category: a.category ?? null,
+        manufacturer: a.manufacturer ?? null,
+        model: a.model ?? null,
+        serialNumber: a.serialNumber ?? null,
+        status: a.status ?? "in-stock",
+        specifications: (a.specifications ?? {}) as any, // jsonb
+        notes: a.notes ?? "Imported from TNI",
+        updatedAt: new Date(),
+      };
+
+      if (!row.tenantId) {
+        return res
+          .status(400)
+          .json({ message: "tenantId missing (x-tenant-id header or body)" });
+      }
+
+      // --- Two-step UPSERT (no unique index required) ---
+      if (row.serialNumber) {
+        // Upsert by (tenantId, serialNumber)
+        const updated = await db
+          .update(s.assets)
+          .set({
+            name: row.name,
+            type: row.type,
+            category: row.category,
+            manufacturer: row.manufacturer,
+            model: row.model,
+            status: row.status,
+            specifications: row.specifications,
+            notes: row.notes,
+            updatedAt: row.updatedAt!,
+          })
+          .where(
+            and(
+              eq(s.assets.tenantId, row.tenantId),
+              eq(s.assets.serialNumber, row.serialNumber)
+            )
+          )
+          .returning({ id: s.assets.id });
+
+        if (updated.length === 0) {
+          await db.insert(s.assets).values(row as any);
+        }
+      } else {
+        // No serial number: upsert by (tenantId, name)
+        const updated = await db
+          .update(s.assets)
+          .set({
+            type: row.type,
+            category: row.category,
+            manufacturer: row.manufacturer,
+            model: row.model,
+            status: row.status,
+            specifications: row.specifications,
+            notes: row.notes,
+            updatedAt: row.updatedAt!,
+          })
+          .where(and(eq(s.assets.tenantId, row.tenantId), eq(s.assets.name, row.name)))
+          .returning({ id: s.assets.id });
+
+        if (updated.length === 0) {
+          await db.insert(s.assets).values(row as any);
+        }
+      }
+
+      count++;
+    }
+
+    return res.json({ ok: true, count });
+  } catch (err: any) {
+    console.error("TNI bulk ingest error:", err?.message || err);
+    return res.status(500).json({ message: "failed to ingest assets", error: err?.message });
+  }
+});
+
   // Create new ticket
   app.post("/api/tickets", authenticateToken, async (req: Request, res: Response) => {
     try {
@@ -3529,6 +4114,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+
   // Update ticket comment
   app.put("/api/tickets/:id/comments/:commentId", authenticateToken, async (req: Request, res: Response) => {
     try {
@@ -3569,6 +4156,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to delete ticket comment" });
     }
   });
+
+// Heartbeat (unchanged)
+app.get("/api/sync/status", (_req, res) => {
+  res.json(getSyncStatus());
+});
+
+/**
+ * GET software discovered for a device (by our Asset id).
+ * - Looks up the asset
+ * - Reads specifications.openaudit.id (with a few tolerant aliases)
+ * - Calls oaFetchDeviceSoftware and returns normalized items
+ */
+app.get("/api/assets/:assetId/software", async (req, res) => {
+  try {
+    const assetId = String(req.params.assetId);
+
+    // Load asset
+    const [row] = await db
+      .select()
+      .from(s.assets)
+      .where(eq(s.assets.id, assetId))
+      .limit(1);
+
+    if (!row) {
+      return res.status(404).json({ error: "Asset not found" });
+    }
+
+    // Be tolerant of different shapes
+    const specs: any = (row as any)?.specifications ?? {};
+    const oaId =
+      specs?.openaudit?.id ??
+      specs?.openaudit_id ??
+      specs?.oaId ??
+      null;
+
+    if (!oaId) {
+      return res.status(400).json({
+        error: "Asset has no Open-AudIT id",
+        details:
+          "Expected specifications.openaudit.id to be set (our OA sync should populate this).",
+      });
+    }
+
+    // Will try /components first (with X-Requested-With), then fallbacks
+    const items = await oaFetchDeviceSoftware(String(oaId));
+    return res.json({ items });
+  } catch (e: any) {
+    // Add server-side visibility
+    console.error("[/api/assets/:assetId/software] failed:", e?.message ?? e);
+    return res.status(500).json({
+      error: "Failed to fetch software",
+      details: e?.message ?? String(e),
+    });
+  }
+});
+
+/**
+ * POST add selected software into inventory (as assets with type=Software).
+ * - Upserts on (tenantId, name, version)
+ *
+ * IMPORTANT: we normalize version to "" (empty string) so it matches
+ * the plain unique index (tenant_id, name, version) and the ON CONFLICT target.
+ */
+app.post("/api/software/import", async (req, res) => {
+  try {
+    const { tenantId, deviceAssetId, items } = req.body as {
+      tenantId: string;
+      deviceAssetId?: string;
+      items: Array<{ name: string; version?: string | null; publisher?: string | null }>;
+    };
+
+    if (!tenantId || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "tenantId and items are required" });
+    }
+
+    const now = new Date();
+    let created = 0;
+
+    for (const it of items) {
+      const name = (it.name || "").trim();
+      if (!name) continue;
+
+      await db
+        .insert(s.assets)
+        .values({
+          tenantId,
+          type: "Software",
+          name,
+          // 🔧 normalize NULL -> "" so (tenant_id, name, version) uniqueness works
+          version: (it.version ?? "").trim(),
+          manufacturer: it.publisher ?? null,
+          status: "in-stock",
+          category: "Application",
+          notes: deviceAssetId
+            ? `Added from device ${deviceAssetId}`
+            : "Added from OA discovery",
+
+          // keep the rest null to satisfy schema
+          specifications: null,
+          location: null,
+          country: null,
+          state: null,
+          city: null,
+          assignedUserId: null,
+          assignedUserName: null,
+          assignedUserEmail: null,
+          assignedUserEmployeeId: null,
+          purchaseDate: null,
+          purchaseCost: null,
+          warrantyExpiry: null,
+          amcExpiry: null,
+          softwareName: null,
+          licenseType: null,
+          licenseKey: null,
+          usedLicenses: null,
+          renewalDate: null,
+          vendorName: null,
+          vendorEmail: null,
+          vendorPhone: null,
+          companyName: null,
+          companyGstNumber: null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [s.assets.tenantId, s.assets.name, s.assets.version],
+          set: {
+            manufacturer: it.publisher ?? null,
+            updatedAt: now,
+            notes: deviceAssetId
+              ? `Added from device ${deviceAssetId}`
+              : "Added from OA discovery",
+          },
+        });
+
+      created += 1;
+    }
+
+    return res.json({ ok: true, created });
+  } catch (e: any) {
+    console.error("[/api/software/import] failed:", e?.message ?? e);
+    return res
+      .status(500)
+      .json({ error: "Failed to import software", details: e?.message ?? String(e) });
+  }
+});
+
+
 
   // Get ticket activities
   app.get("/api/tickets/:id/activities", authenticateToken, async (req: Request, res: Response) => {
