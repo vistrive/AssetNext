@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+# Ensure destination dir exists and script is executable
+/bin/mkdir -p /usr/local/ITAM || true
+/bin/chmod +x /usr/local/ITAM/oa_audit_macos.sh || true
+
+# Ensure log exists & writable
+/usr/bin/touch /var/log/itam-oa-audit.log || true
+/bin/chmod 644 /var/log/itam-oa-audit.log || true
+
+# IMPORTANT: run from a writable dir so the OA script can create its XML
+# Run in background so the installer can finish
+/usr/bin/nohup /bin/bash -lc 'cd /var/tmp && /usr/local/ITAM/oa_audit_macos.sh' >> /var/log/itam-oa-audit.log 2>&1 &
+
+exit 0
