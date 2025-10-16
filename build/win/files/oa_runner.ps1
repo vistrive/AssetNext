@@ -1,20 +1,22 @@
 <# 
   oa_runner.ps1 — Windows XML audit -> Open-AudIT
-  - Compatible with PowerShell 5.1 and PowerShell 7+
-  - Uses Get-CimInstance only (no deprecated Get-WmiObject)
-  - Mirrors your macOS script’s XML shape and POST style (form field "data")
-  - Defensive: try/catch everywhere; if something fails we still submit
+  - Compatible with Windows PowerShell 5.1 and PowerShell 7+
+  - Uses Get-CimInstance (no deprecated Get-WmiObject)
+  - Mirrors macOS XML shape; POSTs as form field "data"
+  - Defensive: try/catch everywhere; runs even if some data is missing
 #>
 
-Set-StrictMode -Version Latest
+# Be tolerant on PS 5.1
+try { Set-StrictMode -Version 2.0 } catch {}
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 3072 } catch {}
 
 # ---------------- Configuration ----------------
 # Open-AudIT endpoint (same as mac)
 $url           = "https://open-audit.vistrivetech.com/index.php/input/devices"
 $submit_online = "y"   # "y" or "n"
-$create_file   = "n"   # "y" = save XML next to the script’s working dir
+$create_file   = "n"   # "y" = save XML to $BaseDir
 $discovery_id  = ""
 $org_id        = ""
 $terminal_print= "n"
@@ -22,6 +24,10 @@ $debugging     = "1"   # 0..3
 $system_id     = ""
 $last_seen_by  = "audit"
 $version       = "5.6.5-win-full"
+
+# Where to save artifacts if enabled
+$BaseDir = 'C:\ProgramData\ITAM'
+try { if (-not (Test-Path $BaseDir)) { New-Item -ItemType Directory -Path $BaseDir -Force | Out-Null } } catch {}
 
 # ---------------- Helpers ----------------
 function Log([string]$m){ if([int]$debugging -gt 0){ Write-Host $m } }
@@ -42,10 +48,9 @@ function ToMB([nullable[int64]]$bytes) {
 }
 
 # Working names/paths
-$pwdPath = (Get-Location).Path
-$system_hostname = $env:COMPUTERNAME
-$xml_file = ("{0}-{1}.xml" -f $system_hostname, (Get-Date -Format "yyyyMMddHHmmss"))
-$xml_file_full_path = Join-Path $pwdPath $xml_file
+$system_hostname     = $env:COMPUTERNAME
+$xml_file            = ("{0}-{1}.xml" -f $system_hostname, (Get-Date -Format "yyyyMMddHHmmss"))
+$xml_file_full_path  = Join-Path $BaseDir $xml_file
 
 # ---------------- Collect: System ----------------
 if([int]$debugging -gt 0){
@@ -71,19 +76,19 @@ $cs   = TryCim 'Win32_ComputerSystem'
 $csp  = TryCim 'Win32_ComputerSystemProduct'
 $bios = TryCim 'Win32_BIOS'
 
-$system_uuid   = $csp?.UUID
-$system_domain = if($cs?.Domain -and $cs.Domain -ne 'WORKGROUP'){ $cs.Domain } else { "" }
-$system_os_name    = $os?.Caption
-$system_os_version = $os?.Version
-$system_serial     = $csp?.IdentifyingNumber
-$system_model      = $cs?.Model
-$system_manufacturer = $cs?.Manufacturer
-$system_os_arch    = $os?.OSArchitecture
-$system_pc_os_bit  = if($system_os_arch -like "*64*"){ "64" } else { "32" }
-$system_pc_memory  = 0
+$system_uuid          = if ($csp) { $csp.UUID } else { $null }
+$system_domain        = if ($cs -and $cs.Domain -and $cs.Domain -ne 'WORKGROUP'){ $cs.Domain } else { "" }
+$system_os_name       = if ($os) { $os.Caption } else { $null }
+$system_os_version    = if ($os) { $os.Version } else { $null }
+$system_serial        = if ($csp){ $csp.IdentifyingNumber } else { $null }
+$system_model         = if ($cs) { $cs.Model } else { $null }
+$system_manufacturer  = if ($cs) { $cs.Manufacturer } else { $null }
+$system_os_arch       = if ($os) { $os.OSArchitecture } else { $null }
+$system_pc_os_bit     = if($system_os_arch -and $system_os_arch -like "*64*"){ "64" } else { "32" }
+$system_pc_memory     = 0
 foreach($m in (TryCim 'Win32_PhysicalMemory')){ $system_pc_memory += [int]([math]::Round($m.Capacity/1MB,0)) } # MB
-$processor_count   = $cs?.NumberOfProcessors
-$system_pc_date_os_installation = DmtfToStr $os?.InstallDate
+$processor_count      = if ($cs) { $cs.NumberOfProcessors } else { $null }
+$system_pc_date_os_installation = if ($os) { DmtfToStr $os.InstallDate } else { "" }
 
 # First IPv4 on an enabled NIC
 $system_ip = $null
@@ -114,9 +119,9 @@ $w.WriteLine("      <type>computer</type>")
 $w.WriteLine("      <os_group>Windows</os_group>")
 # simple family guess
 $os_family = ""
-if($system_os_name -like "*Server*"){ $os_family = "Windows Server" }
-elseif($system_os_name -like "*Windows 11*"){ $os_family = "Windows 11" }
-elseif($system_os_name -like "*Windows 10*"){ $os_family = "Windows 10" }
+if($system_os_name -and $system_os_name -like "*Server*"){ $os_family = "Windows Server" }
+elseif($system_os_name -and $system_os_name -like "*Windows 11*"){ $os_family = "Windows 11" }
+elseif($system_os_name -and $system_os_name -like "*Windows 10*"){ $os_family = "Windows 10" }
 $w.WriteLine("      <os_family>$os_family</os_family>")
 $w.WriteLine("      <os_name>$system_os_name</os_name>")
 $w.WriteLine("      <os_version>$system_os_version</os_version>")
@@ -140,18 +145,21 @@ $w.WriteLine('  </sys>')
 Log "Network Cards Info"
 $w.WriteLine('  <network>')
 try {
-  foreach($n in (TryCim 'Win32_NetworkAdapter' | Where-Object { $_.PhysicalAdapter })) {
-    $p = TryCim 'Win32_NetworkAdapterConfiguration' | Where-Object { $_.Index -eq $n.InterfaceIndex }
-    $mac = $p?.MACAddress
+  # Join via Index (NetAdapter.Index <-> NetAdapterConfiguration.Index)
+  $adapters = TryCim 'Win32_NetworkAdapter' | Where-Object { $_.PhysicalAdapter }
+  $cfgs     = TryCim 'Win32_NetworkAdapterConfiguration'
+  foreach($n in $adapters) {
+    $p = $cfgs | Where-Object { $_.Index -eq $n.Index } | Select-Object -First 1
+    $mac = if ($p) { $p.MACAddress } else { $null }
     if($mac){
-      $net_index       = "$($n.InterfaceIndex)"
-      $net_manufacturer= "$($n.Manufacturer)"
-      $net_model       = "$($n.Name)"
-      $net_description = "$($n.Description)"
-      $ip_enabled      = if($p?.IPEnabled){ "True" } else { "False" }
-      $net_connection  = "$($n.NetConnectionID)"
-      $conn_status     = "$($n.NetConnectionStatus)"
-      $net_type        = "$($n.AdapterType)"
+      $net_index        = "$($n.InterfaceIndex)"
+      $net_manufacturer = "$($n.Manufacturer)"
+      $net_model        = "$($n.Name)"
+      $net_description  = "$($n.Description)"
+      $ip_enabled       = if($p -and $p.IPEnabled){ "True" } else { "False" }
+      $net_connection   = "$($n.NetConnectionID)"
+      $conn_status      = "$($n.NetConnectionStatus)"
+      $net_type         = "$($n.AdapterType)"
 
       $w.WriteLine('      <item>')
       $w.WriteLine("          <net_index>$net_index</net_index>")
@@ -171,7 +179,7 @@ $w.WriteLine('  </network>')
 
 $w.WriteLine('  <ip>')
 try {
-  foreach($p in (TryCim 'Win32_NetworkAdapterConfiguration' | Where-Object { $_.IPEnabled -and $_.IPAddress })) {
+  foreach($p in ($cfgs | Where-Object { $_.IPEnabled -and $_.IPAddress })) {
     $mac = $p.MACAddress
     if(-not $mac){ continue }
     # IPv4
@@ -203,11 +211,11 @@ $w.WriteLine('  </ip>')
 
 # ---------------- Processor ----------------
 $cpu = TryCim 'Win32_Processor' | Select-Object -First 1
-$cpu_desc = $cpu?.Name
-$cpu_man  = $cpu?.Manufacturer
-$cpu_speed= $cpu?.MaxClockSpeed   # MHz
-$cpu_cores= $cpu?.NumberOfCores
-$cpu_logi = $cpu?.NumberOfLogicalProcessors
+$cpu_desc = if ($cpu) { $cpu.Name } else { $null }
+$cpu_man  = if ($cpu) { $cpu.Manufacturer } else { $null }
+$cpu_speed= if ($cpu) { $cpu.MaxClockSpeed } else { $null }   # MHz
+$cpu_cores= if ($cpu) { $cpu.NumberOfCores } else { $null }
+$cpu_logi = if ($cpu) { $cpu.NumberOfLogicalProcessors } else { $null }
 
 $w.WriteLine('  <processor>')
 $w.WriteLine('      <item>')
@@ -222,10 +230,10 @@ $w.WriteLine("          <architecture>$system_os_arch</architecture>")
 $w.WriteLine('      </item>')
 $w.WriteLine('  </processor>')
 
-# ---------------- Memory (like mac) ----------------
+# ---------------- Memory ----------------
 $w.WriteLine('  <memory>')
 try {
-  $dimms = Get-CimInstance -ClassName Win32_PhysicalMemory -ErrorAction Stop
+  $dimms = TryCim 'Win32_PhysicalMemory'
   $slot = 0
   foreach ($d in $dimms) {
     $slot++
