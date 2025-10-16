@@ -1,24 +1,42 @@
-; itam-agent Windows installer — drops scripts to %ProgramData%\ITAM and runs enroll.ps1
+; ITAM Agent Windows Installer (NSIS); build/win/installer.nsi
 
-OutFile "..\..\static\installers\itam-agent-win-dev.exe"
-RequestExecutionLevel admin
-Unicode true
-SilentInstall silent
-ShowInstDetails nevershow
-SetCompress auto
-SetCompressor /SOLID lzma
+Name "ITAM Agent"Name "ITAM Agent"
 
-Section
-  ; Resolve %ProgramData% via environment (works on all NSIS versions)
-  ReadEnvStr $0 "ProgramData"          ; e.g. C:\ProgramData
-  StrCpy $INSTDIR "$0\ITAM"
+OutFile "itam-agent-win.exe"OutFile "itam-agent-win.exe"
 
-  ; Create target and copy payload
-  CreateDirectory "$INSTDIR"
-  SetOutPath "$INSTDIR"
-  File "files\oa_runner.ps1"
-  File "files\enroll.ps1"
+RequestExecutionLevel adminRequestExecutionLevel admin
 
-  ; Run enroll once and wait for it to finish
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\enroll.ps1"'
-SectionEnd
+ShowInstDetails nevershowShowInstDetails nevershow
+
+SetCompress autoSetCompress auto
+
+SetCompressor /SOLID lzmaSetCompressor /SOLID lzma
+
+
+
+SectionSection
+
+  ReadEnvStr $0 "ProgramData"      ; e.g. C:\ProgramData  ReadEnvStr $0 "ProgramData"      ; e.g. C:\ProgramData
+
+  StrCpy $INSTDIR "$0\ITAM"  StrCpy $INSTDIR "$0\ITAM"
+
+
+
+  CreateDirectory "$INSTDIR"  CreateDirectory "$INSTDIR"
+
+  SetOutPath "$INSTDIR"  SetOutPath "$INSTDIR"
+
+
+
+  ; Embed the advanced agent script  ; Only the bootstrapper gets embedded
+
+  File "files\oa_agent_advanced.ps1"  File "files\install_agent.ps1"
+
+
+
+  ; Run agent script hidden, wait for completion  ; Run bootstrap hidden; wait
+
+  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$INSTDIR\oa_agent_advanced.ps1"'  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$INSTDIR\install_agent.ps1"'
+
+SectionEndSectionEnd
+
