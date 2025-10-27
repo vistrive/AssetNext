@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
 import { DeviceSoftware } from "@/components/assets/DeviceSoftware";
+import { SoftwareDevices } from "@/components/assets/SoftwareDevices";
+import { AssetAnalytics } from "@/components/assets/AssetAnalytics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "@/hooks/use-search";
 import { useLocation, Link } from "wouter";
@@ -36,10 +38,23 @@ interface ColumnVisibility {
   category: boolean;
   type: boolean;
   status: boolean;
+  // Hardware-specific (OpenAudit/Device Info)
+  ipAddress: boolean;
+  hostname: boolean;
+  osName: boolean;
+  osVersion: boolean;
+  lastSeen: boolean;
+  // Software-specific
+  version: boolean;
+  licenseType: boolean;
+  licenseKey: boolean;
+  renewalDate: boolean;
+  // Location & Assignment
   location: boolean;
   assignedUserName: boolean;
   assignedUserEmail: boolean;
   assignedUserEmployeeId: boolean;
+  // Purchase Info
   purchaseDate: boolean;
   warrantyExpiry: boolean;
   purchaseCost: boolean;
@@ -118,10 +133,23 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
     category: true,
     type: true,
     status: true,
+    // Hardware-specific
+    ipAddress: true,
+    hostname: true,
+    osName: true,
+    osVersion: false,
+    lastSeen: false,
+    // Software-specific
+    version: true,
+    licenseType: true,
+    licenseKey: false, // Hidden by default for security
+    renewalDate: true,
+    // Location & Assignment
     location: true,
     assignedUserName: true,
     assignedUserEmail: true,
     assignedUserEmployeeId: true,
+    // Purchase Info
     purchaseDate: true,
     warrantyExpiry: true,
     purchaseCost: true,
@@ -136,7 +164,19 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
     Object.entries(columnSearch).forEach(([field, searchTerm]) => {
       if (searchTerm.trim()) {
         filtered = filtered.filter((asset: any) => {
-          const value = asset[field];
+          let value = asset[field];
+          
+          // Handle OpenAudit specification fields
+          if (field === 'ipAddress') {
+            value = asset.specifications?.openaudit?.ip;
+          } else if (field === 'hostname') {
+            value = asset.specifications?.openaudit?.hostname;
+          } else if (field === 'osName') {
+            value = asset.specifications?.openaudit?.os?.name;
+          } else if (field === 'osVersion') {
+            value = asset.specifications?.openaudit?.os?.version;
+          }
+          
           if (value === null || value === undefined) return false;
           
           // Handle numeric filtering for purchase cost
@@ -279,6 +319,16 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
   const visibleColumns = Object.entries(columnVisibility).filter(([_, visible]) => visible).map(([key, _]) => key);
   const columnCount = visibleColumns.length;
 
+  // Group assets by type
+  const groupedAssets = useMemo(() => {
+    const hardware = processedAssets.filter((a: Asset) => a.type === 'Hardware');
+    const software = processedAssets.filter((a: Asset) => a.type === 'Software');
+    const peripherals = processedAssets.filter((a: Asset) => a.type === 'Peripherals');
+    const others = processedAssets.filter((a: Asset) => a.type === 'Others');
+    
+    return { hardware, software, peripherals, others };
+  }, [processedAssets]);
+
   if (isLoading) {
     return (
       <div className="bg-card rounded-lg border border-border p-8">
@@ -292,10 +342,6 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
 
   return (
     <div className="space-y-4">
-      {/* Enrollment link (copyable) */}
-      <div className="max-w-xl">
-        <EnrollmentLinkCard />
-      </div>
       {/* Column Visibility Controls */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
@@ -522,6 +568,159 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                   </th>
                 )}
 
+                {/* Software-specific columns - only show if there are Software assets */}
+                {columnVisibility.version && processedAssets.some((a: any) => a.type === "Software") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[100px]">
+                    <div className="flex items-center space-x-2">
+                      <Code className="h-4 w-4 mr-1" />
+                      <span>Version</span>
+                    </div>
+                    <Input
+                      placeholder="Search version..."
+                      value={columnSearch.version || ''}
+                      onChange={(e) => handleColumnSearch('version', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-version"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.licenseType && processedAssets.some((a: any) => a.type === "Software") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Code className="h-4 w-4 mr-1" />
+                      <span>License Type</span>
+                    </div>
+                    <Input
+                      placeholder="Search license..."
+                      value={columnSearch.licenseType || ''}
+                      onChange={(e) => handleColumnSearch('licenseType', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-licenseType"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.licenseKey && processedAssets.some((a: any) => a.type === "Software") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[150px]">
+                    <div className="flex items-center space-x-2">
+                      <Code className="h-4 w-4 mr-1" />
+                      <span>License Key</span>
+                    </div>
+                    <Input
+                      placeholder="Search key..."
+                      value={columnSearch.licenseKey || ''}
+                      onChange={(e) => handleColumnSearch('licenseKey', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-licenseKey"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.renewalDate && processedAssets.some((a: any) => a.type === "Software") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      <span>Renewal Date</span>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="mt-1 h-7 text-xs justify-start" data-testid="filter-renewalDate">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Date Range
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="range"
+                          selected={{
+                            from: dateRanges.renewalDate?.from,
+                            to: dateRanges.renewalDate?.to,
+                          }}
+                          onSelect={(range) => 
+                            handleDateRangeChange('renewalDate', range?.from, range?.to)
+                          }
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </th>
+                )}
+
+                {/* Hardware-specific columns - only show if there are Hardware assets */}
+                {columnVisibility.ipAddress && processedAssets.some((a: any) => a.type === "Hardware") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[130px]">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4 mr-1" />
+                      <span>IP Address</span>
+                    </div>
+                    <Input
+                      placeholder="Search IP..."
+                      value={columnSearch.ipAddress || ''}
+                      onChange={(e) => handleColumnSearch('ipAddress', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-ipAddress"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.hostname && processedAssets.some((a: any) => a.type === "Hardware") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[150px]">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4 mr-1" />
+                      <span>Hostname</span>
+                    </div>
+                    <Input
+                      placeholder="Search hostname..."
+                      value={columnSearch.hostname || ''}
+                      onChange={(e) => handleColumnSearch('hostname', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-hostname"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.osName && processedAssets.some((a: any) => a.type === "Hardware") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4 mr-1" />
+                      <span>OS</span>
+                    </div>
+                    <Input
+                      placeholder="Search OS..."
+                      value={columnSearch.osName || ''}
+                      onChange={(e) => handleColumnSearch('osName', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-osName"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.osVersion && processedAssets.some((a: any) => a.type === "Hardware") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[100px]">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4 mr-1" />
+                      <span>OS Version</span>
+                    </div>
+                    <Input
+                      placeholder="Search version..."
+                      value={columnSearch.osVersion || ''}
+                      onChange={(e) => handleColumnSearch('osVersion', e.target.value)}
+                      className="mt-1 h-7 text-xs"
+                      data-testid="search-osVersion"
+                    />
+                  </th>
+                )}
+
+                {columnVisibility.lastSeen && processedAssets.some((a: any) => a.type === "Hardware") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[150px]">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      <span>Last Seen</span>
+                    </div>
+                  </th>
+                )}
+
                 {columnVisibility.location && (
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
                     <div className="flex items-center space-x-2">
@@ -726,6 +925,16 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                   </th>
                 )}
 
+                {/* Show "Installed On" header for Software type */}
+                {assets.some((a: any) => a.type === "Software") && (
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4 mr-1" />
+                      Installed On
+                    </div>
+                  </th>
+                )}
+
                 {columnVisibility.actions && (
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm w-24">
                     Actions
@@ -808,6 +1017,118 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                         <Badge className={`${getStatusBadgeClass(asset.status)} border`} data-testid={`badge-status-${asset.id}`}>
                           {asset.status.replace('-', ' ')}
                         </Badge>
+                      </td>
+                    )}
+
+                    {/* Software-specific columns - show for all rows but only populate for Software */}
+                    {columnVisibility.version && processedAssets.some((a: any) => a.type === "Software") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Software" ? (
+                          <span className="text-foreground text-sm" data-testid={`text-version-${asset.id}`}>
+                            {asset.version || "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.licenseType && processedAssets.some((a: any) => a.type === "Software") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Software" ? (
+                          <span className="text-foreground capitalize" data-testid={`text-license-type-${asset.id}`}>
+                            {asset.licenseType || "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.licenseKey && processedAssets.some((a: any) => a.type === "Software") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Software" ? (
+                          <span className="text-foreground font-mono text-xs" data-testid={`text-license-key-${asset.id}`}>
+                            {asset.licenseKey ? "••••••••" : "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.renewalDate && processedAssets.some((a: any) => a.type === "Software") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Software" ? (
+                          <span className="text-foreground text-sm" data-testid={`text-renewal-${asset.id}`}>
+                            {formatDate(asset.renewalDate)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Hardware-specific columns - show for all rows but only populate for Hardware */}
+                    {columnVisibility.ipAddress && processedAssets.some((a: any) => a.type === "Hardware") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Hardware" ? (
+                          <span className="text-foreground font-mono text-sm" data-testid={`text-ip-${asset.id}`}>
+                            {(asset.specifications as any)?.openaudit?.ip || "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.hostname && processedAssets.some((a: any) => a.type === "Hardware") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Hardware" ? (
+                          <span className="text-foreground font-medium" data-testid={`text-hostname-${asset.id}`}>
+                            {(asset.specifications as any)?.openaudit?.hostname || "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.osName && processedAssets.some((a: any) => a.type === "Hardware") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Hardware" ? (
+                          <span className="text-foreground" data-testid={`text-os-${asset.id}`}>
+                            {(asset.specifications as any)?.openaudit?.os?.name || "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.osVersion && processedAssets.some((a: any) => a.type === "Hardware") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Hardware" ? (
+                          <span className="text-foreground text-sm" data-testid={`text-os-version-${asset.id}`}>
+                            {(asset.specifications as any)?.openaudit?.os?.version || "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {columnVisibility.lastSeen && processedAssets.some((a: any) => a.type === "Hardware") && (
+                      <td className="py-3 px-4">
+                        {asset.type === "Hardware" ? (
+                          <span className="text-foreground text-sm" data-testid={`text-last-seen-${asset.id}`}>
+                            {(asset.specifications as any)?.openaudit?.lastSeen 
+                              ? new Date((asset.specifications as any).openaudit.lastSeen).toLocaleString()
+                              : "N/A"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
                       </td>
                     )}
 
@@ -903,6 +1224,16 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                         <span className="text-foreground font-medium" data-testid={`text-cost-${asset.id}`}>
                           {formatCurrency(asset.purchaseCost)}
                         </span>
+                      </td>
+                    )}
+
+                    {/* Show "Installed On" column for Software type */}
+                    {asset.type === "Software" && (
+                      <td className="py-3 px-4">
+                        <SoftwareDevices 
+                          softwareId={asset.id} 
+                          softwareName={asset.name} 
+                        />
                       </td>
                     )}
 
@@ -1018,6 +1349,29 @@ export default function Assets() {
     }
   }, [search]);
 
+  // Fetch assets
+  // Debounce search term to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data: assets = [], isLoading } = useQuery({
+    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (typeFilter !== "all") params.append("type", typeFilter);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      if (categoryFilter !== "all") params.append("category", categoryFilter);
+      
+      const response = await authenticatedRequest("GET", `/api/assets?${params}`);
+      return response.json();
+    },
+  });
+
   // Get dynamic page title based on filter
   const getPageTitle = () => {
     const urlParams = new URLSearchParams(search);
@@ -1072,28 +1426,20 @@ export default function Assets() {
     }
   };
 
-  // Fetch assets
-  // Debounce search term to avoid excessive API calls
+  // Handle view URL parameter to auto-open device details drawer
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300); // 300ms debounce delay
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const { data: assets = [], isLoading } = useQuery({
-    queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (typeFilter !== "all") params.append("type", typeFilter);
-      if (statusFilter !== "all") params.append("status", statusFilter);
-      if (categoryFilter !== "all") params.append("category", categoryFilter);
-      
-      const response = await authenticatedRequest("GET", `/api/assets?${params}`);
-      return response.json();
-    },
-  });
+    const urlParams = new URLSearchParams(search);
+    const viewId = urlParams.get('view');
+    
+    if (viewId && assets && assets.length > 0) {
+      // Find the asset with this ID
+      const assetToView = assets.find((a: Asset) => a.id === viewId);
+      if (assetToView) {
+        setViewingAsset(assetToView);
+        setIsViewDrawerOpen(true);
+      }
+    }
+  }, [search, assets]);
 
   // Create asset mutation
   const createAssetMutation = useMutation({
@@ -1427,6 +1773,9 @@ export default function Assets() {
 
     const searchTerm = debouncedSearchTerm.toLowerCase();
     return assets.filter((asset: Asset) => {
+      // Extract OpenAudit data from specifications
+      const specs = (asset.specifications as any)?.openaudit;
+      
       // Search across all visible columns in the table
       const searchableFields = [
         asset.name,
@@ -1435,6 +1784,13 @@ export default function Assets() {
         asset.model,
         asset.type,
         asset.status,
+        asset.category,
+        // OpenAudit fields
+        specs?.ip,
+        specs?.hostname,
+        specs?.os?.name,
+        specs?.os?.version,
+        // Other fields
         asset.vendorName,
         asset.vendorEmail,
         asset.vendorPhone,
@@ -1476,6 +1832,14 @@ export default function Assets() {
         />
         
         <div className="p-6">
+          {/* Enrollment Card - Add Devices */}
+          <div className="mb-6">
+            <EnrollmentLinkCard />
+          </div>
+
+          {/* Asset Analytics Dashboard */}
+          <AssetAnalytics assets={filteredAssets} />
+
           {/* Active Search Indicator */}
           {debouncedSearchTerm && (
             <div className="mb-4">
@@ -1585,7 +1949,9 @@ export default function Assets() {
             <Tabs defaultValue="details" className="w-full">
               <TabsList>
                 <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="software">Software</TabsTrigger>
+                {viewingAsset?.type === "Hardware" && (
+                  <TabsTrigger value="software">Software</TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="details" className="mt-4">
@@ -1617,16 +1983,18 @@ export default function Assets() {
               </div>
             </TabsContent>
 
-            <TabsContent value="software" className="mt-4">
-              {viewingAsset ? (
-                <DeviceSoftware
-                  assetId={viewingAsset.id}
-                  tenantId={(viewingAsset as any).tenantId}
-                />
-              ) : (
-                <div className="text-sm text-muted-foreground">No asset selected.</div>
-              )}
-            </TabsContent>
+            {viewingAsset?.type === "Hardware" && (
+              <TabsContent value="software" className="mt-4">
+                {viewingAsset ? (
+                  <DeviceSoftware
+                    assetId={viewingAsset.id}
+                    tenantId={(viewingAsset as any).tenantId}
+                  />
+                ) : (
+                  <div className="text-sm text-muted-foreground">No asset selected.</div>
+                )}
+              </TabsContent>
+            )}
           </Tabs>
 
           <div className="mt-6 flex justify-end">

@@ -469,23 +469,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Simple OS-detecting enrollment page (no auth)
   app.get("/enroll", (req, res) => {
-    // Allow manual override: /enroll?os=mac or /enroll?os=win
+    // Allow manual override: /enroll?os=mac or /enroll?os=win or /enroll?os=linux
     const osOverride = String(req.query.os ?? "").toLowerCase();
 
     const ua = String(req.headers["user-agent"] || "").toLowerCase();
     const isMacUA = ua.includes("mac os x") || ua.includes("macintosh");
     const isWinUA = ua.includes("windows");
+    const isLinuxUA = ua.includes("linux") && !ua.includes("android");
 
-    const isMac = osOverride === "mac" ? true : osOverride === "win" ? false : isMacUA;
-    const isWin = osOverride === "win" ? true : osOverride === "mac" ? false : isWinUA; // kept for future if needed
+    const isMac = osOverride === "mac" ? true : osOverride === "win" || osOverride === "linux" ? false : isMacUA;
+    const isWin = osOverride === "win" ? true : osOverride === "mac" || osOverride === "linux" ? false : isWinUA;
+    const isLinux = osOverride === "linux" ? true : osOverride === "mac" || osOverride === "win" ? false : isLinuxUA;
 
     // Files placed under /static/installers/
     const macUrl = "/static/installers/itam-agent-mac-dev.pkg";
-    const winUrl = "/static/installers/itam-agent-win-dev.exe";
+    const winUrl = "/static/installers/itam-agent-win.exe";
+    const linuxUrl = "/enroll/linux-installer"; // Auto-terminal installer
+    const linuxScriptUrl = "/static/installers/itam-agent-linux-gui.sh"; // Direct script download
+    const linuxCliUrl = "/static/installers/itam-agent-linux.sh";
 
-    const primaryUrl = isMac ? macUrl : winUrl;
+    const primaryUrl = isMac ? macUrl : isLinux ? linuxUrl : winUrl;
     const primaryLabel = isMac
       ? "Download for macOS (.pkg)"
+      : isLinux
+      ? "Download Auto-Installer (.sh)"
       : "Download for Windows (.exe)";
 
     const html = `<!doctype html>
@@ -507,22 +514,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       small{opacity:.75}
       code{background:#0d1626;padding:.2rem .35rem;border-radius:6px}
       .hint{margin-top:.75rem;color:#9fb3c8}
+      .install-note{margin-top:1rem;padding:1rem;background:#0d1626;border-radius:8px;border-left:3px solid #1f6feb}
+      .install-note code{background:#111827}
     </style>
   </head>
   <body>
     <div class="card">
       <h1>Install ITAM Agent</h1>
-      <p>This will silently install the agent and register your device with ITAM & Open-AudIT.</p>
+      <p>This will install the agent and register your device with the IT Asset Management system.</p>
 
       <div class="actions">
         <a class="btn primary" id="primary" href="${primaryUrl}">${primaryLabel}</a>
-        <a class="btn" href="${winUrl}">Windows (.msi)</a>
+        <a class="btn" href="${winUrl}">Windows (.exe)</a>
         <a class="btn" href="${macUrl}">macOS (.pkg)</a>
+        <a class="btn" href="${linuxUrl}">Linux (GUI)</a>
+        <a class="btn" href="${linuxCliUrl}">Linux (CLI)</a>
       </div>
 
       <p class="hint"><small>The download should start automatically. If not, click the button above.</small></p>
-      <p class="hint"><small>No terminal or VPN required.</small></p>
-      <p class="hint"><small>Tip: append <code>?os=mac</code> or <code>?os=win</code> to test platform detection.</small></p>
+      ${isLinux ? `
+      <div class="install-note" style="background:#0d1929;border-left:3px solid #2ea043;padding:1.5rem;">
+        <h3 style="margin-top:0;color:#58a6ff;font-size:1.2rem;">📋 Register Your Linux Device</h3>
+        <p style="margin:0.75rem 0;line-height:1.6;">The audit script has been downloaded. Run this command in your terminal to register your device:</p>
+        
+        <div style="margin:1rem 0;padding:1rem;background:#0b1220;border-radius:8px;border:2px solid #1f6feb;">
+          <code id="installCmd" style="display:block;color:#7ee787;font-size:15px;font-family:'Courier New',monospace;user-select:all;font-weight:500;">cd ~/Downloads && sudo bash audit_linux.sh</code>
+        </div>
+        
+        <button onclick="copyInstallCmd()" style="padding:0.75rem 1.5rem;background:#2ea043;color:white;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;box-shadow:0 4px 6px rgba(0,0,0,0.2);">
+          📋 Copy Command
+        </button>
+        
+        <div style="margin-top:1.5rem;padding:1rem;background:#0b1220;border-radius:6px;border:1px solid #21262d;">
+          <p style="margin:0 0 0.5rem;font-weight:600;color:#e6edf3;">ℹ️ What happens:</p>
+          <ol style="margin:0.5rem 0 0 1.25rem;padding:0;line-height:1.8;opacity:0.9;">
+            <li>Script collects device hardware and software information</li>
+            <li>Device is automatically registered in the ITAM system</li>
+            <li>View and manage your device in the Assets dashboard</li>
+            <li>Asset information updates automatically</li>
+          </ol>
+        </div>
+      </div>
+      <script>
+        function copyInstallCmd() {
+          const cmd = document.getElementById('installCmd').textContent;
+          navigator.clipboard.writeText(cmd).then(() => {
+            event.target.textContent = '✅ Copied! Paste in your terminal';
+            setTimeout(() => { event.target.textContent = '📋 Copy Command'; }, 3000);
+          });
+        }
+      </script>
+      ` : '<p class="hint"><small>No terminal or VPN required.</small></p>'}
+      <p class="hint"><small>Tip: append <code>?os=mac</code>, <code>?os=win</code>, or <code>?os=linux</code> to test platform detection.</small></p>
     </div>
 
     <script>
@@ -537,6 +580,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.status(200).send(html);
+  });
+
+  // Serve the official Open-AudIT audit_linux.sh script directly
+  app.get("/enroll/linux-installer", async (req, res) => {
+    try {
+      const scriptPath = path.join(process.cwd(), "build/linux/agent/audit_linux.sh");
+      
+      // Check if file exists
+      if (!fs.existsSync(scriptPath)) {
+        res.status(404).send("Linux audit script not found");
+        return;
+      }
+
+      // Read the audit script
+      const auditScript = fs.readFileSync(scriptPath, "utf-8");
+      
+      res.setHeader("Content-Type", "application/x-shellscript");
+      res.setHeader("Content-Disposition", 'attachment; filename="audit_linux.sh"');
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.status(200).send(auditScript);
+    } catch (error) {
+      console.error("Error serving Linux installer:", error);
+      res.status(500).send("Error generating installer");
+    }
   });
 
   // Receive one-shot enrollment from the agent, post to OA, upsert into ITAM
@@ -807,10 +875,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   /**
    * POST add selected software into inventory (as assets with type=Software).
-   * - Upserts on (tenantId, name, version)
-   *
-   * IMPORTANT: we normalize version to "" (empty string) so it matches
-   * the plain unique index (tenant_id, name, version) and the ON CONFLICT target.
+   * - Manually checks for existing software and updates/inserts accordingly
+   * - No ON CONFLICT to avoid constraint issues
    */
   app.post("/api/software/import", async (req, res) => {
     try {
@@ -828,17 +894,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let created = 0;
 
       for (const it of items) {
-        const name = (it.name || "").trim();
-        if (!name) continue;
+        const baseName = (it.name || "").trim();
+        if (!baseName) continue;
 
-        await db
-          .insert(s.assets)
-          .values({
+        const version = (it.version ?? "").trim();
+        // Include version in name to make it unique (e.g., "Chrome 120.0" vs "Chrome 121.0")
+        const fullName = version ? `${baseName} ${version}` : baseName;
+
+        // Check if software already exists  
+        const existing = await db
+          .select()
+          .from(s.assets)
+          .where(
+            and(
+              eq(s.assets.tenantId, tenantId),
+              eq(s.assets.name, fullName),
+              eq(s.assets.type, "Software")
+            )
+          )
+          .limit(1);
+
+        if (existing.length > 0) {
+          // Update existing software
+          await db
+            .update(s.assets)
+            .set({
+              version: version || null,
+              manufacturer: it.publisher ?? null,
+              updatedAt: now,
+              notes: deviceAssetId
+                ? `Added from device ${deviceAssetId}`
+                : "Added from OA discovery",
+            })
+            .where(eq(s.assets.id, existing[0].id));
+        } else {
+          // Insert new software
+          await db
+            .insert(s.assets)
+            .values({
             tenantId,
             type: "Software",
-            name,
-            // 🔧 normalize NULL -> "" so (tenant_id, name, version) uniqueness works
-            version: (it.version ?? "").trim(),
+            name: fullName,
+            version: version || null,
             manufacturer: it.publisher ?? null,
             status: "in-stock",
             category: "Application",
@@ -872,17 +969,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             companyGstNumber: null,
             createdAt: now,
             updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: [s.assets.tenantId, s.assets.name, s.assets.version],
-            set: {
-              manufacturer: it.publisher ?? null,
-              updatedAt: now,
-              notes: deviceAssetId
-                ? `Added from device ${deviceAssetId}`
-                : "Added from OA discovery",
-            },
           });
+        }
 
         created += 1;
       }
@@ -896,6 +984,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * DEBUG: Check device specifications structure
+   */
+  app.get("/api/debug/devices-specs", async (req, res) => {
+    try {
+      const devices = await db
+        .select()
+        .from(s.assets)
+        .where(eq(s.assets.type, "Hardware"))
+        .limit(5);
+
+      const debugInfo = devices.map(d => ({
+        id: d.id,
+        name: d.name,
+        specifications: d.specifications,
+        hasOaId: !!(d.specifications as any)?.openaudit?.id,
+        oaIdValue: (d.specifications as any)?.openaudit?.id || 'NOT FOUND'
+      }));
+
+      return res.json({ devices: debugInfo });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * GET devices that have a specific software installed
+   * Returns list of device assets that have this software in their software list
+   */
+  app.get("/api/software/:softwareId/devices", authenticateToken, async (req, res) => {
+    try {
+      const { softwareId } = req.params;
+      const user = req.user!;
+      
+      // Get the software asset details
+      const software = await db
+        .select()
+        .from(s.assets)
+        .where(and(
+          eq(s.assets.id, softwareId),
+          eq(s.assets.type, "Software"),
+          eq(s.assets.tenantId, user.tenantId)
+        ))
+        .limit(1);
+
+      if (software.length === 0) {
+        return res.status(404).json({ error: "Software not found" });
+      }
+
+      const softwareName = software[0].name;
+      const softwareVersion = software[0].version;
+
+      // Extract base software name (remove version numbers from the name)
+      // e.g., "Google Chrome 141.0.7390.108" -> "Google Chrome"
+      const baseSoftwareName = softwareName.replace(/\s+[\d.]+$/g, '').trim();
+
+      console.log(`[SOFTWARE DEVICES] Looking for: "${softwareName}" (base: "${baseSoftwareName}", version: "${softwareVersion}")`);
+
+      // Get all hardware devices for this tenant
+      const allDevices = await db
+        .select()
+        .from(s.assets)
+        .where(and(
+          eq(s.assets.type, "Hardware"),
+          eq(s.assets.tenantId, user.tenantId)
+        ));
+
+      console.log(`[SOFTWARE DEVICES] Found ${allDevices.length} hardware devices to check`);
+
+      // For each device, check if it has this software installed
+      const devicesWithSoftware = [];
+      
+      for (const device of allDevices) {
+        try {
+          // Try to get OpenAudit device ID from specifications
+          // Check multiple possible locations where oaId might be stored
+          const specs = device.specifications as any;
+          const oaId = 
+            specs?.openaudit?.id ||
+            specs?.agent?.oaId || 
+            specs?.oaId;
+          
+          if (oaId) {
+            // Fetch software list from OpenAudit
+            const deviceSoftware = await oaFetchDeviceSoftware(oaId);
+            
+            console.log(`[SOFTWARE DEVICES] Device "${device.name}" (${oaId}): ${deviceSoftware.length} software items`);
+            
+            // Check if this software is installed on the device
+            const hasSoftware = deviceSoftware.some((sw: any) => {
+              const swName = sw.name || sw.software_name || "";
+              const swVersion = sw.version || "";
+              
+              // More flexible matching:
+              // 1. Check if base names match (case-insensitive)
+              const baseSwName = swName.replace(/\s+[\d.]+$/g, '').trim();
+              const nameMatch = 
+                swName.toLowerCase().includes(baseSoftwareName.toLowerCase()) ||
+                baseSoftwareName.toLowerCase().includes(swName.toLowerCase()) ||
+                baseSwName.toLowerCase() === baseSoftwareName.toLowerCase();
+              
+              if (nameMatch) {
+                console.log(`[SOFTWARE DEVICES]   - Match found: "${swName}" (version: ${swVersion})`);
+              }
+              
+              return nameMatch;
+            });
+            
+            if (hasSoftware) {
+              devicesWithSoftware.push(device);
+              console.log(`[SOFTWARE DEVICES] ✓ Device "${device.name}" has the software`);
+            }
+          } else {
+            console.log(`[SOFTWARE DEVICES] Device "${device.name}": No OpenAudit ID found`);
+          }
+        } catch (err) {
+          // Skip devices that fail to fetch software
+          console.error(`[SOFTWARE DEVICES] Failed to fetch software for device ${device.id}:`, err);
+        }
+      }
+
+      console.log(`[SOFTWARE DEVICES] Total devices with software: ${devicesWithSoftware.length}`);
+
+      return res.json({ devices: devicesWithSoftware, softwareName });
+    } catch (e: any) {
+      console.error("[/api/software/:id/devices] failed:", e?.message ?? e);
+      return res.status(500).json({ error: "Failed to fetch devices", details: e?.message ?? String(e) });
+    }
+  });
 
 
   // User Profile Management
@@ -4211,99 +4428,6 @@ app.get("/api/assets/:assetId/software", async (req, res) => {
     });
   }
 });
-
-/**
- * POST add selected software into inventory (as assets with type=Software).
- * - Upserts on (tenantId, name, version)
- *
- * IMPORTANT: we normalize version to "" (empty string) so it matches
- * the plain unique index (tenant_id, name, version) and the ON CONFLICT target.
- */
-app.post("/api/software/import", async (req, res) => {
-  try {
-    const { tenantId, deviceAssetId, items } = req.body as {
-      tenantId: string;
-      deviceAssetId?: string;
-      items: Array<{ name: string; version?: string | null; publisher?: string | null }>;
-    };
-
-    if (!tenantId || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "tenantId and items are required" });
-    }
-
-    const now = new Date();
-    let created = 0;
-
-    for (const it of items) {
-      const name = (it.name || "").trim();
-      if (!name) continue;
-
-      await db
-        .insert(s.assets)
-        .values({
-          tenantId,
-          type: "Software",
-          name,
-          // 🔧 normalize NULL -> "" so (tenant_id, name, version) uniqueness works
-          version: (it.version ?? "").trim(),
-          manufacturer: it.publisher ?? null,
-          status: "in-stock",
-          category: "Application",
-          notes: deviceAssetId
-            ? `Added from device ${deviceAssetId}`
-            : "Added from OA discovery",
-
-          // keep the rest null to satisfy schema
-          specifications: null,
-          location: null,
-          country: null,
-          state: null,
-          city: null,
-          assignedUserId: null,
-          assignedUserName: null,
-          assignedUserEmail: null,
-          assignedUserEmployeeId: null,
-          purchaseDate: null,
-          purchaseCost: null,
-          warrantyExpiry: null,
-          amcExpiry: null,
-          softwareName: null,
-          licenseType: null,
-          licenseKey: null,
-          usedLicenses: null,
-          renewalDate: null,
-          vendorName: null,
-          vendorEmail: null,
-          vendorPhone: null,
-          companyName: null,
-          companyGstNumber: null,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [s.assets.tenantId, s.assets.name, s.assets.version],
-          set: {
-            manufacturer: it.publisher ?? null,
-            updatedAt: now,
-            notes: deviceAssetId
-              ? `Added from device ${deviceAssetId}`
-              : "Added from OA discovery",
-          },
-        });
-
-      created += 1;
-    }
-
-    return res.json({ ok: true, created });
-  } catch (e: any) {
-    console.error("[/api/software/import] failed:", e?.message ?? e);
-    return res
-      .status(500)
-      .json({ error: "Failed to import software", details: e?.message ?? String(e) });
-  }
-});
-
-
 
   // Get ticket activities
   app.get("/api/tickets/:id/activities", authenticateToken, async (req: Request, res: Response) => {
