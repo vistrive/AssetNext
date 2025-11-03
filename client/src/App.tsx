@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { QuickActionsButton } from "@/components/layout/quick-actions-button";
+import { AutoImportMonitor } from "@/components/discovery/auto-import-monitor";
 import { useState } from "react";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
@@ -22,6 +23,8 @@ import Tickets from "@/pages/tickets";
 import ActivityLogs from "@/pages/activity-logs";
 import Reports from "@/pages/reports";
 import SearchResults from "@/pages/search-results";
+import Discovery from "@/pages/discovery";
+import NetworkMonitoring from "@/pages/network-monitoring";
 
 function Router() {
   return (
@@ -50,6 +53,16 @@ function Router() {
       <Route path="/assets/new">
         <ProtectedRoute requiredRole="technician">
           <Assets key="new" />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/discovery">
+        <ProtectedRoute requiredRole="technician">
+          <Discovery />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/network-monitoring">
+        <ProtectedRoute requiredRole="admin">
+          <NetworkMonitoring />
         </ProtectedRoute>
       </Route>
       <Route path="/recommendations">
@@ -123,6 +136,7 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
+          <AutoImportMonitor />
           <Router />
           <QuickActionsButton />
         </TooltipProvider>

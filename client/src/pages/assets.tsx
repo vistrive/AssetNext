@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { authenticatedRequest } from "@/lib/auth";
@@ -1297,7 +1297,7 @@ export default function Assets() {
   useSyncHeartbeat();      // auto-refresh asset table when backend syncs
 
   const search = useSearch();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
@@ -1309,6 +1309,12 @@ export default function Assets() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<Asset | null>(null);
+  
+  // Discovery job tracking
+  const [activeDiscoveryJob, setActiveDiscoveryJob] = useState<any>(null);
+  const [discoveryResults, setDiscoveryResults] = useState<any[]>([]);
+  const [showDiscoveryModal, setShowDiscoveryModal] = useState(false);
+  const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
 
   // Detect if we're in "new" mode and auto-open the form
   useEffect(() => {
@@ -1349,6 +1355,40 @@ export default function Assets() {
     }
   }, [search]);
 
+  // Poll for active discovery job status
+  useEffect(() => {
+    if (!activeDiscoveryJob) return;
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await authenticatedRequest('GET', `/api/discovery/jobs/${activeDiscoveryJob.jobId}`);
+        const data = await response.json();
+        
+        if (data.job) {
+          setActiveDiscoveryJob(data.job);
+          
+          // If job completed, show results modal
+          if (data.job.status === 'completed' && data.devices && data.devices.length > 0) {
+            setDiscoveryResults(data.devices);
+            setShowDiscoveryModal(true);
+            clearInterval(pollInterval);
+          } else if (data.job.status === 'failed' || data.job.status === 'expired') {
+            clearInterval(pollInterval);
+            toast({
+              title: "Discovery Failed",
+              description: data.job.errorLog || "The discovery job failed or expired",
+              variant: "destructive"
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to poll discovery job:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+    
+    return () => clearInterval(pollInterval);
+  }, [activeDiscoveryJob, toast]);
+
   // Fetch assets
   // Debounce search term to avoid excessive API calls
   useEffect(() => {
@@ -1362,15 +1402,37 @@ export default function Assets() {
   const { data: assets = [], isLoading } = useQuery({
     queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
     queryFn: async () => {
+      console.log('[Assets.tsx] Fetching assets with filters:', { typeFilter, statusFilter, categoryFilter });
+      
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter !== "all") params.append("category", categoryFilter);
       
-      const response = await authenticatedRequest("GET", `/api/assets?${params}`);
-      return response.json();
+      const url = `/api/assets?${params}`;
+      console.log('[Assets.tsx] Fetching from:', url);
+      
+      const response = await authenticatedRequest("GET", url);
+      const data = await response.json();
+      
+      console.log('[Assets.tsx] Assets received:', {
+        count: data.length,
+        tenantIdHeader: response.headers.get('X-Tenant-Id'),
+        sampleAssets: data.slice(0, 3).map((a: any) => ({ name: a.name, id: a.id, tenantId: a.tenantId }))
+      });
+      
+      return data;
     },
   });
+
+  // Log assets whenever they change
+  useEffect(() => {
+    console.log('[Assets.tsx] Assets state updated:', {
+      count: assets.length,
+      isLoading,
+      assets: assets.slice(0, 3).map(a => ({ name: a.name, id: a.id }))
+    });
+  }, [assets, isLoading]);
 
   // Get dynamic page title based on filter
   const getPageTitle = () => {
@@ -1836,6 +1898,53 @@ export default function Assets() {
           <div className="mb-6">
             <EnrollmentLinkCard />
           </div>
+          
+          {/* Network Discovery Button */}
+          <div className="mb-6">
+            <div className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg p-6 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold mb-2">Network Discovery</h3>
+                  <p className="text-blue-50 mb-4">
+                    Automatically discover and inventory network devices using SNMP scanning
+                  </p>
+                  {activeDiscoveryJob && (
+                    <div className="mt-3 bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium">Scan in Progress</span>
+                      </div>
+                      {activeDiscoveryJob.progressMessage && (
+                        <p className="text-sm text-blue-100">{activeDiscoveryJob.progressMessage}</p>
+                      )}
+                      <div className="mt-2 bg-white/20 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-green-400 h-full transition-all duration-300"
+                          style={{ width: `${activeDiscoveryJob.progressPercent || 0}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-blue-100 mt-1">
+                        {activeDiscoveryJob.progressPercent || 0}% complete
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  size="lg" 
+                  variant="secondary"
+                  className="bg-white text-blue-600 hover:bg-blue-50"
+                  disabled={!!activeDiscoveryJob}
+                  onClick={() => {
+                    // Navigate to the discovery page (with sidebar and proper layout)
+                    setLocation('/discovery');
+                  }}
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  {activeDiscoveryJob ? 'Scanning...' : 'Start Network Discovery'}
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {/* Asset Analytics Dashboard */}
           <AssetAnalytics assets={filteredAssets} />
@@ -2211,6 +2320,154 @@ export default function Assets() {
               </div>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discovery Results Modal */}
+      <Dialog open={showDiscoveryModal} onOpenChange={setShowDiscoveryModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Network Discovery Complete
+            </DialogTitle>
+            <DialogDescription>
+              Found {discoveryResults.length} device{discoveryResults.length !== 1 ? 's' : ''} on your network. 
+              Select the devices you want to import into your inventory.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Select All */}
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              <input
+                type="checkbox"
+                checked={selectedDevices.size === discoveryResults.length}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedDevices(new Set(discoveryResults.map((_, i) => i.toString())));
+                  } else {
+                    setSelectedDevices(new Set());
+                  }
+                }}
+                className="h-4 w-4"
+              />
+              <span className="font-medium">
+                Select All ({selectedDevices.size} of {discoveryResults.length} selected)
+              </span>
+            </div>
+
+            {/* Device List */}
+            <div className="space-y-2">
+              {discoveryResults.map((device, index) => (
+                <div 
+                  key={index}
+                  className="flex items-start gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDevices.has(index.toString())}
+                    onChange={(e) => {
+                      const newSelected = new Set(selectedDevices);
+                      if (e.target.checked) {
+                        newSelected.add(index.toString());
+                      } else {
+                        newSelected.delete(index.toString());
+                      }
+                      setSelectedDevices(newSelected);
+                    }}
+                    className="h-4 w-4 mt-1"
+                  />
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-semibold">{device.hostname || 'Unknown Device'}</h4>
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                        {device.discoveryMethod || 'SNMP'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      <div>
+                        <span className="font-medium">IP:</span> {device.ipAddress}
+                      </div>
+                      {device.macAddress && (
+                        <div>
+                          <span className="font-medium">MAC:</span> {device.macAddress}
+                        </div>
+                      )}
+                      {device.sysDescr && (
+                        <div className="col-span-2">
+                          <span className="font-medium">Description:</span> {device.sysDescr}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDiscoveryModal(false);
+                  setActiveDiscoveryJob(null);
+                  setSelectedDevices(new Set());
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={selectedDevices.size === 0}
+                onClick={async () => {
+                  try {
+                    const devicesToImport = Array.from(selectedDevices).map(i => 
+                      discoveryResults[parseInt(i)]
+                    );
+                    
+                    const response = await authenticatedRequest('POST', '/api/discovery/import', {
+                      jobId: activeDiscoveryJob?.jobId,
+                      devices: devicesToImport
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                      toast({
+                        title: "Import Successful",
+                        description: `Imported ${result.imported} device(s) into inventory`,
+                      });
+                      
+                      // Refresh assets list
+                      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+                      
+                      // Close modal
+                      setShowDiscoveryModal(false);
+                      setActiveDiscoveryJob(null);
+                      setSelectedDevices(new Set());
+                    } else {
+                      toast({
+                        title: "Import Failed",
+                        description: result.message || "Failed to import devices",
+                        variant: "destructive"
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Failed to import devices:', error);
+                    toast({
+                      title: "Import Error",
+                      description: "An error occurred while importing devices",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Import {selectedDevices.size} Device{selectedDevices.size !== 1 ? 's' : ''}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

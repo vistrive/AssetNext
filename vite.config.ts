@@ -32,6 +32,13 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5050',
+        changeOrigin: true,
+        secure: false,
+      }
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

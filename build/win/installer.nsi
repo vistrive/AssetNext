@@ -49,6 +49,9 @@ Section
   File /oname=cleanup.bat "${__FILEDIR__}\files\cleanup.bat"
   File /oname=diagnose.bat "${__FILEDIR__}\files\diagnose.bat"
   
+  ; Copy enrollment.conf if it exists (for multi-tenancy) - use /nonfatal to make it optional
+  File /nonfatal /oname=enrollment.conf "${__FILEDIR__}\enrollment.conf"
+  
   DetailPrint "Script copied successfully."
   DetailPrint "Script location: $INSTDIR\oa_agent_advanced.ps1"
 

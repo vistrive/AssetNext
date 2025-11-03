@@ -33,6 +33,9 @@ import {
   type InsertTicketActivity,
   type CreateTicket,
   type UpdateTicket,
+  type EnrollmentToken,
+  type InsertEnrollmentToken,
+  type CreateEnrollmentToken,
   users,
   tenants,
   assets,
@@ -47,7 +50,8 @@ import {
   tenantAdminLock,
   tickets,
   ticketComments,
-  ticketActivities
+  ticketActivities,
+  enrollmentTokens
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
@@ -155,6 +159,15 @@ export interface IStorage {
   // Ticket Activities
   logTicketActivity(activity: InsertTicketActivity): Promise<TicketActivity>;
   getTicketActivities(ticketId: string, tenantId: string): Promise<TicketActivity[]>;
+  
+  // Enrollment Tokens
+  createEnrollmentToken(token: InsertEnrollmentToken): Promise<EnrollmentToken>;
+  getEnrollmentToken(id: string, tenantId: string): Promise<EnrollmentToken | undefined>;
+  getEnrollmentTokenByToken(token: string): Promise<EnrollmentToken | undefined>;
+  getEnrollmentTokens(tenantId: string): Promise<EnrollmentToken[]>;
+  updateEnrollmentToken(id: string, tenantId: string, updates: Partial<InsertEnrollmentToken>): Promise<EnrollmentToken | undefined>;
+  deleteEnrollmentToken(id: string, tenantId: string): Promise<boolean>;
+  incrementEnrollmentTokenUsage(token: string): Promise<void>;
   
   // Dashboard Metrics
   getDashboardMetrics(tenantId: string): Promise<any>;
@@ -1939,6 +1952,56 @@ export class DatabaseStorage implements IStorage {
       console.error('Error performing global search:', error);
       throw error;
     }
+  }
+
+  // Enrollment Tokens
+  async createEnrollmentToken(token: InsertEnrollmentToken): Promise<EnrollmentToken> {
+    const [newToken] = await db.insert(enrollmentTokens).values(token).returning();
+    return newToken;
+  }
+
+  async getEnrollmentToken(id: string, tenantId: string): Promise<EnrollmentToken | undefined> {
+    const [token] = await db.select().from(enrollmentTokens).where(
+      and(eq(enrollmentTokens.id, id), eq(enrollmentTokens.tenantId, tenantId))
+    );
+    return token || undefined;
+  }
+
+  async getEnrollmentTokenByToken(token: string): Promise<EnrollmentToken | undefined> {
+    const [enrollmentToken] = await db.select().from(enrollmentTokens).where(
+      eq(enrollmentTokens.token, token)
+    );
+    return enrollmentToken || undefined;
+  }
+
+  async getEnrollmentTokens(tenantId: string): Promise<EnrollmentToken[]> {
+    return await db.select().from(enrollmentTokens).where(
+      eq(enrollmentTokens.tenantId, tenantId)
+    ).orderBy(desc(enrollmentTokens.createdAt));
+  }
+
+  async updateEnrollmentToken(id: string, tenantId: string, updates: Partial<InsertEnrollmentToken>): Promise<EnrollmentToken | undefined> {
+    const [updated] = await db.update(enrollmentTokens)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(enrollmentTokens.id, id), eq(enrollmentTokens.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteEnrollmentToken(id: string, tenantId: string): Promise<boolean> {
+    const result = await db.delete(enrollmentTokens).where(
+      and(eq(enrollmentTokens.id, id), eq(enrollmentTokens.tenantId, tenantId))
+    );
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async incrementEnrollmentTokenUsage(token: string): Promise<void> {
+    await db.update(enrollmentTokens)
+      .set({ 
+        usageCount: sql`${enrollmentTokens.usageCount} + 1`,
+        lastUsedAt: new Date()
+      })
+      .where(eq(enrollmentTokens.token, token));
   }
 }
 

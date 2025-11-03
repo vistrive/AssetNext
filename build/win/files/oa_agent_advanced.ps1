@@ -2393,7 +2393,20 @@ if ($debug -gt 0) {
 #     Write-Host "Warranty, $count entries took $totalSecs seconds"
 # }
 
+# ============================================
+# ITAM APPLICATION ENROLLMENT (BEFORE JSON CONVERSION)
+# Extract device data BEFORE converting $result to JSON
+# ============================================
 
+# Extract key device info for ITAM enrollment BEFORE $result becomes a JSON string
+$ITAM_HOSTNAME = $result.sys.hostname
+$ITAM_SERIAL = $result.sys.serial
+$ITAM_OS_NAME = $result.sys.os_name
+$ITAM_OS_VERSION = $result.sys.os_version
+$ITAM_USERNAME = $result.sys.username
+$ITAM_IP = $result.sys.ip
+
+# Now convert to JSON for OpenAudit submission
 $result = $result | ConvertTo-Json
 $result = $result -replace '[\u0026]', "&"
 $result = $result -replace '[\u2019\u2018]', "'"
@@ -2410,6 +2423,157 @@ if ($submit_online -eq "y") {
         "Submission Status: $StatusCode"
     }
 }
+
+# ============================================
+# ITAM APPLICATION ENROLLMENT
+# Submit device to ITAM application database
+# ============================================
+
+# Load enrollment configuration from file if it exists (like Mac does)
+$EnrollmentConfPath = "$env:ProgramData\ITAM\enrollment.conf"
+if (Test-Path $EnrollmentConfPath) {
+    if ($debug -gt 0) {
+        Write-Host "[INFO] Loading enrollment configuration from $EnrollmentConfPath"
+    }
+    $TenantName = ""
+    Get-Content $EnrollmentConfPath | ForEach-Object {
+        if ($_ -match '^ENROLLMENT_TOKEN=(.+)$') {
+            $env:ENROLLMENT_TOKEN = $matches[1]
+        }
+        if ($_ -match '^ITAM_SERVER_URL=(.+)$') {
+            $env:ITAM_SERVER_URL = $matches[1]
+        }
+        if ($_ -match '^TENANT_NAME=(.+)$') {
+            $TenantName = $matches[1]
+        }
+    }
+    
+    # FIX: Trim whitespace, CR, LF and remove surrounding quotes
+    if ($env:ENROLLMENT_TOKEN) {
+        $env:ENROLLMENT_TOKEN = ($env:ENROLLMENT_TOKEN | ForEach-Object { $_.Trim() }).Trim('"')
+    }
+    if ($env:ITAM_SERVER_URL) {
+        $env:ITAM_SERVER_URL = ($env:ITAM_SERVER_URL | ForEach-Object { $_.Trim() }).Trim('"')
+    }
+    if ($TenantName) {
+        $TenantName = ($TenantName | ForEach-Object { $_.Trim() }).Trim('"')
+    }
+    
+    if (($debug -gt 0) -and ($env:ENROLLMENT_TOKEN)) {
+        Write-Host "[SUCCESS] Enrollment configured for organization: $TenantName"
+        Write-Host "[INFO] Server: $env:ITAM_SERVER_URL"
+    }
+}
+
+$ITAM_SERVER_URL = if ($env:ITAM_SERVER_URL) { $env:ITAM_SERVER_URL } else { "http://localhost:5050" }
+$ENROLLMENT_TOKEN = if ($env:ENROLLMENT_TOKEN) { $env:ENROLLMENT_TOKEN } else { "" }
+
+if ($ENROLLMENT_TOKEN -ne "") {
+    if ($debug -gt 0) {
+        Write-Host ""
+        Write-Host "========================================"
+        Write-Host "Enrolling device in ITAM application..."
+        Write-Host "========================================"
+    }
+    
+    # Device info was already extracted above (before JSON conversion)
+    # $ITAM_HOSTNAME, $ITAM_SERIAL, $ITAM_OS_NAME, etc. are already set
+    
+    # Create JSON payload for ITAM enrollment
+    $ITAM_JSON = @{
+        hostname = $ITAM_HOSTNAME
+        serial = $ITAM_SERIAL
+        enrollmentToken = $ENROLLMENT_TOKEN
+        os = @{
+            name = $ITAM_OS_NAME
+            version = $ITAM_OS_VERSION
+        }
+        username = $ITAM_USERNAME
+        ips = @($ITAM_IP)
+    } | ConvertTo-Json -Depth 5 -Compress
+    
+    # FIX: Convert to UTF-8 bytes to ensure proper encoding
+    $ITAM_JSON_BYTES = [System.Text.Encoding]::UTF8.GetBytes($ITAM_JSON)
+    $ITAM_HEADERS = @{ "Content-Type" = "application/json; charset=utf-8" }
+    
+    # Submit to ITAM application
+    $ITAM_ENROLL_URL = "$ITAM_SERVER_URL/api/agent/enroll"
+    
+    # DEBUG: Log token and payload info
+    if ($debug -gt 0) {
+        Write-Host "[DEBUG] Token length: $($ENROLLMENT_TOKEN.Length)"
+        $tokenPreview = if ($ENROLLMENT_TOKEN.Length -gt 20) { $ENROLLMENT_TOKEN.Substring(0, 20) } else { $ENROLLMENT_TOKEN }
+        Write-Host "[DEBUG] Token starts: $tokenPreview..."
+        if ($debug -gt 1) {
+            Write-Host "[DEBUG] Full JSON payload:"
+            Write-Host $ITAM_JSON
+        }
+    }
+    
+    if ($debug -gt 1) {
+        Write-Host "ITAM Server: $ITAM_SERVER_URL"
+        Write-Host "Enrollment Token: $($ENROLLMENT_TOKEN.Substring(0, 8))..."
+        Write-Host "Hostname: $ITAM_HOSTNAME"
+        Write-Host "Serial: $ITAM_SERIAL"
+    }
+    
+    try {
+        # FIX: Use UTF-8 bytes and proper headers
+        $ITAM_Response = Invoke-RestMethod -UseBasicParsing "$ITAM_ENROLL_URL" `
+            -Method POST `
+            -Headers $ITAM_HEADERS `
+            -Body $ITAM_JSON_BYTES
+        
+        # Invoke-RestMethod returns parsed object, convert back to JSON for display
+        $ITAM_ResponseBody = $ITAM_Response | ConvertTo-Json -Compress
+        
+        if ($debug -gt 0) {
+            Write-Host "[SUCCESS] Device successfully enrolled in ITAM application"
+            if ($debug -gt 1) {
+                Write-Host "Response: $ITAM_ResponseBody"
+            }
+        }
+    } catch {
+        # Extract status code and response body from exception
+        $statusCode = $null
+        $errorBody = ""
+        
+        if ($_.Exception.Response) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+            try {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $errorBody = $reader.ReadToEnd()
+            } catch {
+                $errorBody = "Could not read response body"
+            }
+        }
+        
+        if ($debug -gt 0) {
+            if ($statusCode) {
+                Write-Host "[ERROR] ITAM enrollment failed with HTTP status: $statusCode"
+                Write-Host "Error details: $errorBody"
+            } else {
+                Write-Host "[ERROR] ITAM enrollment failed: $($_.Exception.Message)"
+            }
+            if ($debug -gt 1) {
+                Write-Host "Exception details:"
+                Write-Host $_.Exception
+                if ($_.Exception.Response) {
+                    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                    $responseBody = $reader.ReadToEnd()
+                    Write-Host "Response body: $responseBody"
+                }
+            }
+        }
+    }
+    
+    if ($debug -gt 0) {
+        Write-Host "========================================"
+    }
+}
+# ============================================
+# END ITAM APPLICATION ENROLLMENT
+# ============================================
 
 if ($create_file -eq "y") {
     $result | Out-File $file

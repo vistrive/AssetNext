@@ -786,6 +786,90 @@ if [ "$submit_online" = "y" ]; then
     fi
 fi
 
+# ============================================
+# ITAM APPLICATION ENROLLMENT
+# Submit device to ITAM application database
+# ============================================
+ITAM_SERVER_URL="${ITAM_SERVER_URL:-http://localhost:5050}"
+ENROLLMENT_TOKEN="${ENROLLMENT_TOKEN:-}"
+
+if [ -n "$ENROLLMENT_TOKEN" ]; then
+    if [ "$debugging" -gt 0 ]; then
+        echo ""
+        echo "========================================"
+        echo "Enrolling device in ITAM application..."
+        echo "========================================"
+    fi
+    
+    # Extract key device info for ITAM enrollment
+    ITAM_HOSTNAME="$system_hostname"
+    ITAM_SERIAL="$system_serial"
+    ITAM_OS_NAME="macOS"
+    ITAM_OS_VERSION="$system_os_version"
+    
+    # Get IP address (macOS script uses system_ip)
+    ITAM_IPS_ARRAY="\"$system_ip\""
+    
+    # Create JSON payload for ITAM enrollment
+    ITAM_JSON=$(cat <<EOF
+{
+  "hostname": "$ITAM_HOSTNAME",
+  "serial": "$ITAM_SERIAL",
+  "enrollmentToken": "$ENROLLMENT_TOKEN",
+  "os": {
+    "name": "$ITAM_OS_NAME",
+    "version": "$ITAM_OS_VERSION"
+  },
+  "ips": [$ITAM_IPS_ARRAY]
+}
+EOF
+)
+    
+    # Submit to ITAM application
+    ITAM_ENROLL_URL="$ITAM_SERVER_URL/api/agent/enroll"
+    
+    if [ "$debugging" -gt 1 ]; then
+        echo "ITAM Server: $ITAM_SERVER_URL"
+        echo "Enrollment Token: ${ENROLLMENT_TOKEN:0:8}..."
+        echo "Hostname: $ITAM_HOSTNAME"
+        echo "Serial: $ITAM_SERIAL"
+        echo "IP: $system_ip"
+    fi
+    
+    ITAM_RESPONSE=$(curl -s -X POST "$ITAM_ENROLL_URL" \
+        -H "Content-Type: application/json" \
+        -d "$ITAM_JSON" \
+        -w "\nHTTP_STATUS:%{http_code}")
+    
+    ITAM_HTTP_STATUS=$(echo "$ITAM_RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+    ITAM_RESPONSE_BODY=$(echo "$ITAM_RESPONSE" | sed '/HTTP_STATUS:/d')
+    
+    if [ "$ITAM_HTTP_STATUS" = "200" ] || [ "$ITAM_HTTP_STATUS" = "201" ]; then
+        if [ "$debugging" -gt 0 ]; then
+            echo "✅ Device successfully enrolled in ITAM application"
+            if [ "$debugging" -gt 1 ]; then
+                echo "Response: $ITAM_RESPONSE_BODY"
+            fi
+        fi
+    else
+        if [ "$debugging" -gt 0 ]; then
+            echo "⚠️  ITAM enrollment failed with HTTP status: $ITAM_HTTP_STATUS"
+            echo "Error details: $ITAM_RESPONSE_BODY"
+            if [ "$debugging" -gt 1 ]; then
+                echo "JSON sent:"
+                echo "$ITAM_JSON"
+            fi
+        fi
+    fi
+    
+    if [ "$debugging" -gt 0 ]; then
+        echo "========================================"
+    fi
+fi
+# ============================================
+# END ITAM APPLICATION ENROLLMENT
+# ============================================
+
 
 if [ "$terminal_print" = "y" ]; then
     cat "$xml_file"

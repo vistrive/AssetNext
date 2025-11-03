@@ -94,7 +94,7 @@ const Enroll: React.FC = () => {
 					<div style={{ backgroundColor: "#e3f2fd", padding: "2rem", borderRadius: "12px", marginTop: "1.5rem", border: "3px solid #1976d2" }}>
 						<h2 style={{ marginTop: 0, color: "#0d47a1", fontSize: "1.5em" }}>📋 Register Your Linux Device</h2>
 						<p style={{ fontSize: "1.15em", marginBottom: "1.5rem", lineHeight: "1.6" }}>
-							The audit script has been downloaded. Run this command in your terminal to register your device:
+							The ITAM installer has been downloaded. Run this command in your terminal to install and register your device:
 						</p>
 						<div style={{ position: "relative" }}>
 							<code id="linuxInstallCmd" style={{ 
@@ -111,7 +111,7 @@ const Enroll: React.FC = () => {
 								fontWeight: "500",
 								boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
 							}}>
-								cd ~/Downloads && sudo bash audit_linux.sh
+								cd ~/Downloads && sudo bash itam_installer_*.sh
 							</code>
 							<button 
 								onClick={() => {
@@ -153,11 +153,15 @@ const Enroll: React.FC = () => {
 					<div style={{ marginTop: "1.5rem", padding: "1.25rem", backgroundColor: "#f5f5f5", borderRadius: "8px", border: "1px solid #e0e0e0" }}>
 						<h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>ℹ️ What happens:</h4>
 						<ol style={{ marginLeft: "1.5rem", marginBottom: 0, lineHeight: "1.8" }}>
-							<li>The script collects your device's hardware and software information</li>
-							<li>Your device is automatically registered in the ITAM system</li>
-							<li>You can view and manage your device in the Assets dashboard</li>
-							<li>Asset information updates automatically</li>
+							<li>Creates <code>/opt/itam-agent</code> directory with enrollment configuration</li>
+							<li>Installs audit script and collects device information</li>
+							<li>Automatically registers device with your organization</li>
+							<li>Device appears immediately in your Assets dashboard</li>
+							<li>Logs saved to <code>/opt/itam-agent/logs/</code></li>
 						</ol>
+						<p style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e0e0e0", color: "#666", fontSize: "14px" }}>
+							<strong>Note:</strong> Must be run with <code>sudo</code> (requires root privileges)
+						</p>
 					</div>
 				</div>
 			)}

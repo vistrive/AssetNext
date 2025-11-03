@@ -5,20 +5,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Check, ExternalLink, QrCode } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   /** optional override (e.g. when behind a proxy) */
   baseUrl?: string;
 };
 
+type EnrollmentTokenData = {
+  token: string | null;
+  name?: string;
+  expiresAt?: string;
+};
+
 export function EnrollmentLinkCard({ baseUrl }: Props) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const enrollUrl = useMemo(
-    () => `${baseUrl || origin}/enroll`,
-    [baseUrl, origin]
-  );
+  const [creating, setCreating] = useState(false);
+  
+  // Get origin and replace 0.0.0.0 with localhost for browser compatibility
+  const origin = typeof window !== "undefined" 
+    ? window.location.origin.replace('0.0.0.0', 'localhost')
+    : "";
+  
+  const queryClient = useQueryClient();
+
+  // Fetch active enrollment token
+  const { data: tokenData, isLoading, refetch } = useQuery<EnrollmentTokenData>({
+    queryKey: ["/api/enrollment-tokens/active"],
+  });
+
+  const enrollUrl = useMemo(() => {
+    if (!tokenData?.token) {
+      return `${baseUrl || origin}/enroll`;
+    }
+    return `${baseUrl || origin}/enroll/${tokenData.token}`;
+  }, [baseUrl, origin, tokenData]);
 
   async function copy() {
     try {
@@ -29,6 +51,84 @@ export function EnrollmentLinkCard({ baseUrl }: Props) {
     } catch {
       toast({ title: "Copy failed", description: enrollUrl, variant: "destructive" });
     }
+  }
+
+  const handleCreateToken = async () => {
+    setCreating(true);
+    try {
+      const response = await fetch('/api/enrollment-tokens/ensure-default', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('token'),
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({ 
+          title: "Success!", 
+          description: "Enrollment token created successfully" 
+        });
+        // Invalidate and refetch the token
+        await queryClient.invalidateQueries({ queryKey: ["/api/enrollment-tokens/active"] });
+        await refetch();
+        setCreating(false);
+      } else {
+        toast({ 
+          title: "Error", 
+          description: data.message || "Failed to create token",
+          variant: "destructive" 
+        });
+        setCreating(false);
+      }
+    } catch (error) {
+      console.error('Token creation error:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to create enrollment token",
+        variant: "destructive" 
+      });
+      setCreating(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-semibold">Add Devices</div>
+            <div className="text-sm text-muted-foreground">
+              Loading enrollment link...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!tokenData?.token) {
+    return (
+      <div className="rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <div className="font-semibold">Add Devices</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              No active enrollment token found. Create one to start enrolling devices.
+            </div>
+          </div>
+          <Button 
+            onClick={handleCreateToken} 
+            disabled={creating}
+            size="sm"
+          >
+            {creating ? "Creating..." : "Create Token"}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -74,8 +174,8 @@ export function EnrollmentLinkCard({ baseUrl }: Props) {
         </div>
         <div className="text-xs text-muted-foreground">
           Tip: test platform detection with{" "}
-          <code className="rounded bg-muted px-1 py-0.5">/enroll?os=mac</code> or{" "}
-          <code className="rounded bg-muted px-1 py-0.5">/enroll?os=win</code>.
+          <code className="rounded bg-muted px-1 py-0.5">/enroll/{tokenData.token}?os=mac</code> or{" "}
+          <code className="rounded bg-muted px-1 py-0.5">/enroll/{tokenData.token}?os=win</code>.
         </div>
       </div>
     </div>

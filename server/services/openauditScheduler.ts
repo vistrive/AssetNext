@@ -1,48 +1,11 @@
 // server/services/openauditScheduler.ts
-import cron from "node-cron";
-import { syncOpenAuditFirstPage } from "./openauditSync";
-import { log } from "../vite"; // you already use this logger in index.ts
-
-const LOCK = { running: false };
+import { log } from "../vite";
 
 export function startOpenAuditScheduler() {
-  const enabled =
-    (process.env.OA_SYNC_ENABLED ?? "false").toLowerCase() === "true";
-  if (!enabled) {
-    log("OA sync scheduler disabled (set OA_SYNC_ENABLED=true to enable).");
-    return;
-  }
-
-  const cronExp = process.env.OA_SYNC_CRON ?? "*/1 * * * *"; // every minute
-  const tenantId = process.env.OA_TENANT_ID;
-  const limit = parseInt(process.env.OA_SYNC_LIMIT ?? "100", 10);
-
-  if (!tenantId) {
-    log("OA sync scheduler cannot start: OA_TENANT_ID is not set.");
-    return;
-  }
-
-  cron.schedule(cronExp, async () => {
-    if (LOCK.running) {
-      log("OA sync skipped: previous run still in progress.");
-      return;
-    }
-    LOCK.running = true;
-    const started = Date.now();
-    try {
-      const result = await syncOpenAuditFirstPage(tenantId, limit);
-      log(
-        `OA sync OK: imported=${result.imported}/${result.total} in ${
-          Date.now() - started
-        }ms`
-      );
-    } catch (err: any) {
-      console.error("OA sync error (scheduled):", err);
-      log("OA sync error (scheduled): " + (err?.message ?? String(err)));
-    } finally {
-      LOCK.running = false;
-    }
-  });
-
-  log(`OA sync scheduler started (cron="${cronExp}", limit=${limit}).`);
+  // NOTE: With the new approach, we're not syncing from OpenAudit to apply org filters.
+  // Instead, devices are ONLY added to our database when enrolled through org-specific enrollment URLs.
+  // OpenAudit serves only as a central device collector (all in default org).
+  // Our application maintains organization boundaries through tenantId in our database.
+  log("OA sync scheduler: Sync disabled - using enrollment-based device tracking.");
+  log("Devices are added to organizations only through enrollment, not background sync.");
 }

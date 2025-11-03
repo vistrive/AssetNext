@@ -4100,6 +4100,227 @@ if [ "$submit_online" = "y" ]; then
 	fi
 fi
 
+# ============================================
+# ITAM APPLICATION ENROLLMENT
+# Submit device to ITAM application database
+# Multi-Tenant Support with Persistent Config
+# ============================================
+
+# Load enrollment configuration from persistent config file (preferred)
+ENROLLMENT_CONF="/opt/itam-agent/enrollment.conf"
+if [ -f "$ENROLLMENT_CONF" ]; then
+	if [ "$debugging" -gt 1 ]; then
+		echo "📋 Loading enrollment configuration from $ENROLLMENT_CONF"
+	fi
+	
+	# Source the config file
+	source "$ENROLLMENT_CONF"
+	
+	# Trim whitespace and CR characters (like Windows implementation)
+	ENROLLMENT_TOKEN=$(echo "$ENROLLMENT_TOKEN" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+	ITAM_SERVER_URL=$(echo "$ITAM_SERVER_URL" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+	TENANT_NAME=$(echo "$TENANT_NAME" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' 2>/dev/null)
+fi
+
+# Fall back to environment variables if config file not found
+ITAM_SERVER_URL="${ITAM_SERVER_URL:-http://localhost:5050}"
+ENROLLMENT_TOKEN="${ENROLLMENT_TOKEN:-}"
+
+# Validate required configuration
+if [ -z "$ENROLLMENT_TOKEN" ]; then
+	if [ "$debugging" -gt 0 ]; then
+		echo "⚠️  ITAM enrollment skipped: No enrollment token found"
+		echo "   Expected config file at: $ENROLLMENT_CONF"
+		echo "   Or ENROLLMENT_TOKEN environment variable"
+	fi
+elif [ -z "$ITAM_SERVER_URL" ]; then
+	if [ "$debugging" -gt 0 ]; then
+		echo "❌ ITAM enrollment failed: ITAM_SERVER_URL not configured"
+	fi
+else
+	# Proceed with enrollment
+	if [ "$debugging" -gt 0 ]; then
+		echo ""
+		echo "========================================"
+		echo "Enrolling device in ITAM application..."
+		if [ -n "$TENANT_NAME" ]; then
+			echo "Organization: $TENANT_NAME"
+		fi
+		echo "========================================"
+	fi
+	
+	# Log token information (like Windows implementation)
+	if [ "$debugging" -gt 1 ]; then
+		TOKEN_LENGTH=${#ENROLLMENT_TOKEN}
+		TOKEN_PREVIEW="${ENROLLMENT_TOKEN:0:20}"
+		echo "🔑 Enrollment Token Info:"
+		echo "   Length: $TOKEN_LENGTH characters"
+		echo "   Preview: ${TOKEN_PREVIEW}..."
+	fi
+	
+	# Extract key device info for ITAM enrollment
+	ITAM_HOSTNAME="$system_hostname"
+	ITAM_SERIAL="$system_serial"
+	ITAM_OS_NAME="$system_os_name"
+	ITAM_OS_VERSION="$system_os_version"
+	
+	# Get username (like Mac/Windows implementations)
+	ITAM_USERNAME=$(whoami 2>/dev/null || echo "unknown")
+	
+	# If serial is empty, try DMI product_serial (common on Linux)
+	if [ -z "$ITAM_SERIAL" ] || [ "$ITAM_SERIAL" = "Not Specified" ]; then
+		if [ -f "/sys/class/dmi/id/product_serial" ]; then
+			ITAM_SERIAL=$(cat /sys/class/dmi/id/product_serial 2>/dev/null | tr -d '\r\n')
+		fi
+	fi
+	
+	# If still empty, use chassis serial
+	if [ -z "$ITAM_SERIAL" ] || [ "$ITAM_SERIAL" = "Not Specified" ]; then
+		if [ -f "/sys/class/dmi/id/chassis_serial" ]; then
+			ITAM_SERIAL=$(cat /sys/class/dmi/id/chassis_serial 2>/dev/null | tr -d '\r\n')
+		fi
+	fi
+	
+	# Last resort: use hostname as serial
+	if [ -z "$ITAM_SERIAL" ] || [ "$ITAM_SERIAL" = "Not Specified" ]; then
+		ITAM_SERIAL="$ITAM_HOSTNAME"
+	fi
+	
+	# Convert space-separated IPs to JSON array format
+	ITAM_IPS_ARRAY=""
+	for ip in $system_ip_address; do
+		# Skip localhost IPs
+		if [ "$ip" != "127.0.0.1" ] && [ "$ip" != "::1" ]; then
+			if [ -n "$ITAM_IPS_ARRAY" ]; then
+				ITAM_IPS_ARRAY="$ITAM_IPS_ARRAY,"
+			fi
+			ITAM_IPS_ARRAY="$ITAM_IPS_ARRAY\"$ip\""
+		fi
+	done
+	
+	# If no IPs found, try hostname -I command
+	if [ -z "$ITAM_IPS_ARRAY" ]; then
+		HOSTNAME_IPS=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^127\.' | grep -v '^::1$' | head -5)
+		for ip in $HOSTNAME_IPS; do
+			if [ -n "$ITAM_IPS_ARRAY" ]; then
+				ITAM_IPS_ARRAY="$ITAM_IPS_ARRAY,"
+			fi
+			ITAM_IPS_ARRAY="$ITAM_IPS_ARRAY\"$ip\""
+		done
+	fi
+	
+	# Create JSON payload for ITAM enrollment (matching Mac/Windows format)
+	ITAM_JSON=$(cat <<EOF
+{
+  "hostname": "$ITAM_HOSTNAME",
+  "serial": "$ITAM_SERIAL",
+  "enrollmentToken": "$ENROLLMENT_TOKEN",
+  "os": {
+    "name": "$ITAM_OS_NAME",
+    "version": "$ITAM_OS_VERSION"
+  },
+  "username": "$ITAM_USERNAME",
+  "ips": [$ITAM_IPS_ARRAY]
+}
+EOF
+)
+	
+	# Submit to ITAM application
+	ITAM_ENROLL_URL="$ITAM_SERVER_URL/api/agent/enroll"
+	
+	if [ "$debugging" -gt 1 ]; then
+		echo ""
+		echo "📊 Device Information:"
+		echo "   Server: $ITAM_SERVER_URL"
+		echo "   Hostname: $ITAM_HOSTNAME"
+		echo "   Serial: $ITAM_SERIAL"
+		echo "   Username: $ITAM_USERNAME"
+		echo "   OS: $ITAM_OS_NAME $ITAM_OS_VERSION"
+		echo "   IPs: [$ITAM_IPS_ARRAY]"
+		echo ""
+		echo "📤 Sending enrollment request..."
+	fi
+	
+	# Debug: Show full JSON if debugging level is high
+	if [ "$debugging" -gt 2 ]; then
+		echo "📋 JSON Payload:"
+		echo "$ITAM_JSON"
+		echo ""
+	fi
+	
+	# Check if curl is available
+	if [ -n "$(which curl 2>/dev/null)" ]; then
+		# Set UTF-8 locale for proper encoding
+		export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
+		
+		# Send enrollment request with proper UTF-8 encoding
+		ITAM_RESPONSE=$(curl -s -X POST "$ITAM_ENROLL_URL" \
+			-H "Content-Type: application/json; charset=utf-8" \
+			-d "$ITAM_JSON" \
+			-w "\nHTTP_STATUS:%{http_code}")
+		
+		ITAM_HTTP_STATUS=$(echo "$ITAM_RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+		ITAM_RESPONSE_BODY=$(echo "$ITAM_RESPONSE" | sed '/HTTP_STATUS:/d')
+		
+		if [ "$ITAM_HTTP_STATUS" = "200" ] || [ "$ITAM_HTTP_STATUS" = "201" ]; then
+			if [ "$debugging" -gt 0 ]; then
+				echo "✅ Device successfully enrolled in ITAM application"
+				echo "   HTTP Status: $ITAM_HTTP_STATUS"
+				if [ "$debugging" -gt 1 ]; then
+					echo "   Response: $ITAM_RESPONSE_BODY"
+				fi
+			fi
+		else
+			if [ "$debugging" -gt 0 ]; then
+				echo "❌ ITAM enrollment failed"
+				echo "   HTTP Status: $ITAM_HTTP_STATUS"
+				echo "   Error: $ITAM_RESPONSE_BODY"
+				if [ "$debugging" -gt 1 ]; then
+					echo ""
+					echo "📋 JSON sent:"
+					echo "$ITAM_JSON"
+				fi
+			fi
+		fi
+	elif [ -n "$(which wget 2>/dev/null)" ]; then
+		# Fallback to wget if curl not available
+		if [ "$debugging" -gt 1 ]; then
+			echo "ℹ️  Using wget (curl not available)"
+		fi
+		
+		export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
+		
+		ITAM_RESPONSE=$(wget -qO- --post-data="$ITAM_JSON" \
+			--header="Content-Type: application/json; charset=utf-8" \
+			"$ITAM_ENROLL_URL" 2>&1)
+		
+		if [ $? -eq 0 ]; then
+			if [ "$debugging" -gt 0 ]; then
+				echo "✅ Device successfully enrolled in ITAM application"
+				if [ "$debugging" -gt 1 ]; then
+					echo "   Response: $ITAM_RESPONSE"
+				fi
+			fi
+		else
+			if [ "$debugging" -gt 0 ]; then
+				echo "❌ ITAM enrollment failed"
+				echo "   Error: $ITAM_RESPONSE"
+			fi
+		fi
+	else
+		if [ "$debugging" -gt 0 ]; then
+			echo "❌ ITAM enrollment failed: Neither curl nor wget available"
+		fi
+	fi
+	
+	if [ "$debugging" -gt 0 ]; then
+		echo "========================================"
+	fi
+fi
+# ============================================
+# END ITAM APPLICATION ENROLLMENT
+# ============================================
+
 sed -i -e 's/data=//g' "$xml_file"
 sed -i -e 's/%2B/+/g' "$xml_file"
 sed -i -e 's/%22/"/g' "$xml_file"

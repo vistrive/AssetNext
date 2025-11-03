@@ -30,7 +30,8 @@ import {
   FileText,
   Building2,
   Plus,
-  Calendar
+  Calendar,
+  Network
 } from "lucide-react";
 
 const navigation = [
@@ -47,6 +48,7 @@ const navigation = [
       { name: "Others", href: "/assets?type=Others", icon: Package },
     ]
   },
+  { name: "Network Monitoring", href: "/network-monitoring", icon: Network, requiredRole: "admin" },
   { name: "Vendors", href: "/vendors", icon: Building2, requiredRole: "technician" },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Team Management", href: "/users", icon: Users, requiredRole: "admin" },
