@@ -6,8 +6,9 @@ export const OA_BASE_URL = process.env.OA_BASE_URL!;
 const OA_USERNAME = process.env.OA_USERNAME!;
 const OA_PASSWORD = process.env.OA_PASSWORD!;
 
-if (!OA_BASE_URL || !OA_USERNAME || !OA_PASSWORD) {
-  throw new Error("Missing OA_* env vars (OA_BASE_URL, OA_USERNAME, OA_PASSWORD).");
+// Don't throw error immediately - allow per-tenant credentials
+if (!OA_BASE_URL && !process.env.OA_USERNAME && !process.env.OA_PASSWORD) {
+  console.warn("Warning: No default OA_* env vars set. Using per-tenant credentials.");
 }
 
 /** ---- Axios defaults ---- */
@@ -23,9 +24,16 @@ const AXIOS_OPTS: AxiosRequestConfig = {
 };
 
 /** ---- Session login: returns a consolidated Cookie header ---- */
-export async function oaLogin(): Promise<string> {
-  const url = `${OA_BASE_URL}/index.php/logon`;
-  const form = new URLSearchParams({ username: OA_USERNAME, password: OA_PASSWORD });
+export async function oaLogin(baseUrl?: string, username?: string, password?: string): Promise<string> {
+  const url = `${baseUrl || OA_BASE_URL}/index.php/logon`;
+  const user = username || OA_USERNAME;
+  const pass = password || OA_PASSWORD;
+  
+  if (!url || !user || !pass) {
+    throw new Error("Missing OpenAudit credentials (baseUrl, username, password).");
+  }
+  
+  const form = new URLSearchParams({ username: user, password: pass });
 
   // Capture ALL statuses to log helpful info
   const res = await axios.post(url, form.toString(), {
@@ -63,8 +71,17 @@ export async function oaLogin(): Promise<string> {
 }
 
 /** ---- Devices list (raw OA payload) ---- */
-export async function oaFetchDevices(cookie: string, limit = 50, offset = 0) {
-  const url = `${OA_BASE_URL}/index.php/devices?format=json&limit=${limit}&offset=${offset}`;
+export async function oaFetchDevices(
+  cookie: string, 
+  limit = 50, 
+  offset = 0, 
+  baseUrl?: string,
+  orgId?: string | number
+) {
+  // NOTE: OpenAudit 5.6.5 returns HTTP 500 when using org_id URL parameter
+  // We fetch ALL devices and filter client-side instead
+  const url = `${baseUrl || OA_BASE_URL}/index.php/devices?format=json&limit=${limit}&offset=${offset}`;
+  
   const res = await axios.get(url, {
     ...AXIOS_OPTS,
     headers: { ...AXIOS_OPTS.headers, Cookie: cookie },
@@ -79,13 +96,40 @@ export async function oaFetchDevices(cookie: string, limit = 50, offset = 0) {
     console.error(`Open-AudIT devices HTTP ${res.status}: ${snippet}`);
     throw new Error(`Open-AudIT devices HTTP ${res.status}`);
   }
+  
+  // Client-side filtering by org_id if specified
+  if (orgId && res.data?.data) {
+    const orgIdStr = String(orgId);
+    const filteredDevices = res.data.data.filter((device: any) => {
+      return String(device?.attributes?.org_id) === orgIdStr;
+    });
+    
+    // Update response to reflect filtered results
+    return {
+      ...res.data,
+      data: filteredDevices,
+      meta: {
+        ...res.data.meta,
+        filtered_total: filteredDevices.length,
+        original_total: res.data.meta?.total || res.data.data.length,
+        org_id_filter: orgIdStr
+      }
+    };
+  }
+  
   return res.data;
 }
 
 /** Convenience: login + fetch first page */
-export async function oaFetchDevicesFirstPage(limit = 50) {
-  const cookie = await oaLogin();
-  return oaFetchDevices(cookie, limit, 0);
+export async function oaFetchDevicesFirstPage(
+  limit = 50, 
+  baseUrl?: string, 
+  username?: string, 
+  password?: string,
+  orgId?: string | number
+) {
+  const cookie = await oaLogin(baseUrl, username, password);
+  return oaFetchDevices(cookie, limit, 0, baseUrl, orgId);
 }
 
 /** ---- Normalize OA software rows to a simple shape for the UI ---- */
@@ -365,5 +409,217 @@ export async function oaFindDeviceId(opts: {
   } catch (e: any) {
     console.warn(`oaFindDeviceId list fallback error: ${e?.message ?? e}`);
     return null;
+  }
+}
+
+/**
+ * Update a device's organization in OpenAudit
+ * 
+ * IMPORTANT: OpenAudit XML submissions IGNORE <org_id> tag - devices always go to default org.
+ * This function updates the device's org_id AFTER creation using the correct approach.
+ * 
+ * Per OpenAudit 5.6.5 requirements:
+ * - Must use PUT (not PATCH) for organization assignment
+ * - Must include hostname and serial in payload (ORM validation requirement)
+ * - CSRF token comes from /devices/{id} endpoint's meta.access_token
+ * - User must have "Org Assign = All Organizations" permission
+ */
+export async function oaUpdateDeviceOrg(
+  deviceId: string | number,
+  orgId: string | number,
+  hostname: string,
+  serial: string,
+  baseUrl?: string,
+  username?: string,
+  password?: string
+): Promise<void> {
+  const url = baseUrl || OA_BASE_URL;
+  const cookie = await oaLogin(baseUrl, username, password);
+  
+  try {
+    console.log(`🔄 Getting CSRF token and device details for device ${deviceId}...`);
+    
+    // Step 1: Get CSRF access_token and current device details
+    const tokenRes = await axios.get(`${url}/index.php/devices/${deviceId}?format=json`, {
+      ...AXIOS_OPTS,
+      headers: {
+        ...AXIOS_OPTS.headers,
+        Cookie: cookie,
+        Accept: "application/json",
+      },
+      validateStatus: () => true,
+    });
+    
+    if (tokenRes.status !== 200) {
+      console.error(`❌ Failed to get device details: HTTP ${tokenRes.status}`);
+      throw new Error(`Failed to get device details: HTTP ${tokenRes.status}`);
+    }
+    
+    const accessToken = tokenRes.data?.meta?.access_token;
+    if (!accessToken) {
+      console.error(`❌ No access_token in device response meta`);
+      throw new Error("No access_token in device response meta");
+    }
+    
+    console.log(`✅ Got CSRF token, updating device ${deviceId} to org ${orgId} using PUT with full attributes...`);
+    
+    // Step 2: Update device using PUT (not PATCH) with full attributes
+    // CRITICAL: OpenAudit requires hostname, serial, and org_id for ORM validation
+    const dataPayload = JSON.stringify({
+      access_token: accessToken,
+      type: "devices",
+      id: String(deviceId),
+      attributes: {
+        org_id: String(orgId),
+        hostname: hostname,
+        serial: serial || hostname, // Fallback to hostname if no serial
+        description: "Auto-assigned to organization via API"
+      }
+    });
+    
+    const formData = new URLSearchParams();
+    formData.append('data', dataPayload);
+    
+    // Use PUT instead of PATCH for organization assignment
+    const updateRes = await axios.put(
+      `${url}/index.php/devices/${deviceId}`,
+      formData.toString(),
+      {
+        ...AXIOS_OPTS,
+        headers: {
+          ...AXIOS_OPTS.headers,
+          Cookie: cookie,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        validateStatus: () => true,
+      }
+    );
+
+    if (updateRes.status < 200 || updateRes.status >= 300) {
+      const snippet =
+        typeof updateRes.data === "string"
+          ? updateRes.data.slice(0, 300)
+          : JSON.stringify(updateRes.data ?? {}).slice(0, 300);
+      console.error(`❌ OA update device org HTTP ${updateRes.status}: ${snippet}`);
+      throw new Error(`OA update device org HTTP ${updateRes.status}: ${snippet}`);
+    }
+    
+    console.log(`✅ Successfully updated device ${deviceId} (${hostname}) to org ${orgId} in OpenAudit`);
+  } catch (error: any) {
+    console.error(`❌ Failed to update device ${deviceId} org to ${orgId}:`, error?.message || error);
+    throw error;
+  }
+}
+
+/**
+ * Create a new organization in OpenAudit
+ * Returns the newly created organization ID
+ */
+/**
+ * Create a new organization in OpenAudit via REST API
+ * Returns the newly created organization ID
+ * 
+ * Process:
+ * 1. Login to get session cookie
+ * 2. Make a JSON GET request to get fresh access_token from meta.access_token
+ * 3. POST to /orgs with data as form field containing JSON with access_token at top level
+ */
+export async function oaCreateOrganization(
+  orgName: string,
+  baseUrl?: string,
+  username?: string,
+  password?: string
+): Promise<string> {
+  const url = baseUrl || OA_BASE_URL;
+  const cookie = await oaLogin(baseUrl, username, password);
+  
+  try {
+    // Step 1: Get a fresh CSRF access_token by making any JSON GET request
+    console.log(`📝 Getting fresh access_token for org creation...`);
+    const tokenRes = await axios.get(`${url}/index.php/devices?limit=1&format=json`, {
+      ...AXIOS_OPTS,
+      headers: {
+        ...AXIOS_OPTS.headers,
+        Cookie: cookie,
+        Accept: "application/json",
+      },
+      validateStatus: () => true,
+    });
+    
+    if (tokenRes.status !== 200) {
+      throw new Error(`Failed to get access token: HTTP ${tokenRes.status}`);
+    }
+    
+    const accessToken = tokenRes.data?.meta?.access_token;
+    if (!accessToken) {
+      throw new Error("No access_token in response meta");
+    }
+    
+    console.log(`� Got access_token: ${accessToken.substring(0, 20)}...`);
+    
+    // Step 2: Create the organization using form data with JSON string
+    // OpenAudit expects: -F "data={JSON}"
+    // The JSON must have access_token at top level, not inside attributes
+    const dataPayload = JSON.stringify({
+      access_token: accessToken,
+      type: "orgs",
+      attributes: {
+        name: orgName,
+        description: `Auto-created for ${orgName}`,
+        parent_id: 1, // Default Organisation as parent
+      }
+    });
+    
+    const formData = new URLSearchParams();
+    formData.append('data', dataPayload);
+
+    console.log(`🔨 Creating organization '${orgName}'...`);
+    const createRes = await axios.post(`${url}/index.php/orgs`, formData.toString(), {
+      ...AXIOS_OPTS,
+      headers: {
+        ...AXIOS_OPTS.headers,
+        Cookie: cookie,
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      validateStatus: () => true,
+    });
+
+    // Check response
+    if (createRes.status >= 200 && createRes.status < 300) {
+      // Try multiple places where the ID might be
+      const orgId = 
+        createRes.data?.data?.id || 
+        createRes.data?.data?.attributes?.id ||
+        createRes.data?.meta?.id;
+        
+      if (orgId) {
+        const orgIdStr = String(orgId);
+        console.log(`✅ Created OpenAudit org '${orgName}' with ID: ${orgIdStr}`);
+        return orgIdStr;
+      } else {
+        // Log the full response to debug
+        console.log("Response data:", JSON.stringify(createRes.data, null, 2));
+        throw new Error("Organization created but could not extract ID from response");
+      }
+    }
+    
+    // Check for errors in response
+    if (createRes.data?.errors) {
+      throw new Error(`OpenAudit API error: ${createRes.data.errors}`);
+    }
+    
+    // If we get here, the creation failed
+    const snippet =
+      typeof createRes.data === "string"
+        ? createRes.data.slice(0, 200)
+        : JSON.stringify(createRes.data ?? {}).slice(0, 200);
+    console.error(`OA create org returned ${createRes.status}: ${snippet}`);
+    throw new Error(`Failed to create org in OpenAudit: HTTP ${createRes.status}`);
+    
+  } catch (error) {
+    console.error(`❌ Failed to create OpenAudit organization '${orgName}':`, error);
+    throw error;
   }
 }

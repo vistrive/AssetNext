@@ -152,8 +152,15 @@ async function upsertAsset(row: NewAsset) {
 }
 
 /** 6️⃣ Main sync function */
-export async function syncOpenAuditFirstPage(tenantId: string, limit = 50) {
-  const payload = await oaFetchDevicesFirstPage(limit);
+export async function syncOpenAuditFirstPage(
+  tenantId: string, 
+  limit = 50,
+  oaBaseUrl?: string,
+  oaUsername?: string,
+  oaPassword?: string,
+  oaOrgId?: string | number
+) {
+  const payload = await oaFetchDevicesFirstPage(limit, oaBaseUrl, oaUsername, oaPassword, oaOrgId);
   const items: any[] = payload?.data ?? [];
   const total: number = payload?.meta?.total ?? items.length;
 

@@ -8,6 +8,22 @@ echo [INFO] ProgramData: %ProgramData%
 echo [INFO] Script location: %ProgramData%\ITAM\oa_agent_advanced.ps1
 echo.
 
+REM Load enrollment configuration if it exists
+set CONFIG_PATH=%ProgramData%\ITAM\enrollment.conf
+if exist "%CONFIG_PATH%" (
+    echo [INFO] Loading enrollment configuration...
+    for /f "usebackq tokens=1,* delims==" %%a in ("%CONFIG_PATH%") do (
+        if "%%a"=="ENROLLMENT_TOKEN" set ENROLLMENT_TOKEN=%%b
+        if "%%a"=="ITAM_SERVER_URL" set ITAM_SERVER_URL=%%b
+        if "%%a"=="TENANT_NAME" set TENANT_NAME=%%b
+    )
+    if defined ENROLLMENT_TOKEN (
+        echo [INFO] Enrollment configured for organization: %TENANT_NAME%
+        echo [INFO] Server: %ITAM_SERVER_URL%
+    )
+    echo.
+)
+
 set SCRIPT_PATH=%ProgramData%\ITAM\oa_agent_advanced.ps1
 set LOG_PATH=%ProgramData%\ITAM\audit.log
 
@@ -30,6 +46,9 @@ if exist "%SCRIPT_PATH%" (
     if %ERRORLEVEL% EQU 0 (
         echo [SUCCESS] Audit completed successfully!
         echo [INFO] Device should now appear in OpenAudit with full details.
+        if defined ENROLLMENT_TOKEN (
+            echo [INFO] Device enrolled to organization: %TENANT_NAME%
+        )
     ) else (
         echo [ERROR] Script failed with exit code: %ERRORLEVEL%
         echo [INFO] Check the log file at: %LOG_PATH%

@@ -9,8 +9,20 @@ set -euo pipefail
 /usr/bin/touch /var/log/itam-oa-audit.log || true
 /bin/chmod 644 /var/log/itam-oa-audit.log || true
 
+# Read enrollment token from config if present
+ENROLLMENT_TOKEN=""
+ITAM_SERVER_URL="http://localhost:5050"
+
+if [ -f /usr/local/ITAM/enrollment.conf ]; then
+    source /usr/local/ITAM/enrollment.conf
+fi
+
 # IMPORTANT: run from a writable dir so the OA script can create its XML
 # Run in background so the installer can finish
-/usr/bin/nohup /bin/bash -lc 'cd /var/tmp && /usr/local/ITAM/oa_audit_macos.sh' >> /var/log/itam-oa-audit.log 2>&1 &
+# Export enrollment token for ITAM application enrollment
+export ENROLLMENT_TOKEN
+export ITAM_SERVER_URL
+
+/usr/bin/nohup /bin/bash -lc 'cd /var/tmp && ENROLLMENT_TOKEN="'"$ENROLLMENT_TOKEN"'" ITAM_SERVER_URL="'"$ITAM_SERVER_URL"'" /usr/local/ITAM/oa_audit_macos.sh' >> /var/log/itam-oa-audit.log 2>&1 &
 
 exit 0

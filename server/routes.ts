@@ -1,18 +1,21 @@
 import express, { type Express, Request, Response, RequestHandler } from "express";
-import { and, eq , sql, InferInsertModel } from "drizzle-orm";
+import { and, eq , sql, InferInsertModel, desc, ne, inArray, gte } from "drizzle-orm";
 import * as s from "@shared/schema";
-import { oaFetchDeviceSoftware, oaSubmitDeviceXML, oaFindDeviceId } from "./utils/openAuditClient";
+import { oaFetchDeviceSoftware, oaSubmitDeviceXML, oaFindDeviceId, oaUpdateDeviceOrg, oaLogin, oaFetchDevices } from "./utils/openAuditClient";
 import { syncOpenAuditFirstPage } from "./services/openauditSync";
 import { getSyncStatus,markSyncChanged } from "./utils/syncHeartbeat";
 import { pool, db } from "./db";
 import { createServer, type Server } from "http";
+import { execSync } from "child_process";
 import fs from "fs";
-import path from "path";  
+import path from "path";
+import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { auditLogger, AuditActions, ResourceTypes } from "./audit-logger";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
+import jwt from "jsonwebtoken";
 import { 
   generateToken, 
   verifyToken, 
@@ -27,6 +30,7 @@ import { generateAssetRecommendations, processITAMQuery, type ITAMQueryContext }
 import { generateTempPassword } from "./utils/password-generator";
 import { sendEmail, generateSecurePassword, createWelcomeEmailTemplate } from "./services/email";
 import { processEmailToTicket, validateEmailData, validateWebhookAuth } from "./services/email-to-ticket";
+import { resolveTenantFromEnrollmentToken } from "./middleware/tenantContext";
 import { 
   loginSchema, 
   registerSchema, 
@@ -50,7 +54,8 @@ import {
   type UpdateOrgSettings,
   type InviteUser,
   type AcceptInvitation,
-  type UpdateUserRole
+  type UpdateUserRole,
+  type InsertEnrollmentToken
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -73,6 +78,8 @@ function buildMinimalOAXml(input: {
   model?: string | null;
 }) {
   // Keep it minimal; OA accepts sparse XML
+  // NOTE: OpenAudit IGNORES <org_id> in XML - devices always go to default org
+  // Organization must be assigned via POST-submission PATCH call
   const now = new Date();
   const ts = now.toISOString().slice(0, 19).replace("T", " ");
   const esc = (s: any) =>
@@ -158,6 +165,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to check if discovery tables exist
+  app.get("/api/dev/test-discovery-tables", async (req: Request, res: Response) => {
+    try {
+      console.log('[Test] Checking discovery tables...');
+      
+      // Try to query discoveryJobs table
+      const jobs = await db.select().from(s.discoveryJobs).limit(1);
+      console.log('[Test] discoveryJobs query successful, found:', jobs.length);
+      
+      // Try to query discoveryTokens table
+      const tokens = await db.select().from(s.discoveryTokens).limit(1);
+      console.log('[Test] discoveryTokens query successful, found:', tokens.length);
+      
+      res.json({
+        success: true,
+        message: "Discovery tables exist and are queryable",
+        jobsCount: jobs.length,
+        tokensCount: tokens.length
+      });
+    } catch (error: any) {
+      console.error('[Test] Error querying discovery tables:', error);
+      res.status(500).json({
+        success: false,
+        message: "Discovery tables test failed",
+        error: error.message,
+        code: error.code
+      });
+    }
+  });
+
   // Development/maintenance route - Migrate existing users to add userID values
   app.post("/api/dev/migrate-user-ids", async (req: Request, res: Response) => {
     try {
@@ -168,6 +205,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("User ID migration error:", error);
       res.status(500).json({ message: "User ID migration failed", error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  // Debug endpoint - verify authentication is working
+  app.get("/api/debug/whoami", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      console.log('[DEBUG /api/debug/whoami]', {
+        userId: user.userId,
+        email: user.email,
+        tenantId: user.tenantId,
+        role: user.role,
+        hasAuthHeader: !!req.headers.authorization,
+        authHeaderPrefix: req.headers.authorization?.substring(0, 20)
+      });
+      
+      res.json({
+        authenticated: true,
+        user: {
+          userId: user.userId,
+          email: user.email,
+          tenantId: user.tenantId,
+          role: user.role
+        },
+        token: {
+          hasAuthHeader: !!req.headers.authorization,
+          authHeaderPrefix: req.headers.authorization?.substring(0, 20) + '...'
+        }
+      });
+    } catch (error) {
+      console.error('[DEBUG /api/debug/whoami] Error:', error);
+      res.status(500).json({ message: "Debug endpoint failed", error: error instanceof Error ? error.message : "Unknown error" });
     }
   });
 
@@ -247,6 +316,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = generateToken(user);
       const tenant = await storage.getTenant(user.tenantId);
 
+      // Ensure tenant has a default enrollment token
+      if (tenant) {
+        ensureDefaultEnrollmentToken(tenant.id, tenant.name).catch(err => 
+          console.error("Failed to ensure default enrollment token:", err)
+        );
+      }
+
       // Log successful login
       await auditLogger.logAuthActivity(
         AuditActions.LOGIN,
@@ -320,6 +396,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: tenantName,
           slug: slug,
         });
+        
+        // Automatically create organization in OpenAudit
+        try {
+          const { oaCreateOrganization } = await import("./utils/openAuditClient");
+          const oaOrgId = await oaCreateOrganization(tenantName);
+          
+          // Update tenant with OpenAudit org ID and enable sync
+          await db
+            .update(s.tenants)
+            .set({
+              openauditOrgId: oaOrgId,
+              openauditUrl: process.env.OA_BASE_URL || 'https://open-audit.vistrivetech.com',
+              openauditUsername: process.env.OA_USERNAME || 'admin',
+              openauditPassword: process.env.OA_PASSWORD || 'vistrivetech',
+              openauditSyncEnabled: true,
+              openauditSyncCron: '*/5 * * * *', // Sync every 5 minutes
+            })
+            .where(eq(s.tenants.id, tenant.id));
+          
+          console.log(`✅ Created OpenAudit organization '${tenantName}' with ID: ${oaOrgId}`);
+        } catch (error) {
+          console.error(`⚠️  Failed to create OpenAudit organization for ${tenantName}:`, error);
+          // Don't fail registration if OpenAudit org creation fails
+        }
+        
+        // Create default enrollment token for the new tenant
+        try {
+          await ensureDefaultEnrollmentToken(tenant.id, tenant.name);
+          console.log(`✅ Created default enrollment token for '${tenantName}'`);
+        } catch (error) {
+          console.error(`⚠️  Failed to create enrollment token for ${tenantName}:`, error);
+        }
       }
 
       // SECURITY RESTRICTION: Atomic first admin user creation to prevent race conditions
@@ -467,9 +575,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simple OS-detecting enrollment page (no auth)
-  app.get("/enroll", (req, res) => {
-    // Allow manual override: /enroll?os=mac or /enroll?os=win or /enroll?os=linux
+  // ==========================
+  // NETWORK DISCOVERY SCANNER DOWNLOAD (like /enroll)
+  // ==========================
+  app.get("/discover", async (req, res) => {
+    try {
+      const token = String(req.query.token || "");
+      
+      if (!token) {
+        return res.status(400).send("Missing discovery token");
+      }
+
+      // Verify token and get job info
+      let tokenData: any;
+      try {
+        tokenData = jwt.verify(token, process.env.SESSION_SECRET || "secret");
+      } catch (error) {
+        return res.status(401).send("Invalid or expired discovery token");
+      }
+
+      // Detect OS from User-Agent
+      const osOverride = String(req.query.os ?? "").toLowerCase();
+      const ua = String(req.headers["user-agent"] || "").toLowerCase();
+      const isMacUA = ua.includes("mac os x") || ua.includes("macintosh");
+      const isWinUA = ua.includes("windows");
+      const isLinuxUA = ua.includes("linux") && !ua.includes("android");
+
+      const isMac = osOverride === "mac" ? true : osOverride === "win" || osOverride === "linux" ? false : isMacUA;
+      const isWin = osOverride === "win" ? true : osOverride === "mac" || osOverride === "linux" ? false : isWinUA;
+      const isLinux = osOverride === "linux" ? true : osOverride === "mac" || osOverride === "win" ? false : isLinuxUA;
+
+      // Scanner download URLs (to be built)
+      const macUrl = `/api/discovery/download/${tokenData.jobIdShort}/macos`;
+      const winUrl = `/api/discovery/download/${tokenData.jobIdShort}/windows`;
+      const linuxUrl = `/api/discovery/download/${tokenData.jobIdShort}/linux`;
+
+      const primaryUrl = isMac ? macUrl : isLinux ? linuxUrl : winUrl;
+      const primaryLabel = isMac
+        ? "Download Scanner for macOS"
+        : isLinux
+        ? "Download Scanner for Linux"
+        : "Download Scanner for Windows";
+
+      const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Network Discovery Scanner</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{color-scheme:dark}
+    body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e6edf3}
+    .card{max-width:720px;margin:0 auto;background:#111827;border:1px solid #263043;border-radius:16px;padding:1.5rem;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
+    h1{font-size:1.4rem;margin:0 0 .5rem}
+    p{opacity:.9;line-height:1.6}
+    .actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem}
+    a.btn{display:inline-block;padding:.75rem 1rem;border-radius:10px;border:1px solid #304156;text-decoration:none;color:#e6edf3}
+    a.btn.primary{background:#1f6feb;border-color:#1f6feb}
+    .hint{margin-top:.75rem;color:#9fb3c8;font-size:0.9rem}
+    code{background:#0d1626;padding:.2rem .35rem;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔍 Network Discovery Scanner</h1>
+    <p>This will download and run the SNMP network scanner to discover devices on your network.</p>
+
+    <div class="actions">
+      <a class="btn primary" id="primary" href="${primaryUrl}">${primaryLabel}</a>
+      <a class="btn" href="${winUrl}">Windows</a>
+      <a class="btn" href="${macUrl}">macOS</a>
+      <a class="btn" href="${linuxUrl}">Linux</a>
+    </div>
+
+    <p class="hint">📝 <strong>Instructions:</strong></p>
+    <ol class="hint">
+      <li>The installer will download automatically (.pkg for macOS, .bat for Windows, .sh for Linux)</li>
+      <li><strong>macOS:</strong> Double-click the .pkg file → Installation wizard appears → Click Continue/Install</li>
+      <li><strong>Windows:</strong> Double-click the .bat file → Command window opens</li>
+      <li><strong>Linux:</strong> Run with sudo: <code>sudo ./itam-discovery-*.sh</code></li>
+      <li>A Terminal window will open showing scan progress with a progress bar</li>
+      <li>Results will upload automatically to your dashboard</li>
+      <li>Review and import discovered devices from the dashboard modal</li>
+    </ol>
+
+    <p class="hint"><small>Job ID: <code>${tokenData.jobIdShort}</code> • Token expires in 30 minutes</small></p>
+  </div>
+
+  <script>
+    // Auto-trigger download after 1 second
+    setTimeout(function(){
+      var a = document.getElementById('primary');
+      if (a && a.href) window.location.href = a.href;
+    }, 1000);
+  </script>
+</body>
+</html>`;
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.status(200).send(html);
+
+    } catch (error) {
+      console.error("Discovery download error:", error);
+      res.status(500).send("Failed to initiate discovery download");
+    }
+  });
+
+  // Direct enrollment script for quick testing (bash pipe-able)
+  // URL format: /enroll-direct/:token
+  app.get("/enroll-direct/:token", async (req, res) => {
+    const enrollmentToken = req.params.token;
+    
+    if (!enrollmentToken) {
+      return res.status(400).send("# ERROR: No enrollment token provided\nexit 1\n");
+    }
+    
+    try {
+      const scriptPath = path.join(process.cwd(), "static/installers/enroll-quick.sh");
+      
+      if (!fs.existsSync(scriptPath)) {
+        return res.status(404).send("# ERROR: Enrollment script not found\nexit 1\n");
+      }
+      
+      let script = fs.readFileSync(scriptPath, "utf-8");
+      
+      // Inject the enrollment token and server URL into the script
+      script = script.replace(
+        'ENROLLMENT_TOKEN="${ENROLLMENT_TOKEN:-$1}"',
+        `ENROLLMENT_TOKEN="${enrollmentToken}"`
+      );
+      
+      res.setHeader("Content-Type", "application/x-shellscript");
+      res.setHeader("Content-Disposition", 'inline; filename="enroll.sh"');
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.status(200).send(script);
+    } catch (error) {
+      console.error("Error serving enrollment script:", error);
+      res.status(500).send("# ERROR: Failed to generate enrollment script\nexit 1\n");
+    }
+  });
+
+  // Tenant-specific OS-detecting enrollment page
+  // URL format: /enroll/:token or /enroll?token=xxx
+  app.get("/enroll/:token?", async (req, res) => {
+    // Get enrollment token from URL or query param
+    const enrollmentToken = req.params.token || String(req.query.token || "");
+    
+    if (!enrollmentToken) {
+      return res.status(400).send(`
+        <!doctype html>
+        <html lang="en">
+        <head><meta charset="utf-8" /><title>Enrollment Error</title>
+        <style>body{font-family:system-ui;max-width:600px;margin:4rem auto;padding:2rem;text-align:center;background:#0b1220;color:#e6edf3}
+        .error{padding:2rem;background:#dc2626;border-radius:12px;color:white}</style></head>
+        <body><div class="error"><h1>❌ Invalid Enrollment Link</h1>
+        <p>This enrollment link is missing or invalid. Please contact your IT administrator for a valid enrollment link.</p></div></body></html>
+      `);
+    }
+
+    // Validate token and get tenant info
+    const mockReq = { 
+      body: { enrollmentToken },
+      headers: {},
+      query: {}
+    } as Request;
+    const tenant = await resolveTenantFromEnrollmentToken(mockReq);
+    
+    if (!tenant) {
+      return res.status(401).send(`
+        <!doctype html>
+        <html lang="en">
+        <head><meta charset="utf-8" /><title>Enrollment Error</title>
+        <style>body{font-family:system-ui;max-width:600px;margin:4rem auto;padding:2rem;text-align:center;background:#0b1220;color:#e6edf3}
+        .error{padding:2rem;background:#dc2626;border-radius:12px;color:white}</style></head>
+        <body><div class="error"><h1>❌ Invalid or Expired Token</h1>
+        <p>This enrollment token is invalid, expired, or has reached its usage limit. Please contact your IT administrator for a new enrollment link.</p></div></body></html>
+      `);
+    }
+
+    // Allow manual override: /enroll/token?os=mac or /enroll/token?os=win or /enroll/token?os=linux
     const osOverride = String(req.query.os ?? "").toLowerCase();
 
     const ua = String(req.headers["user-agent"] || "").toLowerCase();
@@ -481,12 +765,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const isWin = osOverride === "win" ? true : osOverride === "mac" || osOverride === "linux" ? false : isWinUA;
     const isLinux = osOverride === "linux" ? true : osOverride === "mac" || osOverride === "win" ? false : isLinuxUA;
 
-    // Files placed under /static/installers/
-    const macUrl = "/static/installers/itam-agent-mac-dev.pkg";
-    const winUrl = "/static/installers/itam-agent-win.exe";
-    const linuxUrl = "/enroll/linux-installer"; // Auto-terminal installer
-    const linuxScriptUrl = "/static/installers/itam-agent-linux-gui.sh"; // Direct script download
-    const linuxCliUrl = "/static/installers/itam-agent-linux.sh";
+    // Files placed under /static/installers/ - NOW WITH TOKEN
+    const macUrl = `/api/enroll/${enrollmentToken}/mac-installer`;
+    const winUrl = `/api/enroll/${enrollmentToken}/win-installer`;
+    const linuxUrl = `/enroll/${enrollmentToken}/linux-installer`; // Auto-terminal installer
+    const linuxScriptUrl = `/static/installers/itam-agent-linux-gui.sh?token=${enrollmentToken}`; // Direct script download
+    const linuxCliUrl = `/static/installers/itam-agent-linux.sh?token=${enrollmentToken}`;
 
     const primaryUrl = isMac ? macUrl : isLinux ? linuxUrl : winUrl;
     const primaryLabel = isMac
@@ -499,13 +783,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>ITAM Agent Enrollment</title>
+    <title>ITAM Agent Enrollment - ${tenant.name}</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
     <style>
       :root{color-scheme:dark}
       body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e6edf3}
       .card{max-width:720px;margin:0 auto;background:#111827;border:1px solid #263043;border-radius:16px;padding:1.5rem;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
+      .org-badge{display:inline-block;padding:0.5rem 1rem;background:#1f6feb;border-radius:8px;margin-bottom:1rem;font-size:0.9rem;font-weight:600}
       h1{font-size:1.4rem;margin:0 0 .5rem}
       p{opacity:.9;line-height:1.6}
       .actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem}
@@ -520,8 +805,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   </head>
   <body>
     <div class="card">
+      <div class="org-badge">🏢 ${tenant.name}</div>
       <h1>Install ITAM Agent</h1>
-      <p>This will install the agent and register your device with the IT Asset Management system.</p>
+      <p>This will install the agent and register your device with <strong>${tenant.name}</strong>'s IT Asset Management system.</p>
 
       <div class="actions">
         <a class="btn primary" id="primary" href="${primaryUrl}">${primaryLabel}</a>
@@ -535,10 +821,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ${isLinux ? `
       <div class="install-note" style="background:#0d1929;border-left:3px solid #2ea043;padding:1.5rem;">
         <h3 style="margin-top:0;color:#58a6ff;font-size:1.2rem;">📋 Register Your Linux Device</h3>
-        <p style="margin:0.75rem 0;line-height:1.6;">The audit script has been downloaded. Run this command in your terminal to register your device:</p>
+        <p style="margin:0.75rem 0;line-height:1.6;">The ITAM installer has been downloaded. Run this command in your terminal to install and register your device:</p>
         
         <div style="margin:1rem 0;padding:1rem;background:#0b1220;border-radius:8px;border:2px solid #1f6feb;">
-          <code id="installCmd" style="display:block;color:#7ee787;font-size:15px;font-family:'Courier New',monospace;user-select:all;font-weight:500;">cd ~/Downloads && sudo bash audit_linux.sh</code>
+          <code id="installCmd" style="display:block;color:#7ee787;font-size:15px;font-family:'Courier New',monospace;user-select:all;font-weight:500;">cd ~/Downloads && sudo bash itam_installer_${tenant.name}.sh</code>
         </div>
         
         <button onclick="copyInstallCmd()" style="padding:0.75rem 1.5rem;background:#2ea043;color:white;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;box-shadow:0 4px 6px rgba(0,0,0,0.2);">
@@ -548,11 +834,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div style="margin-top:1.5rem;padding:1rem;background:#0b1220;border-radius:6px;border:1px solid #21262d;">
           <p style="margin:0 0 0.5rem;font-weight:600;color:#e6edf3;">ℹ️ What happens:</p>
           <ol style="margin:0.5rem 0 0 1.25rem;padding:0;line-height:1.8;opacity:0.9;">
-            <li>Script collects device hardware and software information</li>
-            <li>Device is automatically registered in the ITAM system</li>
-            <li>View and manage your device in the Assets dashboard</li>
-            <li>Asset information updates automatically</li>
+            <li>Creates <code>/opt/itam-agent</code> directory with enrollment configuration</li>
+            <li>Installs audit script and collects device information</li>
+            <li>Automatically registers device with your organization</li>
+            <li>Device appears immediately in your Assets dashboard</li>
+            <li>Logs saved to <code>/opt/itam-agent/logs/</code></li>
           </ol>
+          <p style="margin:1rem 0 0;padding-top:0.75rem;border-top:1px solid #21262d;color:#8b949e;font-size:14px;">
+            <strong>Note:</strong> Must be run with <code>sudo</code> (requires root privileges)
+          </p>
         </div>
       </div>
       <script>
@@ -582,28 +872,315 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).send(html);
   });
 
-  // Serve the official Open-AudIT audit_linux.sh script directly
-  app.get("/enroll/linux-installer", async (req, res) => {
+  // Serve Linux installer script with embedded enrollment token
+  app.get("/enroll/:token/linux-installer", async (req, res) => {
     try {
+      const enrollmentToken = req.params.token;
+      
+      if (!enrollmentToken) {
+        return res.status(400).send("# ERROR: Enrollment token required\nexit 1\n");
+      }
+      
+      // Validate token
+      const mockReq = { 
+        body: { enrollmentToken },
+        headers: {},
+        query: {}
+      } as Request;
+      const tenant = await resolveTenantFromEnrollmentToken(mockReq);
+      
+      if (!tenant) {
+        return res.status(401).send("# ERROR: Invalid or expired enrollment token\nexit 1\n");
+      }
+      
       const scriptPath = path.join(process.cwd(), "build/linux/agent/audit_linux.sh");
       
       // Check if file exists
       if (!fs.existsSync(scriptPath)) {
-        res.status(404).send("Linux audit script not found");
+        res.status(404).send("# ERROR: Linux audit script not found\nexit 1\n");
         return;
       }
 
       // Read the audit script
-      const auditScript = fs.readFileSync(scriptPath, "utf-8");
+      let auditScript = fs.readFileSync(scriptPath, "utf-8");
+      
+      // Create the enrollment configuration setup script
+      const serverUrl = `${req.protocol}://${req.get('host')}`;
+      const tenantName = tenant.name || 'default';
+      
+      const enrollmentSetup = `#!/bin/bash
+# ============================================
+# ITAM Multi-Tenant Enrollment Installer
+# Organization: ${tenantName}
+# Generated: ${new Date().toISOString()}
+# ============================================
+
+# Ensure running as root
+if [ "$EUID" -ne 0 ]; then 
+  echo "❌ ERROR: This installer must be run as root (use sudo)"
+  exit 1
+fi
+
+echo "🚀 ITAM Agent Installer for Organization: ${tenantName}"
+echo "================================================"
+
+# Create ITAM agent directory
+ITAM_DIR="/opt/itam-agent"
+ITAM_LOGS_DIR="$ITAM_DIR/logs"
+ENROLLMENT_CONF="$ITAM_DIR/enrollment.conf"
+
+echo "📁 Creating directories..."
+mkdir -p "$ITAM_DIR"
+mkdir -p "$ITAM_LOGS_DIR"
+
+# Create enrollment configuration file
+echo "📝 Writing enrollment configuration..."
+cat > "$ENROLLMENT_CONF" <<'ENROLLMENT_EOF'
+# ITAM Enrollment Configuration
+# Organization: ${tenantName}
+# Auto-generated - DO NOT EDIT MANUALLY
+
+ENROLLMENT_TOKEN=${enrollmentToken}
+ITAM_SERVER_URL=${serverUrl}
+TENANT_NAME=${tenantName}
+ENROLLMENT_EOF
+
+# Set proper permissions
+chmod 600 "$ENROLLMENT_CONF"
+chmod 755 "$ITAM_DIR"
+chmod 755 "$ITAM_LOGS_DIR"
+
+echo "✅ Configuration file created at $ENROLLMENT_CONF"
+
+# Write the audit script
+echo "📝 Installing audit script..."
+cat > "$ITAM_DIR/audit_linux.sh" <<'AUDIT_SCRIPT_EOF'
+${auditScript}
+AUDIT_SCRIPT_EOF
+
+chmod +x "$ITAM_DIR/audit_linux.sh"
+
+echo "✅ Audit script installed at $ITAM_DIR/audit_linux.sh"
+
+# Run the audit script to enroll the device
+echo ""
+echo "🔄 Running enrollment..."
+echo "================================================"
+
+cd "$ITAM_DIR"
+bash "$ITAM_DIR/audit_linux.sh" -d 2 2>&1 | tee "$ITAM_LOGS_DIR/enroll_$(date +%Y%m%d_%H%M%S).log"
+
+ENROLL_STATUS=$?
+
+echo ""
+echo "================================================"
+if [ $ENROLL_STATUS -eq 0 ]; then
+  echo "✅ Installation and enrollment completed successfully!"
+  echo "📋 Configuration: $ENROLLMENT_CONF"
+  echo "📜 Audit script: $ITAM_DIR/audit_linux.sh"
+  echo "📂 Logs: $ITAM_LOGS_DIR/"
+else
+  echo "⚠️  Installation completed but enrollment may have failed"
+  echo "   Check logs in: $ITAM_LOGS_DIR/"
+  echo "   To retry: sudo bash $ITAM_DIR/audit_linux.sh -d 2"
+fi
+echo "================================================"
+
+exit $ENROLL_STATUS
+`;
       
       res.setHeader("Content-Type", "application/x-shellscript");
-      res.setHeader("Content-Disposition", 'attachment; filename="audit_linux.sh"');
+      res.setHeader("Content-Disposition", `attachment; filename="itam_installer_${tenantName}.sh"`);
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.status(200).send(auditScript);
+      res.status(200).send(enrollmentSetup);
     } catch (error) {
       console.error("Error serving Linux installer:", error);
+      res.status(500).send("# ERROR: Failed to generate installer\nexit 1\n");
+    }
+  });
+
+  // Serve macOS PKG installer with embedded enrollment token
+  app.get("/api/enroll/:token/mac-installer", async (req, res) => {
+    try {
+      const enrollmentToken = req.params.token;
+      
+      if (!enrollmentToken) {
+        return res.status(400).send("Enrollment token required");
+      }
+      
+      // Validate token
+      const mockReq = { 
+        body: { enrollmentToken },
+        headers: {},
+        query: {}
+      } as Request;
+      const tenant = await resolveTenantFromEnrollmentToken(mockReq);
+      
+      if (!tenant) {
+        return res.status(401).send("Invalid or expired enrollment token");
+      }
+      
+      const tmpDir = `/tmp/itam-pkg-${Date.now()}`;
+      fs.mkdirSync(tmpDir, { recursive: true });
+      
+      try {
+        // Copy PKG root structure
+        const pkgRootSrc = path.join(process.cwd(), "build/mac/pkgroot");
+        const pkgRootDest = path.join(tmpDir, "pkgroot");
+        
+        // Copy entire pkgroot structure
+        execSync(`cp -R "${pkgRootSrc}" "${pkgRootDest}"`);
+        
+        // Create enrollment config file with token
+        const enrollmentConfig = `# ITAM Enrollment Configuration
+ENROLLMENT_TOKEN="${enrollmentToken}"
+ITAM_SERVER_URL="${req.protocol}://${req.get('host')}"
+`;
+        
+        fs.writeFileSync(path.join(pkgRootDest, "usr/local/ITAM/enrollment.conf"), enrollmentConfig);
+        
+        // Copy scripts
+        const scriptsSrc = path.join(process.cwd(), "build/mac/scripts");
+        const scriptsDest = path.join(tmpDir, "scripts");
+        execSync(`cp -R "${scriptsSrc}" "${scriptsDest}"`);
+        execSync(`chmod +x "${scriptsDest}/postinstall"`);
+        
+        // Build PKG
+        const pkgPath = path.join(tmpDir, "ITAM-Agent.pkg");
+        const buildCmd = `pkgbuild --root "${pkgRootDest}" --scripts "${scriptsDest}" --identifier com.itam.agent --version 1.0 --install-location / "${pkgPath}"`;
+        
+        execSync(buildCmd);
+        
+        // Send PKG file
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("Content-Disposition", `attachment; filename="ITAM-Agent-${tenant.name}.pkg"`);
+        
+        const fileStream = fs.createReadStream(pkgPath);
+        fileStream.pipe(res);
+        
+        fileStream.on("end", () => {
+          // Cleanup
+          try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch (e) {
+            console.error("Cleanup error:", e);
+          }
+        });
+        
+      } catch (error) {
+        console.error("Error building PKG:", error);
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        res.status(500).send("Error building installer");
+      }
+      
+    } catch (error) {
+      console.error("Error serving macOS installer:", error);
       res.status(500).send("Error generating installer");
+    }
+  });
+
+  // Serve Windows installer with embedded enrollment token
+  app.get("/api/enroll/:token/win-installer", async (req, res) => {
+    try {
+      const enrollmentToken = req.params.token;
+      
+      if (!enrollmentToken) {
+        return res.status(400).send("ERROR: Enrollment token required");
+      }
+      
+      // Validate token
+      const mockReq = { 
+        body: { enrollmentToken },
+        headers: {},
+        query: {}
+      } as Request;
+      const tenant = await resolveTenantFromEnrollmentToken(mockReq);
+      
+      if (!tenant) {
+        return res.status(401).send("ERROR: Invalid or expired enrollment token");
+      }
+
+      const serverUrl = `${req.protocol}://${req.get('host')}`;
+      
+      console.log(`Building Windows installer for tenant: ${tenant.name}`);
+      
+      // Create enrollment configuration file content
+      const enrollmentConfig = `# ITAM Enrollment Configuration for ${tenant.name}
+# This file will be read by the ITAM agent during installation
+ENROLLMENT_TOKEN=${enrollmentToken}
+ITAM_SERVER_URL=${serverUrl}
+TENANT_NAME=${tenant.name}
+`;
+      
+      // Create a temporary directory for building custom installer
+      const tmpDir = `/tmp/itam-win-${Date.now()}`;
+      fs.mkdirSync(tmpDir, { recursive: true });
+      
+      try {
+        // Copy the entire build/win directory structure
+        const winBuildDir = path.join(process.cwd(), "build/win");
+        execSync(`cp -R "${winBuildDir}/files" "${tmpDir}/files"`);
+        execSync(`cp "${winBuildDir}/installer.nsi" "${tmpDir}/installer.nsi"`);
+        
+        // Create enrollment.conf file in the temp directory
+        fs.writeFileSync(path.join(tmpDir, "enrollment.conf"), enrollmentConfig);
+        
+        // Build the installer with NSIS
+        const buildResult = execSync(`cd "${tmpDir}" && makensis installer.nsi 2>&1`, { 
+          encoding: 'utf-8'
+        });
+        
+        console.log("NSIS build output:", buildResult);
+        
+        const customExePath = path.join(tmpDir, "itam-agent-win.exe");
+        
+        if (!fs.existsSync(customExePath)) {
+          throw new Error("NSIS build completed but exe not found at expected location");
+        }
+        
+        console.log(`Successfully built installer for ${tenant.name}`);
+        
+        // Send the custom installer
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("Content-Disposition", `attachment; filename="ITAM-Agent-${tenant.name}.exe"`);
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        
+        const fileStream = fs.createReadStream(customExePath);
+        fileStream.pipe(res);
+        
+        fileStream.on("end", () => {
+          // Cleanup temp directory
+          setTimeout(() => {
+            try {
+              fs.rmSync(tmpDir, { recursive: true, force: true });
+              console.log(`Cleaned up temp directory: ${tmpDir}`);
+            } catch (e) {
+              console.error("Cleanup error:", e);
+            }
+          }, 1000);
+        });
+        
+        fileStream.on("error", (error) => {
+          console.error("Error streaming installer:", error);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        });
+        
+      } catch (error: any) {
+        console.error("Error building Windows installer:", error);
+        console.error("Error details:", error.message);
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        
+        if (!res.headersSent) {
+          res.status(500).send(`ERROR: Failed to build installer: ${error.message}`);
+        }
+      }
+      
+    } catch (error: any) {
+      console.error("Error serving Windows installer:", error);
+      if (!res.headersSent) {
+        res.status(500).send(`ERROR: Failed to generate installer: ${error.message}`);
+      }
     }
   });
 
@@ -612,6 +1189,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // 1) Parse & normalize input
       const body = req.body ?? {};
+      
+      console.log("🔵 [ENROLL] Received enrollment request:");
+      console.log("  Body keys:", Object.keys(body));
+      console.log("  Body:", JSON.stringify(body, null, 2));
+      
       const hostname = String(body.hostname ?? "").trim();
       const serial = (body.serial ?? null) ? String(body.serial).trim() : null;
       const osName = body?.os?.name ? String(body.os.name).trim() : null;
@@ -620,18 +1202,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ipsArr: string[] = Array.isArray(body.ips) ? body.ips.map((x: any) => String(x)) : [];
       const uptimeSeconds =
         Number.isFinite(Number(body.uptimeSeconds)) ? Number(body.uptimeSeconds) : null;
+      const enrollmentToken = body.enrollmentToken ? String(body.enrollmentToken).trim() : null;
+
+      console.log("🔵 [ENROLL] Parsed data:");
+      console.log("  hostname:", hostname);
+      console.log("  serial:", serial);
+      console.log("  enrollmentToken:", enrollmentToken ? enrollmentToken.substring(0, 20) + "..." : "null");
 
       if (!hostname) {
+        console.log("🔴 [ENROLL] ERROR: hostname is required");
         return res.status(400).json({ ok: false, error: "hostname is required" });
       }
 
-      // 2) Choose tenant for dev (no auth in this step)
-      const devTenant =
-        process.env.ENROLL_DEFAULT_TENANT_ID ||
-        process.env.OA_TENANT_ID ||
-        process.env.DEFAULT_TENANT_ID;
-      if (!devTenant) {
-        return res.status(500).json({ ok: false, error: "No default tenant configured" });
+      // 2) Resolve tenant from enrollment token (DYNAMIC TENANT RESOLUTION)
+      let tenantId: string;
+      let tenantName: string = "Unknown";
+      let openauditOrgId: string | null = null;
+      
+      if (enrollmentToken) {
+        // Token-based enrollment (recommended)
+        console.log("🔵 [ENROLL] Token-based enrollment, resolving tenant...");
+        const tenantContext = await import("./middleware/tenantContext");
+        const mockReq = { body: { enrollmentToken }, headers: {}, query: {} } as Request;
+        const tenant = await tenantContext.resolveTenantFromEnrollmentToken(mockReq);
+        
+        if (!tenant) {
+          console.log("🔴 [ENROLL] ERROR: Invalid or expired enrollment token");
+          return res.status(401).json({ 
+            ok: false, 
+            error: "Invalid or expired enrollment token",
+            details: "The enrollment token is invalid, expired, or has reached its maximum usage limit"
+          });
+        }
+        
+        tenantId = tenant.id;
+        tenantName = tenant.name;
+        
+        console.log("🟢 [ENROLL] Tenant resolved:");
+        console.log("  tenantId:", tenantId);
+        console.log("  tenantName:", tenantName);
+        
+        // Get full tenant details including OpenAudit org ID
+        const [fullTenant] = await db
+          .select()
+          .from(s.tenants)
+          .where(eq(s.tenants.id, tenant.id))
+          .limit(1);
+        
+        openauditOrgId = fullTenant?.openauditOrgId ?? null;
+        console.log("  openauditOrgId:", openauditOrgId);
+        
+        // Increment token usage count
+        try {
+          await storage.incrementEnrollmentTokenUsage(enrollmentToken);
+          console.log("🟢 [ENROLL] Token usage incremented");
+        } catch (error) {
+          console.error("🔴 [ENROLL] Failed to increment token usage:", error);
+          // Don't fail the enrollment if usage tracking fails
+        }
+      } else {
+        // Fallback to environment variable for backward compatibility (DEPRECATED)
+        const devTenant =
+          process.env.ENROLL_DEFAULT_TENANT_ID ||
+          process.env.OA_TENANT_ID ||
+          process.env.DEFAULT_TENANT_ID;
+        
+        if (!devTenant) {
+          return res.status(400).json({ 
+            ok: false, 
+            error: "Enrollment token required",
+            details: "Please provide an enrollmentToken from your organization's admin panel. Direct enrollment without a token is deprecated."
+          });
+        }
+        
+        tenantId = devTenant;
+        console.warn("⚠️  Agent enrollment using deprecated environment variable. Please use enrollment tokens instead.");
       }
 
       // Optional: allow skipping OA during debugging
@@ -643,7 +1288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const now = new Date();
 
       const baseRow: NewAsset = {
-        tenantId: devTenant,
+        tenantId: tenantId,
         name: hostname,
         type: "Hardware",
         category: "computer",
@@ -670,8 +1315,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         specifications: {
           agent: {
             platform: osName ?? null,
-            agentVersion: "dev",
-            enrollMethod: "link",
+            agentVersion: "1.0",
+            enrollMethod: enrollmentToken ? "token" : "env-fallback",
             lastCheckInAt: now.toISOString(),
             firstEnrolledAt: now.toISOString(),
             uptimeSeconds,
@@ -679,7 +1324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         } as any,
 
-        notes: "Enrolled via /api/agent/enroll",
+        notes: `Enrolled to ${tenantName}`,
 
         softwareName: null,
         version: null,
@@ -699,9 +1344,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedAt: now,
       };
 
+      // Upsert asset and get assetId
+      let assetId: string;
+
       if (serial && serial.trim() !== "") {
         // ✅ Serial present → safe to use ON CONFLICT on (tenantId, serialNumber)
-        await db
+        const upsertResult = await db
           .insert(s.assets)
           .values(baseRow)
           .onConflictDoUpdate({
@@ -715,7 +1363,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               notes: baseRow.notes,
               updatedAt: now,
             },
+          })
+          .returning({ id: s.assets.id });
+        
+        if (!upsertResult?.[0]?.id) {
+          console.error("🔴 [ENROLL] DB upsert with serial returned no ID");
+          return res.status(500).json({ 
+            ok: false, 
+            error: "Database upsert failed",
+            details: "Failed to insert or update device in database"
           });
+        }
+        assetId = upsertResult[0].id;
+        console.log("🟢 [ENROLL] Asset upserted with serial, assetId:", assetId);
       } else {
         // ❌ No serial → cannot use ON CONFLICT with the partial (tenantId,name) index.
         //    Manual merge: UPDATE first (only rows where serial_number IS NULL), INSERT if none updated.
@@ -739,28 +1399,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .returning({ id: s.assets.id });
 
         if (updated.length === 0) {
-          await db.insert(s.assets).values(baseRow);
+          const insertResult = await db.insert(s.assets).values(baseRow).returning({ id: s.assets.id });
+          if (!insertResult?.[0]?.id) {
+            console.error("🔴 [ENROLL] DB insert without serial returned no ID");
+            return res.status(500).json({ 
+              ok: false, 
+              error: "Database insert failed",
+              details: "Failed to insert device in database"
+            });
+          }
+          assetId = insertResult[0].id;
+          console.log("🟢 [ENROLL] Asset inserted without serial, assetId:", assetId);
+        } else {
+          assetId = updated[0].id;
+          console.log("🟢 [ENROLL] Asset updated without serial, assetId:", assetId);
         }
       }
 
-      // Re-read the asset row to get its id
-      let assetId: string | null = null;
-      if (serial && serial.trim() !== "") {
-        const [row] = await db
-          .select({ id: s.assets.id })
-          .from(s.assets)
-          .where(and(eq(s.assets.tenantId, devTenant), eq(s.assets.serialNumber, serial)))
-          .limit(1);
-        assetId = row?.id ?? null;
-      }
+      // Verify we have an assetId
       if (!assetId) {
-        const [row] = await db
-          .select({ id: s.assets.id })
-          .from(s.assets)
-          .where(and(eq(s.assets.tenantId, devTenant), eq(s.assets.name, hostname)))
-          .limit(1);
-        assetId = row?.id ?? null;
+        console.error("🔴 [ENROLL] No assetId after upsert");
+        return res.status(500).json({ 
+          ok: false, 
+          error: "Database operation failed",
+          details: "Device data could not be saved"
+        });
       }
+
+      // Re-read the asset row to get its id (REMOVED - we already have it from returning())
+      // We now have assetId from the upsert operations above
 
       // 4) Build minimal OA XML and POST to OA (unless skipping for debug)
       if (!skipOA) {
@@ -774,10 +1441,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           manufacturer: null,
           model: null,
         });
+        console.log(`📤 Submitting device to OpenAudit (default org)...`);
         await oaSubmitDeviceXML(xml);
 
         // 5) Resolve OA device id (prefer serial, fallback hostname)
         oaId = await oaFindDeviceId({ serial, hostname });
+        
+        console.log(`✅ Device submitted to OpenAudit. OA ID: ${oaId}, Tenant: ${tenantName} (${tenantId})`);
 
         // 6) Patch asset.specifications.openaudit.id if we got it
         if (assetId && oaId) {
@@ -802,7 +1472,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 7) Notify heartbeat and return
       markSyncChanged();
 
-      return res.json({
+      console.log("🟢 [ENROLL] Success! Returning response:");
+      console.log("  assetId:", assetId);
+      console.log("  oaId:", oaId);
+      console.log("  tenantId:", tenantId);
+      console.log("  tenantName:", tenantName);
+
+      return res.status(201).json({
         ok: true,
         assetId,
         oa: { deviceId: oaId ?? null },
@@ -811,7 +1487,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : "Device enrolled and posted to Open-AudIT.",
       });
     } catch (e: any) {
-      console.error("[POST /api/agent/enroll] fail:", e?.message ?? e);
+      console.error("🔴 [POST /api/agent/enroll] fail:", e?.message ?? e);
+      console.error("🔴 [POST /api/agent/enroll] stack:", e?.stack);
       return res
         .status(500)
         .json({ ok: false, error: "Failed to enroll device", details: e?.message ?? String(e) });
@@ -1667,9 +2344,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // OpenAudit Devices endpoint - fetches devices directly from OpenAudit with org-scoped filtering
+  // This endpoint enforces organization-level isolation: users can ONLY see devices belonging to their organization
+  app.get("/api/devices", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      // Extract authenticated user's tenant ID from JWT (server-side only, cannot be tampered)
+      const tenantId = req.user!.tenantId;
+      
+      // Fetch tenant configuration including OpenAudit credentials and org ID
+      const tenant = await storage.getTenant(tenantId);
+      
+      if (!tenant) {
+        console.error(`Tenant not found for ID: ${tenantId}`);
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
+      // Validate OpenAudit configuration
+      if (!tenant.openauditUrl || !tenant.openauditUsername || !tenant.openauditPassword) {
+        console.warn(`OpenAudit not configured for tenant: ${tenant.name}`);
+        return res.status(400).json({ 
+          message: "OpenAudit integration is not configured for your organization. Please contact your administrator." 
+        });
+      }
+
+      // CRITICAL: Use the tenant's openauditOrgId to enforce organization-level filtering
+      // This ensures users can NEVER access devices from other organizations
+      const oaOrgId = tenant.openauditOrgId;
+      
+      if (!oaOrgId) {
+        console.warn(`OpenAudit org ID not set for tenant: ${tenant.name}`);
+        return res.status(400).json({ 
+          message: "OpenAudit organization ID is not configured. Please contact your administrator." 
+        });
+      }
+
+      // Parse pagination parameters
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      // Log the request for security auditing
+      console.log(`🔒 Fetching OpenAudit devices for tenant: ${tenant.name} (ID: ${tenantId}), org_id: ${oaOrgId}, limit: ${limit}, offset: ${offset}`);
+
+      // Login to OpenAudit with tenant-specific credentials
+      const cookie = await oaLogin(tenant.openauditUrl, tenant.openauditUsername, tenant.openauditPassword);
+
+      // Fetch devices with MANDATORY org_id filtering
+      // The org_id parameter is enforced server-side and cannot be overridden by client
+      const devices = await oaFetchDevices(
+        cookie, 
+        limit, 
+        offset, 
+        tenant.openauditUrl,
+        oaOrgId  // CRITICAL: This ensures organization-level isolation
+      );
+
+      console.log(`✅ Successfully fetched ${devices?.data?.length || 0} devices for tenant: ${tenant.name}`);
+
+      // Return OpenAudit devices response
+      res.json(devices);
+
+    } catch (error: any) {
+      console.error("❌ Error fetching devices from OpenAudit:", error.message);
+      
+      // Handle specific error cases
+      if (error.message?.includes("login failed") || error.message?.includes("HTTP 401")) {
+        return res.status(401).json({ 
+          message: "Failed to authenticate with OpenAudit. Please check your OpenAudit credentials." 
+        });
+      }
+      
+      if (error.message?.includes("HTTP 403")) {
+        return res.status(403).json({ 
+          message: "Access denied by OpenAudit. Please verify your organization permissions." 
+        });
+      }
+
+      res.status(500).json({ 
+        message: "Failed to fetch devices from OpenAudit. Please try again later.",
+        error: process.env.NODE_ENV === "development" ? error.message : undefined
+      });
+    }
+  });
+
   // Asset routes
   app.get("/api/assets", authenticateToken, async (req: Request, res: Response) => {
     try {
+      console.log('[GET /api/assets] Request received', {
+        tenantId: req.user!.tenantId,
+        email: req.user!.email,
+        userId: req.user!.userId,
+        query: req.query
+      });
+      
       const { type, status, category, search } = req.query;
       const filters: any = {};
       
@@ -1686,7 +2452,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (category && category !== "all") filters.category = category as string;
       if (search && typeof search === 'string' && search.trim()) filters.search = search;
 
+      console.log('[GET /api/assets] Filters applied:', filters);
+
       const assets = await storage.getAllAssets(req.user!.tenantId, filters);
+      
+      console.log('[GET /api/assets] Assets retrieved:', {
+        count: assets.length,
+        tenantId: req.user!.tenantId,
+        sampleNames: assets.slice(0, 3).map(a => a.name)
+      });
+      
+      // Add tenant ID header for debugging
+      res.setHeader('X-Tenant-Id', req.user!.tenantId);
       res.json(assets);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch assets" });
@@ -3438,6 +4215,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Enrollment Token Management =====
+  
+  // Auto-create default enrollment token for tenants that don't have any
+  async function ensureDefaultEnrollmentToken(tenantId: string, tenantName: string) {
+    try {
+      const existing = await storage.getEnrollmentTokens(tenantId);
+      if (existing.length === 0) {
+        console.log(`Creating default enrollment token for tenant: ${tenantName}`);
+        await storage.createEnrollmentToken({
+          token: randomUUID(),
+          name: "Default Enrollment Token",
+          description: "Automatically created default token",
+          tenantId,
+          maxUses: null,
+          usageCount: 0,
+          isActive: true,
+          expiresAt: null,
+          createdBy: "system",
+          siteId: null,
+          siteName: null,
+          lastUsedAt: null,
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to create default enrollment token for ${tenantName}:`, error);
+    }
+  }
+
+  // Migration endpoint: Create default token if tenant doesn't have one
+  app.post("/api/enrollment-tokens/ensure-default", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const tenant = await storage.getTenant(req.user!.tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const existing = await storage.getEnrollmentTokens(req.user!.tenantId);
+      
+      if (existing.length > 0) {
+        return res.json({ 
+          message: "Organization already has enrollment tokens",
+          tokens: existing
+        });
+      }
+
+      // Create default token
+      const token = randomUUID();
+      const enrollmentToken = await storage.createEnrollmentToken({
+        token,
+        name: "Default Enrollment Token",
+        description: "Automatically created default token for device enrollment",
+        tenantId: req.user!.tenantId,
+        maxUses: null,
+        usageCount: 0,
+        isActive: true,
+        expiresAt: null,
+        createdBy: req.user!.userId,
+        siteId: null,
+        siteName: null,
+        lastUsedAt: null,
+      });
+
+      // Log activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "enrollment_token_created",
+        resourceType: "enrollment_token",
+        resourceId: enrollmentToken.id,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: "Created default enrollment token",
+      });
+
+      res.json({ 
+        message: "Default enrollment token created successfully",
+        token: enrollmentToken
+      });
+    } catch (error) {
+      console.error("Error creating default enrollment token:", error);
+      res.status(500).json({ message: "Failed to create enrollment token" });
+    }
+  });
+  
+  // Create enrollment token
+  app.post("/api/enrollment-tokens", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const { name, description, maxUses, expiresAt } = req.body;
+      
+      if (!name?.trim()) {
+        return res.status(400).json({ message: "Token name is required" });
+      }
+
+      // Generate unique token
+      const token = randomUUID();
+
+      const enrollmentToken = await storage.createEnrollmentToken({
+        token,
+        name: name.trim(),
+        description: description?.trim() || null,
+        tenantId: req.user!.tenantId,
+        maxUses: maxUses ? parseInt(maxUses) : null,
+        usageCount: 0,
+        isActive: true,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        createdBy: req.user!.userId,
+        siteId: null,
+        siteName: null,
+        lastUsedAt: null,
+      });
+
+      // Log activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "enrollment_token_created",
+        resourceType: "enrollment_token",
+        resourceId: enrollmentToken.id,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Created enrollment token: ${name}`,
+      });
+
+      res.json(enrollmentToken);
+    } catch (error) {
+      console.error("Error creating enrollment token:", error);
+      res.status(500).json({ message: "Failed to create enrollment token" });
+    }
+  });
+
+  // Get all enrollment tokens for tenant
+  app.get("/api/enrollment-tokens", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const tokens = await storage.getEnrollmentTokens(req.user!.tenantId);
+      res.json(tokens);
+    } catch (error) {
+      console.error("Error fetching enrollment tokens:", error);
+      res.status(500).json({ message: "Failed to fetch enrollment tokens" });
+    }
+  });
+
+  // Get first active enrollment token (for displaying enrollment URL to users)
+  app.get("/api/enrollment-tokens/active", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const tokens = await storage.getEnrollmentTokens(req.user!.tenantId);
+      const activeToken = tokens.find(t => t.isActive && (!t.expiresAt || new Date(t.expiresAt) > new Date()));
+      
+      if (!activeToken) {
+        return res.json({ token: null, message: "No active enrollment tokens. Admin should create one." });
+      }
+      
+      res.json(activeToken);
+    } catch (error) {
+      console.error("Error fetching active enrollment token:", error);
+      res.status(500).json({ message: "Failed to fetch enrollment token" });
+    }
+  });
+
+  // Update enrollment token (activate/deactivate, change limits)
+  app.patch("/api/enrollment-tokens/:id", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const tokenId = req.params.id;
+      const { isActive, maxUses, expiresAt, name, description } = req.body;
+
+      const updates: Partial<InsertEnrollmentToken> = {};
+      if (typeof isActive === 'boolean') updates.isActive = isActive;
+      if (maxUses !== undefined) updates.maxUses = maxUses ? parseInt(maxUses) : null;
+      if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+      if (name) updates.name = name.trim();
+      if (description !== undefined) updates.description = description?.trim() || null;
+
+      const updated = await storage.updateEnrollmentToken(tokenId, req.user!.tenantId, updates);
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Enrollment token not found" });
+      }
+
+      // Log activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "enrollment_token_updated",
+        resourceType: "enrollment_token",
+        resourceId: tokenId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Updated enrollment token: ${updated.name}`,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating enrollment token:", error);
+      res.status(500).json({ message: "Failed to update enrollment token" });
+    }
+  });
+
+  // Delete/revoke enrollment token
+  app.delete("/api/enrollment-tokens/:id", authenticateToken, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const tokenId = req.params.id;
+      
+      // Get token info before deletion for logging
+      const token = await storage.getEnrollmentToken(tokenId, req.user!.tenantId);
+      
+      if (!token) {
+        return res.status(404).json({ message: "Enrollment token not found" });
+      }
+
+      const deleted = await storage.deleteEnrollmentToken(tokenId, req.user!.tenantId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Enrollment token not found" });
+      }
+
+      // Log activity
+      await storage.logActivity({
+        userId: req.user!.userId,
+        tenantId: req.user!.tenantId,
+        action: "enrollment_token_deleted",
+        resourceType: "enrollment_token",
+        resourceId: tokenId,
+        userEmail: req.user!.email,
+        userRole: req.user!.role,
+        description: `Deleted enrollment token: ${token.name}`,
+      });
+
+      res.json({ message: "Enrollment token deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting enrollment token:", error);
+      res.status(500).json({ message: "Failed to delete enrollment token" });
+    }
+  });
+
+  // ===== End Enrollment Token Management =====
+
   // Bulk User Upload Routes
   // Download comprehensive CSV template with sample data
   app.get("/api/users/bulk/template", authenticateToken, requireRole("admin"), (req: Request, res: Response) => {
@@ -4502,6 +5514,1657 @@ app.get("/api/assets/:assetId/software", async (req, res) => {
       console.error("Error processing email webhook:", error);
       // Return 500 to trigger SendGrid retry for system errors
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // Network Discovery Routes
+  // ============================================
+
+  // Create a new discovery job
+  app.post("/api/discovery/jobs", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const { siteId, siteName, networkRange } = req.body;
+      const user = req.user!;
+      
+      console.log('[Discovery API] Creating job for user:', user.userId, user.email);
+      
+      // Generate short alphanumeric jobId (8 characters)
+      const jobId = Math.random().toString(36).substring(2, 10).toUpperCase();
+      
+      console.log('[Discovery API] Generated jobId:', jobId);
+      
+      // Detect OS from User-Agent
+      const userAgent = req.headers['user-agent'] || '';
+      let osType = 'unknown';
+      if (/Windows/i.test(userAgent)) osType = 'windows';
+      else if (/Macintosh|Mac OS/i.test(userAgent)) osType = 'macos';
+      else if (/Linux/i.test(userAgent)) osType = 'linux';
+      
+      console.log('[Discovery API] Detected OS:', osType);
+      
+      // Token expires in 30 minutes
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      
+      console.log('[Discovery API] Inserting job into database...');
+      
+      // Create discovery job
+      const [job] = await db.insert(s.discoveryJobs).values({
+        jobId,
+        status: 'pending',
+        initiatedBy: user.userId,
+        initiatedByName: user.email, // Use email since firstName/lastName not in JWT
+        osType,
+        siteId: siteId || null,
+        siteName: siteName || null,
+        networkRange: networkRange || null,
+        expiresAt,
+        tenantId: user.tenantId,
+      }).returning();
+      
+      console.log('[Discovery API] Job created:', job.id);
+      
+      // Generate discovery token (JWT with jobId)
+      const tokenPayload = {
+        jobId: job.id,
+        jobIdShort: jobId,
+        tenantId: user.tenantId,
+        siteId: siteId || null,
+        exp: Math.floor(expiresAt.getTime() / 1000),
+      };
+      const token = jwt.sign(tokenPayload, process.env.SESSION_SECRET || 'secret');
+      
+      console.log('[Discovery API] Token generated');
+      
+      // Store token
+      await db.insert(s.discoveryTokens).values({
+        token,
+        jobId: job.id,
+        tenantId: user.tenantId,
+        siteId: siteId || null,
+        expiresAt,
+      });
+      
+      console.log('[Discovery API] Token stored, returning response');
+      
+      res.json({
+        success: true,
+        job: {
+          id: job.id,
+          jobId: job.jobId,
+          status: job.status,
+          osType: job.osType,
+          expiresAt: job.expiresAt,
+        },
+        token,
+        downloadUrl: `/api/discovery/download/${jobId}/${osType}`,
+      });
+      
+    } catch (error: any) {
+      console.error("[Discovery API] Error creating discovery job:", error);
+      console.error("[Discovery API] Error stack:", error.stack);
+      console.error("[Discovery API] Error details:", {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      });
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to create discovery job",
+        error: error.message 
+      });
+    }
+  });
+  
+  // Get all recent discovery jobs (for automatic monitoring)
+  app.get("/api/discovery/jobs/recent", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      // Get jobs from the last 24 hours, sorted by most recent first
+      const jobs = await db
+        .select()
+        .from(s.discoveryJobs)
+        .where(
+          and(
+            eq(s.discoveryJobs.tenantId, user.tenantId),
+            gte(s.discoveryJobs.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000))
+          )
+        )
+        .orderBy(desc(s.discoveryJobs.createdAt))
+        .limit(10);
+      
+      res.json({
+        success: true,
+        jobs: jobs.map(job => ({
+          id: job.id,
+          jobId: job.jobId,
+          status: job.status,
+          osType: job.osType,
+          totalHosts: job.totalHosts,
+          scannedHosts: job.scannedHosts,
+          successfulHosts: job.successfulHosts,
+          partialHosts: job.partialHosts,
+          unreachableHosts: job.unreachableHosts,
+          startedAt: job.startedAt,
+          completedAt: job.completedAt,
+          createdAt: job.createdAt,
+        })),
+      });
+      
+    } catch (error) {
+      console.error("Error fetching recent discovery jobs:", error);
+      res.status(500).json({ message: "Failed to fetch recent discovery jobs" });
+    }
+  });
+  
+  // Get discovery job status
+  app.get("/api/discovery/jobs/:jobId", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const { jobId } = req.params;
+      const user = req.user!;
+      
+      const [job] = await db
+        .select()
+        .from(s.discoveryJobs)
+        .where(
+          and(
+            eq(s.discoveryJobs.jobId, jobId),
+            eq(s.discoveryJobs.tenantId, user.tenantId)
+          )
+        );
+      
+      if (!job) {
+        return res.status(404).json({ message: "Discovery job not found" });
+      }
+      
+      // Get discovered devices for this job
+      const devices = await db
+        .select()
+        .from(s.discoveredDevices)
+        .where(eq(s.discoveredDevices.jobId, job.id));
+      
+      res.json({
+        success: true,
+        job: {
+          id: job.id,
+          jobId: job.jobId,
+          status: job.status,
+          osType: job.osType,
+          totalHosts: job.totalHosts,
+          scannedHosts: job.scannedHosts,
+          successfulHosts: job.successfulHosts,
+          partialHosts: job.partialHosts,
+          unreachableHosts: job.unreachableHosts,
+          startedAt: job.startedAt,
+          completedAt: job.completedAt,
+          expiresAt: job.expiresAt,
+        },
+        devices,
+      });
+      
+    } catch (error) {
+      console.error("Error fetching discovery job:", error);
+      res.status(500).json({ message: "Failed to fetch discovery job" });
+    }
+  });
+  
+  // Update discovery job progress (called by scanner agent during scan)
+  app.patch("/api/discovery/jobs/:jobId/progress", async (req: Request, res: Response) => {
+    try {
+      const { jobId } = req.params;
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+      
+      if (!token) {
+        return res.status(401).json({ message: "Authorization token required" });
+      }
+      
+      // Verify discovery token
+      let tokenData: any;
+      try {
+        tokenData = jwt.verify(token, process.env.SESSION_SECRET || 'secret');
+      } catch (error) {
+        return res.status(401).json({ message: "Invalid or expired token" });
+      }
+      
+      // Check if token matches jobId
+      if (tokenData.jobIdShort !== jobId) {
+        return res.status(403).json({ message: "Token does not match job ID" });
+      }
+      
+      const { status, progressMessage, progressPercent } = req.body;
+      
+      // Update job progress
+      await db
+        .update(s.discoveryJobs)
+        .set({
+          status: status || 'running',
+          progressMessage: progressMessage,
+          progressPercent: progressPercent || 0,
+          ...(status === 'running' && !progressMessage ? { startedAt: new Date() } : {}),
+          ...(status === 'completed' || status === 'failed' ? { completedAt: new Date() } : {}),
+        })
+        .where(eq(s.discoveryJobs.jobId, jobId));
+      
+      res.json({ success: true, message: "Progress updated" });
+      
+    } catch (error) {
+      console.error("Error updating discovery progress:", error);
+      res.status(500).json({ message: "Failed to update progress" });
+    }
+  });
+  
+  // Upload discovery results (called by scanner agent)
+  app.post("/api/discovery/jobs/:jobId/results", async (req: Request, res: Response) => {
+    try {
+      const { jobId } = req.params;
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : req.body.token;
+      const { devices } = req.body;
+      
+      if (!token) {
+        return res.status(401).json({ message: "Discovery token required" });
+      }
+      
+      // Verify discovery token
+      let tokenData: any;
+      try {
+        tokenData = jwt.verify(token, process.env.SESSION_SECRET || 'secret');
+      } catch (error) {
+        return res.status(401).json({ message: "Invalid or expired token" });
+      }
+      
+      // Check if token matches jobId
+      if (tokenData.jobIdShort !== jobId) {
+        return res.status(403).json({ message: "Token does not match job ID" });
+      }
+      
+      // Get the job
+      const [job] = await db
+        .select()
+        .from(s.discoveryJobs)
+        .where(
+          and(
+            eq(s.discoveryJobs.jobId, jobId),
+            eq(s.discoveryJobs.tenantId, tokenData.tenantId)
+          )
+        );
+      
+      if (!job) {
+        return res.status(404).json({ message: "Discovery job not found" });
+      }
+      
+      // Check if job is expired
+      if (new Date() > new Date(job.expiresAt)) {
+        await db
+          .update(s.discoveryJobs)
+          .set({ status: 'expired' })
+          .where(eq(s.discoveryJobs.id, job.id));
+        return res.status(410).json({ message: "Discovery job has expired" });
+      }
+      
+      // Update job status to running
+      if (job.status === 'pending') {
+        await db
+          .update(s.discoveryJobs)
+          .set({ 
+            status: 'running',
+            startedAt: new Date(),
+          })
+          .where(eq(s.discoveryJobs.id, job.id));
+      }
+      
+      // Process and insert discovered devices
+      let successfulCount = 0;
+      let partialCount = 0;
+      let failedCount = 0;
+      
+      for (const device of devices) {
+        // Check for duplicates in existing assets
+        let isDuplicate = false;
+        let duplicateAssetId = null;
+        let duplicateMatchField = null;
+        
+        // Check by serial number first
+        if (device.serialNumber) {
+          const [existingAsset] = await db
+            .select()
+            .from(s.assets)
+            .where(
+              and(
+                eq(s.assets.serialNumber, device.serialNumber),
+                eq(s.assets.tenantId, tokenData.tenantId)
+              )
+            )
+            .limit(1);
+          
+          if (existingAsset) {
+            isDuplicate = true;
+            duplicateAssetId = existingAsset.id;
+            duplicateMatchField = 'serial';
+          }
+        }
+        
+        // Check by MAC address if no serial match
+        if (!isDuplicate && device.macAddress) {
+          const existingAssets = await db
+            .select()
+            .from(s.assets)
+            .where(eq(s.assets.tenantId, tokenData.tenantId));
+          
+          for (const asset of existingAssets) {
+            if (asset.specifications && typeof asset.specifications === 'object') {
+              const specs = asset.specifications as any;
+              if (specs.macAddress === device.macAddress) {
+                isDuplicate = true;
+                duplicateAssetId = asset.id;
+                duplicateMatchField = 'mac';
+                break;
+              }
+            }
+          }
+        }
+        
+        // Check by IP address if no other match
+        if (!isDuplicate && device.ipAddress) {
+          const existingAssets = await db
+            .select()
+            .from(s.assets)
+            .where(eq(s.assets.tenantId, tokenData.tenantId));
+          
+          for (const asset of existingAssets) {
+            if (asset.specifications && typeof asset.specifications === 'object') {
+              const specs = asset.specifications as any;
+              if (specs.ipAddress === device.ipAddress) {
+                isDuplicate = true;
+                duplicateAssetId = asset.id;
+                duplicateMatchField = 'ip';
+                break;
+              }
+            }
+          }
+        }
+        
+        // Insert discovered device
+        await db.insert(s.discoveredDevices).values({
+          jobId: job.id,
+          ipAddress: device.ipAddress,
+          macAddress: device.macAddress || null,
+          hostname: device.hostname || null,
+          sysName: device.sysName || null,
+          sysDescr: device.sysDescr || null,
+          sysObjectID: device.sysObjectID || null,
+          serialNumber: device.serialNumber || null,
+          manufacturer: device.manufacturer || null,
+          model: device.model || null,
+          interfaces: device.interfaces || null,
+          osName: device.osName || null,
+          osVersion: device.osVersion || null,
+          discoveryMethod: device.discoveryMethod,
+          status: device.status,
+          credentialProfileId: device.credentialProfileId || null,
+          openPorts: device.openPorts || null,
+          portFingerprint: device.portFingerprint || null,
+          macOui: device.macOui || null,
+          isDuplicate,
+          duplicateAssetId,
+          duplicateMatchField,
+          siteId: job.siteId || null,
+          siteName: job.siteName || null,
+          rawData: device.rawData || null,
+          tenantId: tokenData.tenantId,
+        });
+        
+        if (device.status === 'discovered') successfulCount++;
+        else if (device.status === 'partial') partialCount++;
+        else failedCount++;
+      }
+      
+      // Update job statistics
+      await db
+        .update(s.discoveryJobs)
+        .set({
+          scannedHosts: (job.scannedHosts || 0) + devices.length,
+          successfulHosts: (job.successfulHosts || 0) + successfulCount,
+          partialHosts: (job.partialHosts || 0) + partialCount,
+          unreachableHosts: (job.unreachableHosts || 0) + failedCount,
+          totalHosts: (job.totalHosts || 0) + devices.length,
+        })
+        .where(eq(s.discoveryJobs.id, job.id));
+      
+      res.json({
+        success: true,
+        message: `Processed ${devices.length} devices`,
+        statistics: {
+          successful: successfulCount,
+          partial: partialCount,
+          failed: failedCount,
+        },
+      });
+      
+    } catch (error) {
+      console.error("Error uploading discovery results:", error);
+      res.status(500).json({ message: "Failed to upload discovery results" });
+    }
+  });
+  
+  // Server-Sent Events endpoint for real-time updates
+  app.get("/api/discovery/jobs/:jobId/stream", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    const { jobId } = req.params;
+    const user = req.user!;
+    
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', jobId })}\n\n`);
+    
+    // Poll for updates every 2 seconds
+    const intervalId = setInterval(async () => {
+      try {
+        const [job] = await db
+          .select()
+          .from(s.discoveryJobs)
+          .where(
+            and(
+              eq(s.discoveryJobs.jobId, jobId),
+              eq(s.discoveryJobs.tenantId, user.tenantId)
+            )
+          );
+        
+        if (!job) {
+          res.write(`data: ${JSON.stringify({ type: 'error', message: 'Job not found' })}\n\n`);
+          clearInterval(intervalId);
+          res.end();
+          return;
+        }
+        
+        // Get device count
+        const devices = await db
+          .select()
+          .from(s.discoveredDevices)
+          .where(eq(s.discoveredDevices.jobId, job.id));
+        
+        // Send update
+        res.write(`data: ${JSON.stringify({
+          type: 'update',
+          job: {
+            id: job.id,
+            jobId: job.jobId,
+            status: job.status,
+            totalHosts: job.totalHosts,
+            scannedHosts: job.scannedHosts,
+            successfulHosts: job.successfulHosts,
+            partialHosts: job.partialHosts,
+            unreachableHosts: job.unreachableHosts,
+          },
+          deviceCount: devices.length,
+        })}\n\n`);
+        
+        // Stop if job is complete or expired
+        if (job.status === 'completed' || job.status === 'expired' || job.status === 'failed') {
+          clearInterval(intervalId);
+          res.end();
+        }
+      } catch (error) {
+        console.error("SSE error:", error);
+        clearInterval(intervalId);
+        res.end();
+      }
+    }, 2000);
+    
+    // Clean up on client disconnect
+    req.on('close', () => {
+      clearInterval(intervalId);
+    });
+  });
+  
+  // Import discovered devices into assets
+  app.post("/api/discovery/import", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const { jobId, deviceIds, siteId, siteName, tags } = req.body;
+      const user = req.user!;
+      
+      // Get the job
+      const [job] = await db
+        .select()
+        .from(s.discoveryJobs)
+        .where(
+          and(
+            eq(s.discoveryJobs.id, jobId),
+            eq(s.discoveryJobs.tenantId, user.tenantId)
+          )
+        );
+      
+      if (!job) {
+        return res.status(404).json({ message: "Discovery job not found" });
+      }
+      
+      // Get devices to import
+      const devicesToImport = await db
+        .select()
+        .from(s.discoveredDevices)
+        .where(
+          and(
+            eq(s.discoveredDevices.jobId, jobId),
+            inArray(s.discoveredDevices.id, deviceIds)
+          )
+        );
+      
+      let importedCount = 0;
+      let skippedCount = 0;
+      const importedAssets = [];
+      
+      for (const device of devicesToImport) {
+        // Skip if already imported
+        if (device.isImported) {
+          skippedCount++;
+          continue;
+        }
+        
+        // Skip duplicates
+        if (device.isDuplicate) {
+          skippedCount++;
+          continue;
+        }
+        
+        // Create asset from discovered device
+        const [newAsset] = await db.insert(s.assets).values({
+          name: device.hostname || device.sysName || device.ipAddress,
+          type: 'Hardware',
+          category: device.portFingerprint || 'network-device',
+          manufacturer: device.manufacturer || null,
+          model: device.model || null,
+          serialNumber: device.serialNumber || null,
+          status: 'in-stock',
+          country: null,
+          state: null,
+          city: siteName || job.siteName || null,
+          specifications: {
+            ipAddress: device.ipAddress,
+            macAddress: device.macAddress,
+            hostname: device.hostname,
+            sysName: device.sysName,
+            sysDescr: device.sysDescr,
+            sysObjectID: device.sysObjectID,
+            interfaces: device.interfaces,
+            osName: device.osName,
+            osVersion: device.osVersion,
+            discoveryMethod: device.discoveryMethod,
+            openPorts: device.openPorts,
+            portFingerprint: device.portFingerprint,
+            macOui: device.macOui,
+          },
+          tags: tags || [],
+          tenantId: user.tenantId,
+          lastSyncAt: new Date(),
+          lastSyncSource: 'network-discovery',
+        }).returning();
+        
+        // Mark device as imported
+        await db
+          .update(s.discoveredDevices)
+          .set({
+            isImported: true,
+            importedAt: new Date(),
+            importedAssetId: newAsset.id,
+          })
+          .where(eq(s.discoveredDevices.id, device.id));
+        
+        importedCount++;
+        importedAssets.push(newAsset);
+      }
+      
+      // Update job status to completed if all devices processed
+      const remainingDevices = await db
+        .select()
+        .from(s.discoveredDevices)
+        .where(
+          and(
+            eq(s.discoveredDevices.jobId, jobId),
+            eq(s.discoveredDevices.isImported, false)
+          )
+        );
+      
+      if (remainingDevices.length === 0) {
+        await db
+          .update(s.discoveryJobs)
+          .set({
+            status: 'completed',
+            completedAt: new Date(),
+          })
+          .where(eq(s.discoveryJobs.id, jobId));
+      }
+      
+      res.json({
+        success: true,
+        message: `Imported ${importedCount} devices, skipped ${skippedCount} duplicates`,
+        imported: importedCount,
+        skipped: skippedCount,
+        assets: importedAssets,
+      });
+      
+    } catch (error) {
+      console.error("Error importing discovered devices:", error);
+      res.status(500).json({ message: "Failed to import discovered devices" });
+    }
+  });
+  
+  // Download discovery scanner package
+  app.get("/api/discovery/download/:jobId/:osType", async (req: Request, res: Response) => {
+    try {
+      const { jobId, osType } = req.params;
+      
+      // Get job and token
+      const job = await db
+        .select()
+        .from(s.discoveryJobs)
+        .where(eq(s.discoveryJobs.jobId, jobId))
+        .limit(1);
+      
+      if (!job.length) {
+        return res.status(404).json({ message: "Discovery job not found" });
+      }
+      
+      const [token] = await db
+        .select()
+        .from(s.discoveryTokens)
+        .where(eq(s.discoveryTokens.jobId, job[0].id))
+        .limit(1);
+      
+      if (!token) {
+        return res.status(404).json({ message: "Discovery token not found" });
+      }
+      
+      // Get server URL from request
+      const protocol = req.protocol;
+      let host = req.get('host') || 'localhost:5050';
+      
+      // Replace 0.0.0.0 with localhost or actual hostname
+      if (host.startsWith('0.0.0.0:')) {
+        // Try to get actual hostname from request headers
+        const forwardedHost = req.get('x-forwarded-host');
+        const referer = req.get('referer');
+        
+        if (forwardedHost) {
+          host = forwardedHost;
+        } else if (referer) {
+          // Extract host from referer URL
+          try {
+            const refererUrl = new URL(referer);
+            host = refererUrl.host;
+          } catch (e) {
+            host = 'localhost:5050';
+          }
+        } else {
+          // Default to localhost with same port
+          const port = host.split(':')[1] || '5050';
+          host = `localhost:${port}`;
+        }
+      }
+      
+      const serverUrl = `${protocol}://${host}`;
+      console.log('[Download] Server URL for agent:', serverUrl);
+      
+      const configJson = {
+        jobId: jobId,
+        token: token.token,
+        serverUrl: serverUrl
+      };
+      
+      let scriptContent: string | Buffer = '';
+      let fileName = '';
+      let contentType = 'application/octet-stream';
+      
+      if (osType === 'macos') {
+        // macOS .pkg installer with GUI wizard
+        console.log('[Download] Creating .pkg installer for macOS');
+        fileName = `ITAM-Discovery-${jobId}.pkg`;
+        contentType = 'application/x-newton-compatible-pkg';
+        
+        try {
+          // Create pkg using shell script (execSync already imported at top)
+          const tmpDir = '/tmp/itam-pkg-' + Date.now();
+          
+          const createPkgScript = path.join(process.cwd(), 'discovery-scanner/macos/create-pkg-installer.sh');
+          console.log('[Download] Using pkg script:', createPkgScript);
+          
+          // Make script executable
+          execSync(`chmod +x "${createPkgScript}"`);
+          
+          // Run pkg creation script
+          const pkgPath = `${tmpDir}/ITAM-Discovery-${jobId}.pkg`;
+          console.log('[Download] Creating pkg at:', pkgPath);
+          
+          const output = execSync(
+            `bash "${createPkgScript}" "${jobId}" "${token.token}" "${serverUrl}" "${tmpDir}"`,
+            { encoding: 'utf-8' }
+          );
+          console.log('[Download] Pkg creation output:', output);
+          
+          // Read the generated pkg file
+          scriptContent = fs.readFileSync(pkgPath);
+          console.log('[Download] Pkg file size:', scriptContent.length, 'bytes');
+          console.log('[Download] Serving as:', fileName, 'with content-type:', contentType);
+          
+          // Clean up temp directory (but keep for a moment to allow download)
+          setTimeout(() => {
+            try {
+              fs.rmSync(tmpDir, { recursive: true, force: true });
+              console.log('[Download] Cleaned up temp directory:', tmpDir);
+            } catch (e) {
+              console.error('Failed to clean up temp pkg directory:', e);
+            }
+          }, 60000); // Clean up after 1 minute
+          
+        } catch (error: any) {
+          console.error('[Download] Failed to create pkg installer:', error);
+          console.error('[Download] Error stack:', error.stack);
+          return res.status(500).json({ 
+            message: 'Failed to create installer package',
+            error: error.message 
+          });
+        }
+        
+      } else if (osType === 'macos-old') {
+        // Old macOS .command file - double-clickable
+        fileName = `ITAM-Discovery-${jobId}.command`;
+        scriptContent = `#!/bin/bash
+# ITAM Network Discovery Scanner for macOS
+# Double-click this file to run the network scan
+
+clear
+echo "============================================"
+echo "ITAM Network Discovery Scanner"
+echo "============================================"
+echo "Job ID: ${jobId}"
+echo ""
+
+# Configuration
+JOB_ID="${jobId}"
+TOKEN="${token.token}"
+SERVER_URL="${serverUrl}"
+
+# Check and install dependencies
+if ! command -v snmpget &> /dev/null; then
+    echo "Installing net-snmp via Homebrew..."
+    if command -v brew &> /dev/null; then
+        brew install net-snmp
+    else
+        echo "ERROR: Homebrew not installed. Please install Homebrew first."
+        read -p "Press Enter to exit..."
+        exit 1
+    fi
+fi
+
+if ! command -v jq &> /dev/null; then
+    echo "Installing jq via Homebrew..."
+    brew install jq
+fi
+
+echo "Dependencies installed successfully!"
+echo ""
+echo "Starting network scan..."
+echo "This will scan your local network for devices using SNMP"
+echo ""
+
+# Get network range
+NETWORK_RANGE=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}' | cut -d'.' -f1-3).0/24
+
+echo "Scanning network: $NETWORK_RANGE"
+echo ""
+
+# Initialize results
+DEVICES='[]'
+DISCOVERED=0
+
+# Scan network
+for i in {1..254}; do
+    IP=$(echo $NETWORK_RANGE | cut -d'/' -f1 | cut -d'.' -f1-3).$i
+    
+    # Quick ping test
+    if ping -c 1 -W 1 $IP &>/dev/null; then
+        echo "Found host: $IP - Testing SNMP..."
+        
+        # Try SNMP
+        HOSTNAME=""
+        SYS_DESCR=""
+        
+        for COMMUNITY in public private; do
+            HOSTNAME=$(snmpget -v2c -c $COMMUNITY -t 1 -r 0 $IP 1.3.6.1.2.1.1.5.0 2>/dev/null | awk '{print $NF}' | tr -d '"')
+            if [ ! -z "$HOSTNAME" ]; then
+                SYS_DESCR=$(snmpget -v2c -c $COMMUNITY -t 1 -r 0 $IP 1.3.6.1.2.1.1.1.0 2>/dev/null | cut -d'=' -f2 | tr -d '"')
+                
+                # Create device object
+                DEVICE=$(cat <<EOF
+{
+  "ipAddress": "$IP",
+  "hostname": "$HOSTNAME",
+  "sysDescr": "$SYS_DESCR",
+  "discoveryMethod": "snmpv2c",
+  "status": "discovered",
+  "scanTimestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+)
+                DEVICES=$(echo "$DEVICES" | jq ". += [$DEVICE]")
+                DISCOVERED=$((DISCOVERED + 1))
+                echo "  ✓ Discovered: $HOSTNAME ($IP)"
+                break
+            fi
+        done
+        
+        if [ -z "$HOSTNAME" ]; then
+            echo "  ⚠ No SNMP response from $IP"
+        fi
+    fi
+done
+
+echo ""
+echo "============================================"
+echo "Scan Complete!"
+echo "Found $DISCOVERED devices"
+echo "============================================"
+echo ""
+
+# Upload results
+if [ $DISCOVERED -gt 0 ]; then
+    echo "Uploading results to server..."
+    
+    PAYLOAD=$(cat <<EOF
+{
+  "devices": $DEVICES
+}
+EOF
+)
+    
+    RESPONSE=$(curl -s -X POST \$
+        -H "Content-Type: application/json" \$
+        -H "Authorization: Bearer $TOKEN" \$
+        -d "$PAYLOAD" \$
+        "$SERVER_URL/api/discovery/jobs/$JOB_ID/results")
+    
+    if echo "$RESPONSE" | grep -q "success"; then
+        echo "✓ Results uploaded successfully!"
+        echo "✓ Check your ITAM dashboard to review and import devices"
+    else
+        echo "✗ Failed to upload results"
+    fi
+else
+    echo "No devices found to upload"
+fi
+
+echo ""
+echo "Press Enter to close this window..."
+read
+`;
+        
+      } else if (osType === 'windows') {
+        // Windows .bat file
+        fileName = `ITAM-Discovery-${jobId}.bat`;
+        scriptContent = `@echo off
+REM ITAM Network Discovery Scanner for Windows
+REM Double-click this file to run the network scan
+
+title ITAM Network Discovery Scanner
+color 0A
+
+echo ============================================
+echo ITAM Network Discovery Scanner
+echo ============================================
+echo Job ID: ${jobId}
+echo.
+
+REM Configuration
+set JOB_ID=${jobId}
+set TOKEN=${token.token}
+set SERVER_URL=${serverUrl}
+
+echo Checking dependencies...
+
+REM Check for PowerShell
+where powershell >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: PowerShell not found
+    pause
+    exit /b 1
+)
+
+echo Starting network scan...
+echo This will scan your local network for devices using SNMP
+echo.
+
+REM Create temporary PowerShell script
+set TEMP_PS=%TEMP%\\itam-discovery-%JOB_ID%.ps1
+
+(
+echo $JOB_ID = "%JOB_ID%"
+echo $TOKEN = "%TOKEN%"
+echo $SERVER_URL = "%SERVER_URL%"
+echo.
+echo Write-Host "Scanning network..." -ForegroundColor Cyan
+echo.
+echo # Get local network
+echo $NetworkAdapter = Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object { $_.IPAddress -notmatch "^127\\." } ^| Select-Object -First 1
+echo $IP = $NetworkAdapter.IPAddress
+echo $Prefix = $NetworkAdapter.PrefixLength
+echo $BaseIP = ($IP -split "\\.")^[0..2^] -join "."
+echo.
+echo Write-Host "Scanning $BaseIP.0/$Prefix"
+echo.
+echo $Devices = @^(^)
+echo $Discovered = 0
+echo.
+echo # Scan network
+echo 1..254 ^| ForEach-Object {
+echo     $TargetIP = "$BaseIP.$_"
+echo     if ^(Test-Connection -ComputerName $TargetIP -Count 1 -Quiet -TimeoutSeconds 1^) {
+echo         Write-Host "Found host: $TargetIP - Testing SNMP..." -ForegroundColor Yellow
+echo         
+echo         # Try SNMP with snmpget if available
+echo         try {
+echo             $snmpResult = snmpget -v2c -c public -t 1 -r 0 $TargetIP 1.3.6.1.2.1.1.5.0 2^>$null
+echo             if ^($snmpResult^) {
+echo                 $hostname = ^($snmpResult -split "="^)^[1^].Trim^(^)
+echo                 
+echo                 $device = @{
+echo                     ipAddress = $TargetIP
+echo                     hostname = $hostname
+echo                     discoveryMethod = "snmpv2c"
+echo                     status = "discovered"
+echo                     scanTimestamp = ^(Get-Date^).ToUniversalTime^(^).ToString^("yyyy-MM-ddTHH:mm:ssZ"^)
+echo                 }
+echo                 
+echo                 $Devices += $device
+echo                 $Discovered++
+echo                 Write-Host "  OK Discovered: $hostname ^($TargetIP^)" -ForegroundColor Green
+echo             }
+echo         } catch {
+echo             Write-Host "  WARNING No SNMP response from $TargetIP" -ForegroundColor DarkYellow
+echo         }
+echo     }
+echo }
+echo.
+echo Write-Host "============================================" -ForegroundColor Cyan
+echo Write-Host "Scan Complete!" -ForegroundColor Green
+echo Write-Host "Found $Discovered devices" -ForegroundColor Green
+echo Write-Host "============================================" -ForegroundColor Cyan
+echo.
+echo.
+echo # Upload results
+echo if ^($Discovered -gt 0^) {
+echo     Write-Host "Uploading results to server..." -ForegroundColor Cyan
+echo     
+echo     $payload = @{
+echo         devices = $Devices
+echo     } ^| ConvertTo-Json -Depth 10
+echo     
+echo     $headers = @{
+echo         "Content-Type" = "application/json"
+echo         "Authorization" = "Bearer $TOKEN"
+echo     }
+echo     
+echo     try {
+echo         $response = Invoke-RestMethod -Uri "$SERVER_URL/api/discovery/jobs/$JOB_ID/results" -Method Post -Headers $headers -Body $payload
+echo         Write-Host "OK Results uploaded successfully!" -ForegroundColor Green
+echo         Write-Host "OK Check your ITAM dashboard to review and import devices" -ForegroundColor Green
+echo     } catch {
+echo         Write-Host "ERROR Failed to upload results" -ForegroundColor Red
+echo     }
+echo } else {
+echo     Write-Host "No devices found to upload" -ForegroundColor Yellow
+echo }
+echo.
+echo Write-Host "Press any key to close this window..."
+echo $null = $Host.UI.RawUI.ReadKey^("NoEcho,IncludeKeyDown"^)
+) > "%TEMP_PS%"
+
+REM Run PowerShell script
+powershell -ExecutionPolicy Bypass -File "%TEMP_PS%"
+
+REM Cleanup
+del "%TEMP_PS%" >nul 2>nul
+
+pause
+`;
+        
+      } else {
+        // Linux .sh file with shebang
+        fileName = `itam-discovery-${jobId}.sh`;
+        scriptContent = `#!/bin/bash
+# ITAM Network Discovery Scanner for Linux
+# Make executable: chmod +x ${fileName}
+# Run: ./${fileName}
+
+clear
+echo "============================================"
+echo "ITAM Network Discovery Scanner"
+echo "============================================"
+echo "Job ID: ${jobId}"
+echo ""
+
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+    echo "This script needs root privileges for network scanning"
+    echo "Please run with sudo:"
+    echo "  sudo ./${fileName}"
+    echo ""
+    read -p "Press Enter to exit..."
+    exit 1
+fi
+
+# Configuration
+JOB_ID="${jobId}"
+TOKEN="${token.token}"
+SERVER_URL="${serverUrl}"
+
+# Install dependencies
+echo "Checking dependencies..."
+if ! command -v snmpget &> /dev/null; then
+    echo "Installing SNMP tools..."
+    if command -v apt-get &> /dev/null; then
+        apt-get update && apt-get install -y snmp jq
+    elif command -v yum &> /dev/null; then
+        yum install -y net-snmp-utils jq
+    elif command -v dnf &> /dev/null; then
+        dnf install -y net-snmp-utils jq
+    fi
+fi
+
+echo "Dependencies ready!"
+echo ""
+echo "Starting network scan..."
+echo ""
+
+# Get network range
+NETWORK_RANGE=$(ip route | grep -v default | grep -m1 "/" | awk '{print $1}')
+
+echo "Scanning network: $NETWORK_RANGE"
+echo ""
+
+# Initialize results
+DEVICES='[]'
+DISCOVERED=0
+
+# Extract base IP and scan
+BASE_IP=$(echo $NETWORK_RANGE | cut -d'/' -f1 | cut -d'.' -f1-3)
+
+for i in {1..254}; do
+    IP="$BASE_IP.$i"
+    
+    if ping -c 1 -W 1 $IP &>/dev/null; then
+        echo "Found host: $IP - Testing SNMP..."
+        
+        HOSTNAME=""
+        for COMMUNITY in public private; do
+            HOSTNAME=$(snmpget -v2c -c $COMMUNITY -t 1 -r 0 $IP 1.3.6.1.2.1.1.5.0 2>/dev/null | awk '{print $NF}' | tr -d '"')
+            if [ ! -z "$HOSTNAME" ]; then
+                SYS_DESCR=$(snmpget -v2c -c $COMMUNITY -t 1 -r 0 $IP 1.3.6.1.2.1.1.1.0 2>/dev/null | cut -d'=' -f2 | tr -d '"')
+                
+                DEVICE=$(cat <<EOF
+{
+  "ipAddress": "$IP",
+  "hostname": "$HOSTNAME",
+  "sysDescr": "$SYS_DESCR",
+  "discoveryMethod": "snmpv2c",
+  "status": "discovered",
+  "scanTimestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+)
+                DEVICES=$(echo "$DEVICES" | jq ". += [$DEVICE]")
+                DISCOVERED=$((DISCOVERED + 1))
+                echo "  ✓ Discovered: $HOSTNAME ($IP)"
+                break
+            fi
+        done
+    fi
+done
+
+echo ""
+echo "============================================"
+echo "Scan Complete!"
+echo "Found $DISCOVERED devices"
+echo "============================================"
+echo ""
+
+# Upload results
+if [ $DISCOVERED -gt 0 ]; then
+    echo "Uploading results to server..."
+    
+    PAYLOAD=$(cat <<EOF
+{
+  "devices": $DEVICES
+}
+EOF
+)
+    
+    RESPONSE=$(curl -s -X POST \$
+        -H "Content-Type: application/json" \$
+        -H "Authorization: Bearer $TOKEN" \$
+        -d "$PAYLOAD" \$
+        "$SERVER_URL/api/discovery/jobs/$JOB_ID/results")
+    
+    if echo "$RESPONSE" | grep -q "success"; then
+        echo "✓ Results uploaded successfully!"
+        echo "✓ Check your ITAM dashboard to review and import devices"
+    else
+        echo "✗ Failed to upload results"
+    fi
+fi
+
+echo ""
+read -p "Press Enter to close..."
+`;
+      }
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Type', contentType);
+      res.send(scriptContent);
+      
+    } catch (error) {
+      console.error("Error downloading scanner:", error);
+      res.status(500).json({ message: "Failed to download scanner package" });
+    }
+
+  // ============================================
+  // Network Monitoring Agent Routes
+  // ============================================
+  
+  // Agent heartbeat - called by network monitor agent
+  app.post("/api/network/agent/heartbeat", async (req: Request, res: Response) => {
+    try {
+      const { agentId, agentName, osType, version, agentIpAddress, networkRange, apiKey } = req.body;
+      
+      // Validate API key - check if agent exists with this key
+      const existingAgents = await db
+        .select()
+        .from(s.networkMonitorAgents)
+        .where(eq(s.networkMonitorAgents.apiKey, apiKey));
+      
+      if (existingAgents.length === 0) {
+        return res.status(401).json({ message: "Invalid API key" });
+      }
+      
+      const existingAgent = existingAgents[0];
+      
+      // Update or insert agent record
+      const [agent] = await db
+        .insert(s.networkMonitorAgents)
+        .values({
+          agentId: agentId,
+          agentName: agentName || `Agent \${agentId.substring(0, 8)}`,
+          osType: osType,
+          version: version,
+          apiKey: apiKey,
+          status: 'active',
+          lastHeartbeat: new Date(),
+          agentIpAddress: agentIpAddress,
+          networkRange: networkRange,
+          tenantId: existingAgent.tenantId,
+          installedBy: existingAgent.installedBy,
+        })
+        .onConflictDoUpdate({
+          target: s.networkMonitorAgents.agentId,
+          set: {
+            agentName: agentName || `Agent \${agentId.substring(0, 8)}`,
+            osType: osType,
+            version: version,
+            status: 'active',
+            lastHeartbeat: new Date(),
+            agentIpAddress: agentIpAddress,
+            networkRange: networkRange,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      
+      res.json({ success: true, message: "Heartbeat received", agent });
+    } catch (error) {
+      console.error("Error processing agent heartbeat:", error);
+      res.status(500).json({ message: "Failed to process heartbeat" });
+    }
+  });
+  
+  // Update Wi-Fi presence data - called by network monitor agent
+  app.post("/api/network/presence/update", async (req: Request, res: Response) => {
+    try {
+      const { agentId, apiKey, devices } = req.body;
+      
+      // Validate API key
+      const [agent] = await db
+        .select()
+        .from(s.networkMonitorAgents)
+        .where(
+          and(
+            eq(s.networkMonitorAgents.agentId, agentId),
+            eq(s.networkMonitorAgents.apiKey, apiKey)
+          )
+        );
+      
+      if (!agent) {
+        return res.status(401).json({ message: "Invalid agent or API key" });
+      }
+      
+      const tenantId = agent.tenantId;
+      const now = new Date();
+      
+      // Get all assets for this tenant to check authorization
+      const tenantAssets = await db
+        .select()
+        .from(s.assets)
+        .where(eq(s.assets.tenantId, tenantId));
+      
+      // Create a map of MAC addresses to asset IDs
+      const macToAssetMap = new Map();
+      tenantAssets.forEach(asset => {
+        if (asset.specifications && typeof asset.specifications === 'object') {
+          const specs = asset.specifications as any;
+          if (specs.macAddress) {
+            macToAssetMap.set(specs.macAddress.toLowerCase(), {
+              id: asset.id,
+              name: asset.name,
+            });
+          }
+        }
+      });
+      
+      let updatedCount = 0;
+      let newDeviceCount = 0;
+      let unauthorizedCount = 0;
+      
+      for (const device of devices) {
+        const macAddress = device.macAddress.toLowerCase();
+        const assetInfo = macToAssetMap.get(macAddress);
+        const isAuthorized = !!assetInfo;
+        
+        // Check if device exists
+        const existing = await db
+          .select()
+          .from(s.wifiPresence)
+          .where(
+            and(
+              eq(s.wifiPresence.tenantId, tenantId),
+              eq(s.wifiPresence.macAddress, macAddress)
+            )
+          );
+        
+        if (existing.length > 0) {
+          // Update existing record
+          const existingDevice = existing[0];
+          const connectionDuration = Math.floor((now.getTime() - new Date(existingDevice.firstSeen).getTime()) / 1000);
+          
+          await db
+            .update(s.wifiPresence)
+            .set({
+              ipAddress: device.ipAddress,
+              hostname: device.hostname || existingDevice.hostname,
+              manufacturer: device.manufacturer || existingDevice.manufacturer,
+              lastSeen: now,
+              isActive: true,
+              connectionDuration: connectionDuration,
+              updatedAt: now,
+            })
+            .where(eq(s.wifiPresence.id, existingDevice.id));
+          
+          updatedCount++;
+        } else {
+          // Insert new record
+          await db.insert(s.wifiPresence).values({
+            tenantId: tenantId,
+            macAddress: macAddress,
+            ipAddress: device.ipAddress,
+            hostname: device.hostname || null,
+            manufacturer: device.manufacturer || null,
+            assetId: assetInfo?.id || null,
+            assetName: assetInfo?.name || null,
+            isAuthorized: isAuthorized,
+            firstSeen: now,
+            lastSeen: now,
+            isActive: true,
+            connectionDuration: 0,
+            deviceType: null,
+            metadata: {},
+          });
+          
+          newDeviceCount++;
+          
+          // Create alert for unauthorized device
+          if (!isAuthorized) {
+            await db.insert(s.unknownDeviceAlerts).values({
+              tenantId: tenantId,
+              macAddress: macAddress,
+              ipAddress: device.ipAddress,
+              hostname: device.hostname || null,
+              manufacturer: device.manufacturer || null,
+              detectedAt: now,
+              status: 'pending',
+              deviceInfo: {
+                agent: agentId,
+                networkRange: agent.networkRange,
+              },
+            });
+            
+            unauthorizedCount++;
+          }
+        }
+      }
+      
+      // Mark devices not in current scan as inactive
+      const currentMacs = devices.map((d: any) => d.macAddress.toLowerCase());
+      await db
+        .update(s.wifiPresence)
+        .set({
+          isActive: false,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(s.wifiPresence.tenantId, tenantId),
+            not(inArray(s.wifiPresence.macAddress, currentMacs))
+          )
+        );
+      
+      res.json({
+        success: true,
+        message: "Presence data updated",
+        stats: {
+          updated: updatedCount,
+          new: newDeviceCount,
+          unauthorized: unauthorizedCount,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating presence data:", error);
+      res.status(500).json({ message: "Failed to update presence data" });
+    }
+  });
+  
+  // Get live Wi-Fi presence data
+  app.get("/api/network/presence/live", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      // Get all active devices
+      const devices = await db
+        .select()
+        .from(s.wifiPresence)
+        .where(
+          and(
+            eq(s.wifiPresence.tenantId, user.tenantId),
+            eq(s.wifiPresence.isActive, true)
+          )
+        )
+        .orderBy(desc(s.wifiPresence.lastSeen));
+      
+      res.json({ success: true, devices });
+    } catch (error) {
+      console.error("Error fetching live presence:", error);
+      res.status(500).json({ message: "Failed to fetch live presence data" });
+    }
+  });
+  
+  // Server-Sent Events for real-time presence updates
+  app.get("/api/network/presence/stream", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    const user = req.user!;
+    
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    
+    // Send initial connection message
+    res.write(`data: \${JSON.stringify({ type: 'connected' })}\n\n`);
+    
+    // Poll for updates every 3 seconds
+    const intervalId = setInterval(async () => {
+      try {
+        const devices = await db
+          .select()
+          .from(s.wifiPresence)
+          .where(
+            and(
+              eq(s.wifiPresence.tenantId, user.tenantId),
+              eq(s.wifiPresence.isActive, true)
+            )
+          )
+          .orderBy(desc(s.wifiPresence.lastSeen));
+        
+        res.write(`data: \${JSON.stringify({
+          type: 'update',
+          devices: devices,
+        })}\n\n`);
+      } catch (error) {
+        console.error("SSE error:", error);
+        clearInterval(intervalId);
+        res.end();
+      }
+    }, 3000);
+    
+    // Clean up on client disconnect
+    req.on('close', () => {
+      clearInterval(intervalId);
+    });
+  });
+  
+  // Get unauthorized device alerts
+  app.get("/api/network/alerts", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      const alerts = await db
+        .select()
+        .from(s.unknownDeviceAlerts)
+        .where(eq(s.unknownDeviceAlerts.tenantId, user.tenantId))
+        .orderBy(desc(s.unknownDeviceAlerts.detectedAt));
+      
+      res.json({ success: true, alerts });
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+      res.status(500).json({ message: "Failed to fetch alerts" });
+    }
+  });
+  
+  // Acknowledge an alert
+  app.post("/api/network/alerts/:alertId/acknowledge", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const { alertId } = req.params;
+      const { notes } = req.body;
+      const user = req.user!;
+      
+      const [alert] = await db
+        .update(s.unknownDeviceAlerts)
+        .set({
+          status: 'acknowledged',
+          acknowledgedAt: new Date(),
+          acknowledgedBy: user.id,
+          notes: notes || null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(s.unknownDeviceAlerts.id, parseInt(alertId)),
+            eq(s.unknownDeviceAlerts.tenantId, user.tenantId)
+          )
+        )
+        .returning();
+      
+      if (!alert) {
+        return res.status(404).json({ message: "Alert not found" });
+      }
+      
+      res.json({ success: true, alert });
+    } catch (error) {
+      console.error("Error acknowledging alert:", error);
+      res.status(500).json({ message: "Failed to acknowledge alert" });
+    }
+  });
+  
+  // Generate API key for new agent
+  app.post("/api/network/agent/generate-key", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const { agentName } = req.body;
+      
+      // Generate random API key
+      const apiKey = require('crypto').randomBytes(32).toString('hex');
+      
+      // Create agent record with pending status
+      const [agent] = await db.insert(s.networkMonitorAgents).values({
+        agentId: require('crypto').randomUUID(),
+        agentName: agentName || 'New Agent',
+        osType: 'unknown',
+        version: '1.0.0',
+        apiKey: apiKey,
+        status: 'pending',
+        lastHeartbeat: new Date(),
+        tenantId: user.tenantId,
+        installedBy: user.id,
+      }).returning();
+      
+      res.json({ success: true, agent, apiKey });
+    } catch (error) {
+      console.error("Error generating API key:", error);
+      res.status(500).json({ message: "Failed to generate API key" });
+    }
+  });
+  
+  // Get all agents for tenant
+  app.get("/api/network/agents", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      const agents = await db
+        .select()
+        .from(s.networkMonitorAgents)
+        .where(eq(s.networkMonitorAgents.tenantId, user.tenantId))
+        .orderBy(desc(s.networkMonitorAgents.lastHeartbeat));
+      
+      res.json({ success: true, agents });
+    } catch (error) {
+      console.error("Error fetching agents:", error);
+      res.status(500).json({ message: "Failed to fetch agents" });
+    }
+  });
+
+  });
+  
+  // Credential Profile Management Routes
+  
+  // Get all credential profiles for tenant
+  app.get("/api/discovery/credentials", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      
+      const profiles = await db
+        .select()
+        .from(s.credentialProfiles)
+        .where(eq(s.credentialProfiles.tenantId, user.tenantId))
+        .orderBy(desc(s.credentialProfiles.priority));
+      
+      res.json({ success: true, profiles });
+      
+    } catch (error) {
+      console.error("Error fetching credential profiles:", error);
+      res.status(500).json({ message: "Failed to fetch credential profiles" });
+    }
+  });
+  
+  // Create credential profile
+  app.post("/api/discovery/credentials", authenticateToken, validateUserExists, requireRole('admin'), async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const profileData = req.body;
+      
+      // If isDefault is true, unset other defaults
+      if (profileData.isDefault) {
+        await db
+          .update(s.credentialProfiles)
+          .set({ isDefault: false })
+          .where(eq(s.credentialProfiles.tenantId, user.tenantId));
+      }
+      
+      const [profile] = await db.insert(s.credentialProfiles).values({
+        ...profileData,
+        tenantId: user.tenantId,
+      }).returning();
+      
+      res.json({ success: true, profile });
+      
+    } catch (error) {
+      console.error("Error creating credential profile:", error);
+      res.status(500).json({ message: "Failed to create credential profile" });
+    }
+  });
+  
+  // Update credential profile
+  app.put("/api/discovery/credentials/:id", authenticateToken, validateUserExists, requireRole('admin'), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user = req.user!;
+      const profileData = req.body;
+      
+      // If isDefault is true, unset other defaults
+      if (profileData.isDefault) {
+        await db
+          .update(s.credentialProfiles)
+          .set({ isDefault: false })
+          .where(
+            and(
+              eq(s.credentialProfiles.tenantId, user.tenantId),
+              ne(s.credentialProfiles.id, id)
+            )
+          );
+      }
+      
+      const [profile] = await db
+        .update(s.credentialProfiles)
+        .set(profileData)
+        .where(
+          and(
+            eq(s.credentialProfiles.id, id),
+            eq(s.credentialProfiles.tenantId, user.tenantId)
+          )
+        )
+        .returning();
+      
+      if (!profile) {
+        return res.status(404).json({ message: "Credential profile not found" });
+      }
+      
+      res.json({ success: true, profile });
+      
+    } catch (error) {
+      console.error("Error updating credential profile:", error);
+      res.status(500).json({ message: "Failed to update credential profile" });
+    }
+  });
+  
+  // Delete credential profile
+  app.delete("/api/discovery/credentials/:id", authenticateToken, validateUserExists, requireRole('admin'), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user = req.user!;
+      
+      await db
+        .delete(s.credentialProfiles)
+        .where(
+          and(
+            eq(s.credentialProfiles.id, id),
+            eq(s.credentialProfiles.tenantId, user.tenantId)
+          )
+        );
+      
+      res.json({ success: true, message: "Credential profile deleted" });
+      
+    } catch (error) {
+      console.error("Error deleting credential profile:", error);
+      res.status(500).json({ message: "Failed to delete credential profile" });
     }
   });
 

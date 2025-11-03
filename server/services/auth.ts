@@ -1,11 +1,21 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { type User } from "@shared/schema";
 
 if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET environment variable must be set for JWT token signing");
 }
 const JWT_SECRET = process.env.SESSION_SECRET;
+
+// Print JWT_SECRET hash at boot for verification
+const secretHash = crypto.createHash('sha256').update(JWT_SECRET).digest('hex').substring(0, 16);
+console.log(`🔐 JWT_SECRET loaded (hash: ${secretHash})`);
+
+// Export for debugging
+export function getJWTSecretHash(): string {
+  return crypto.createHash('sha256').update(JWT_SECRET).digest('hex').substring(0, 16);
+}
 
 export interface JWTPayload {
   userId: string;

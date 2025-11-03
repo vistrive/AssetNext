@@ -30,7 +30,8 @@ import {
   FileText,
   Building2,
   Plus,
-  Calendar
+  Calendar,
+  Network
 } from "lucide-react";
 
 const navigation = [

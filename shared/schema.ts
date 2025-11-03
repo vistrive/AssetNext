@@ -51,6 +51,14 @@ export const tenants = pgTable("tenants", {
   requireMFA: boolean("require_mfa").default(false),
   sessionTimeout: integer("session_timeout").default(480), // minutes
   passwordPolicy: jsonb("password_policy"), // complexity rules
+  // OpenAudit Integration (per-tenant)
+  openauditUrl: text("openaudit_url"), // e.g., http://openaudit.company.com
+  openauditUsername: text("openaudit_username"),
+  openauditPassword: text("openaudit_password"), // Should be encrypted in production
+  openauditOrgId: text("openaudit_org_id"), // OpenAudit organization ID for this tenant
+  openauditSyncEnabled: boolean("openaudit_sync_enabled").default(false),
+  openauditSyncCron: text("openaudit_sync_cron").default("*/5 * * * *"), // Every 5 minutes
+  openauditLastSync: timestamp("openaudit_last_sync"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -557,3 +565,289 @@ export type UpdateTicket = z.infer<typeof updateTicketSchema>;
 export type AssignTicket = z.infer<typeof assignTicketSchema>;
 export type AddTicketComment = z.infer<typeof addTicketCommentSchema>;
 export type UpdateTicketStatus = z.infer<typeof updateTicketStatusSchema>;
+
+// ============================================
+// Network Discovery Tables
+// ============================================
+
+// Discovery Jobs - tracks network discovery scans
+export const discoveryJobs = pgTable("discovery_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: text("job_id").notNull().unique(), // Short alphanumeric ID for user reference
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed, expired
+  
+  // Job metadata
+  initiatedBy: varchar("initiated_by").notNull(), // User who started the discovery
+  initiatedByName: text("initiated_by_name").notNull(),
+  osType: text("os_type").notNull(), // windows, macos, linux
+  
+  // Site/network scope
+  siteId: varchar("site_id"), // Optional site assignment
+  siteName: text("site_name"),
+  networkRange: text("network_range"), // CIDR or IP range being scanned
+  
+  // Progress tracking
+  totalHosts: integer("total_hosts").default(0), // Total hosts discovered
+  scannedHosts: integer("scanned_hosts").default(0), // Hosts scanned so far
+  successfulHosts: integer("successful_hosts").default(0), // Hosts with full SNMP data
+  partialHosts: integer("partial_hosts").default(0), // Hosts with partial data (port fingerprint)
+  unreachableHosts: integer("unreachable_hosts").default(0), // Hosts that couldn't be reached
+  progressMessage: text("progress_message"), // Current progress message (e.g., "Scanning 192.168.1.1...")
+  progressPercent: integer("progress_percent").default(0), // Progress percentage (0-100)
+  
+  // Results
+  results: jsonb("results"), // Full scan results (devices discovered)
+  errorLog: text("error_log"), // Error messages if any
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  expiresAt: timestamp("expires_at").notNull(), // Job expires after 15-30 minutes
+  
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Discovery Tokens - short-lived auth tokens for discovery agents
+export const discoveryTokens = pgTable("discovery_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull().unique(), // JWT or random token
+  jobId: varchar("job_id").notNull(), // References discoveryJobs.id
+  
+  // Scope constraints
+  tenantId: varchar("tenant_id").notNull(),
+  siteId: varchar("site_id"), // Optional site scoping
+  
+  // Token lifecycle
+  isUsed: boolean("is_used").default(false),
+  usedAt: timestamp("used_at"),
+  expiresAt: timestamp("expires_at").notNull(), // 15-30 minute expiry
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Enrollment Tokens - Long-lived tokens for agent enrollment
+export const enrollmentTokens = pgTable("enrollment_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull().unique(), // Secure random token
+  name: text("name").notNull(), // e.g., "Main Office", "Remote Workers", "Data Center"
+  description: text("description"),
+  
+  // Tenant scoping
+  tenantId: varchar("tenant_id").notNull(),
+  
+  // Optional constraints
+  siteId: varchar("site_id"), // Auto-assign enrolled devices to this site
+  siteName: text("site_name"),
+  maxUses: integer("max_uses"), // null = unlimited
+  usageCount: integer("usage_count").default(0),
+  
+  // Token lifecycle
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at"), // null = never expires
+  
+  // Metadata
+  createdBy: varchar("created_by").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Credential Profiles - store SNMP credentials for discovery
+export const credentialProfiles = pgTable("credential_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "Default SNMPv3", "Guest Network"
+  description: text("description"),
+  
+  // SNMP version and credentials
+  snmpVersion: text("snmp_version").notNull(), // v2c, v3
+  
+  // SNMPv2c credentials
+  communityString: text("community_string"), // e.g., "public", "itam_public"
+  
+  // SNMPv3 credentials
+  snmpV3Username: text("snmp_v3_username"),
+  snmpV3AuthProtocol: text("snmp_v3_auth_protocol"), // SHA, MD5
+  snmpV3AuthPassword: text("snmp_v3_auth_password"),
+  snmpV3PrivProtocol: text("snmp_v3_priv_protocol"), // AES, DES
+  snmpV3PrivPassword: text("snmp_v3_priv_password"),
+  snmpV3SecurityLevel: text("snmp_v3_security_level"), // noAuthNoPriv, authNoPriv, authPriv
+  
+  // Metadata
+  isDefault: boolean("is_default").default(false), // Use this profile first
+  priority: integer("priority").default(0), // Higher priority tried first
+  isActive: boolean("is_active").default(true),
+  
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Discovered Devices - staging table for devices found during discovery
+export const discoveredDevices = pgTable("discovered_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").notNull(), // References discoveryJobs.id
+  
+  // Device identification
+  ipAddress: text("ip_address").notNull(),
+  macAddress: text("mac_address"),
+  hostname: text("hostname"),
+  
+  // SNMP data
+  sysName: text("sys_name"),
+  sysDescr: text("sys_descr"),
+  sysObjectID: text("sys_object_id"),
+  serialNumber: text("serial_number"),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  
+  // Network interfaces (from ifTable)
+  interfaces: jsonb("interfaces"), // Array of interface data
+  
+  // OS detection
+  osName: text("os_name"),
+  osVersion: text("os_version"),
+  
+  // Discovery method and status
+  discoveryMethod: text("discovery_method").notNull(), // snmpv3, snmpv2c, port-fingerprint
+  status: text("status").notNull().default("discovered"), // discovered, partial, failed
+  credentialProfileId: varchar("credential_profile_id"), // Which credential worked
+  
+  // Port fingerprinting data (if SNMP failed)
+  openPorts: jsonb("open_ports"), // Array of open port numbers
+  portFingerprint: text("port_fingerprint"), // Service classification (router, switch, printer, etc.)
+  macOui: text("mac_oui"), // MAC OUI vendor lookup
+  
+  // Deduplication fields
+  isDuplicate: boolean("is_duplicate").default(false), // True if matches existing asset
+  duplicateAssetId: varchar("duplicate_asset_id"), // ID of matching asset
+  duplicateMatchField: text("duplicate_match_field"), // serial, mac, ip
+  
+  // Import status
+  isImported: boolean("is_imported").default(false),
+  importedAt: timestamp("imported_at"),
+  importedAssetId: varchar("imported_asset_id"), // ID in assets table after import
+  
+  // Site assignment
+  siteId: varchar("site_id"),
+  siteName: text("site_name"),
+  
+  // Additional metadata
+  rawData: jsonb("raw_data"), // Full SNMP response or scan data
+  notes: text("notes"),
+  
+  tenantId: varchar("tenant_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Insert Schemas for Discovery
+export const insertDiscoveryJobSchema = createInsertSchema(discoveryJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDiscoveryTokenSchema = createInsertSchema(discoveryTokens).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEnrollmentTokenSchema = createInsertSchema(enrollmentTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCredentialProfileSchema = createInsertSchema(credentialProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDiscoveredDeviceSchema = createInsertSchema(discoveredDevices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Validation Schemas for Discovery API
+export const createDiscoveryJobSchema = z.object({
+  siteId: z.string().optional(),
+  siteName: z.string().optional(),
+  networkRange: z.string().optional(), // CIDR notation
+});
+
+export const uploadDiscoveryResultsSchema = z.object({
+  devices: z.array(z.object({
+    ipAddress: z.string(),
+    macAddress: z.string().optional(),
+    hostname: z.string().optional(),
+    sysName: z.string().optional(),
+    sysDescr: z.string().optional(),
+    sysObjectID: z.string().optional(),
+    serialNumber: z.string().optional(),
+    manufacturer: z.string().optional(),
+    model: z.string().optional(),
+    osName: z.string().optional(),
+    osVersion: z.string().optional(),
+    interfaces: z.any().optional(),
+    discoveryMethod: z.enum(["snmpv3", "snmpv2c", "port-fingerprint"]),
+    status: z.enum(["discovered", "partial", "failed"]),
+    openPorts: z.array(z.number()).optional(),
+    portFingerprint: z.string().optional(),
+    macOui: z.string().optional(),
+    rawData: z.any().optional(),
+  })),
+});
+
+export const importDiscoveredDevicesSchema = z.object({
+  jobId: z.string(),
+  deviceIds: z.array(z.string()), // Array of discoveredDevices.id to import
+  siteId: z.string().optional(),
+  siteName: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+export const createCredentialProfileSchema = z.object({
+  name: z.string().min(1, "Profile name is required"),
+  description: z.string().optional(),
+  snmpVersion: z.enum(["v2c", "v3"]),
+  communityString: z.string().optional(),
+  snmpV3Username: z.string().optional(),
+  snmpV3AuthProtocol: z.enum(["SHA", "MD5"]).optional(),
+  snmpV3AuthPassword: z.string().optional(),
+  snmpV3PrivProtocol: z.enum(["AES", "DES"]).optional(),
+  snmpV3PrivPassword: z.string().optional(),
+  snmpV3SecurityLevel: z.enum(["noAuthNoPriv", "authNoPriv", "authPriv"]).optional(),
+  isDefault: z.boolean().default(false),
+  priority: z.number().default(0),
+});
+
+export const createEnrollmentTokenSchema = z.object({
+  name: z.string().min(1, "Token name is required"),
+  description: z.string().optional(),
+  siteId: z.string().optional(),
+  siteName: z.string().optional(),
+  maxUses: z.number().positive().optional(),
+  expiresAt: z.coerce.date().optional(),
+});
+
+// Types
+export type DiscoveryJob = typeof discoveryJobs.$inferSelect;
+export type InsertDiscoveryJob = z.infer<typeof insertDiscoveryJobSchema>;
+export type DiscoveryToken = typeof discoveryTokens.$inferSelect;
+export type InsertDiscoveryToken = z.infer<typeof insertDiscoveryTokenSchema>;
+export type EnrollmentToken = typeof enrollmentTokens.$inferSelect;
+export type InsertEnrollmentToken = z.infer<typeof insertEnrollmentTokenSchema>;
+export type CreateEnrollmentToken = z.infer<typeof createEnrollmentTokenSchema>;
+export type CredentialProfile = typeof credentialProfiles.$inferSelect;
+export type InsertCredentialProfile = z.infer<typeof insertCredentialProfileSchema>;
+export type DiscoveredDevice = typeof discoveredDevices.$inferSelect;
+export type InsertDiscoveredDevice = z.infer<typeof insertDiscoveredDeviceSchema>;
+export type CreateDiscoveryJob = z.infer<typeof createDiscoveryJobSchema>;
+export type UploadDiscoveryResults = z.infer<typeof uploadDiscoveryResultsSchema>;
+export type ImportDiscoveredDevices = z.infer<typeof importDiscoveredDevicesSchema>;
+export type CreateCredentialProfile = z.infer<typeof createCredentialProfileSchema>;

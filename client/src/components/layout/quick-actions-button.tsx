@@ -19,6 +19,7 @@ import {
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useAuth } from "@/hooks/use-auth";
 
 function DraggableQuickActions({ position }: { position: { x: number; y: number } }) {
   const {
@@ -130,6 +131,7 @@ function DraggableQuickActions({ position }: { position: { x: number; y: number 
 }
 
 export function QuickActionsButton() {
+  const { isAuthenticated } = useAuth();
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('quick-actions-position');
     return saved ? JSON.parse(saved) : { x: window.innerWidth - 80, y: 80 };
@@ -152,6 +154,11 @@ export function QuickActionsButton() {
     setPosition(newPosition);
     localStorage.setItem('quick-actions-position', JSON.stringify(newPosition));
   };
+
+  // Don't render if user is not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <DndContext

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { authenticatedRequest } from "@/lib/auth";
@@ -1297,7 +1297,7 @@ export default function Assets() {
   useSyncHeartbeat();      // auto-refresh asset table when backend syncs
 
   const search = useSearch();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
@@ -1362,15 +1362,37 @@ export default function Assets() {
   const { data: assets = [], isLoading } = useQuery({
     queryKey: ["/api/assets", typeFilter, statusFilter, categoryFilter],
     queryFn: async () => {
+      console.log('[Assets.tsx] Fetching assets with filters:', { typeFilter, statusFilter, categoryFilter });
+      
       const params = new URLSearchParams();
       if (typeFilter !== "all") params.append("type", typeFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter !== "all") params.append("category", categoryFilter);
       
-      const response = await authenticatedRequest("GET", `/api/assets?${params}`);
-      return response.json();
+      const url = `/api/assets?${params}`;
+      console.log('[Assets.tsx] Fetching from:', url);
+      
+      const response = await authenticatedRequest("GET", url);
+      const data = await response.json();
+      
+      console.log('[Assets.tsx] Assets received:', {
+        count: data.length,
+        tenantIdHeader: response.headers.get('X-Tenant-Id'),
+        sampleAssets: data.slice(0, 3).map((a: any) => ({ name: a.name, id: a.id, tenantId: a.tenantId }))
+      });
+      
+      return data;
     },
   });
+
+  // Log assets whenever they change
+  useEffect(() => {
+    console.log('[Assets.tsx] Assets state updated:', {
+      count: assets.length,
+      isLoading,
+      assets: assets.slice(0, 3).map(a => ({ name: a.name, id: a.id }))
+    });
+  }, [assets, isLoading]);
 
   // Get dynamic page title based on filter
   const getPageTitle = () => {
