@@ -2010,199 +2010,20 @@ export const storage = new DatabaseStorage();
 
 // Seed function to populate initial data
 export async function seedDatabase() {
-  console.log("Seeding database...");
+  console.log("Checking database seeding configuration...");
 
   try {
-    // Check if admin user already exists
-    const existingAdmin = await storage.getUserByEmail("admin@techcorp.com");
-    if (existingAdmin) {
-      console.log("Database already seeded.");
+    // Skip seeding if explicitly disabled
+    if (process.env.SKIP_DATABASE_SEEDING === 'true') {
+      console.log("Database seeding skipped via environment variable.");
       return;
     }
 
-    // Create default tenant
-    const tenant = await storage.createTenant({
-      name: "TechCorp Inc.",
-      slug: "techcorp",
-      logo: null,
-      website: null,
-      industry: null,
-      employeeCount: null,
-      timezone: "UTC",
-      currency: "USD",
-      dateFormat: "MM/DD/YYYY",
-      fiscalYearStart: "01-01",
-      autoRecommendations: true,
-      dataRetentionDays: 365,
-      enforceSSO: false,
-      requireMFA: false,
-      sessionTimeout: 480,
-      passwordPolicy: null,
-    });
-
-    // Create default admin user
-    const hashedPassword = await hashPassword("admin123");
-    const adminUser = await storage.createUser({
-      username: "admin",
-      email: "admin@techcorp.com",
-      password: hashedPassword,
-      firstName: "Sarah",
-      lastName: "Johnson",
-      role: "admin",
-      avatar: null,
-      phone: null,
-      department: null,
-      jobTitle: null,
-      manager: null,
-      lastLoginAt: null,
-      isActive: true,
-      tenantId: tenant.id,
-      invitedBy: null,
-      mustChangePassword: false, // Demo admin doesn't need to change password
-    });
-
-    // Create sample users with different roles for testing
-    const managerUser = await storage.createUser({
-      username: "manager",
-      email: "manager@techcorp.com",
-      password: hashedPassword,
-      firstName: "Michael",
-      lastName: "Davis",
-      role: "manager",
-      avatar: null,
-      phone: null,
-      department: "IT",
-      jobTitle: "IT Manager",
-      manager: null,
-      lastLoginAt: null,
-      isActive: true,
-      tenantId: tenant.id,
-      invitedBy: adminUser.id,
-      mustChangePassword: false, // Demo user
-    });
-
-    const technicianUser = await storage.createUser({
-      username: "technician",
-      email: "technician@techcorp.com",
-      password: hashedPassword,
-      firstName: "Alex",
-      lastName: "Thompson",
-      role: "technician",
-      avatar: null,
-      phone: null,
-      department: "IT",
-      jobTitle: "IT Technician",
-      manager: managerUser.id,
-      lastLoginAt: null,
-      isActive: true,
-      tenantId: tenant.id,
-      invitedBy: managerUser.id,
-      mustChangePassword: false, // Demo user
-    });
-
-    const employeeUser = await storage.createUser({
-      username: "employee",
-      email: "employee@techcorp.com",
-      password: hashedPassword,
-      firstName: "Emma",
-      lastName: "Wilson",
-      role: "employee",
-      avatar: null,
-      phone: null,
-      department: "Marketing",
-      jobTitle: "Marketing Specialist",
-      manager: null,
-      lastLoginAt: null,
-      isActive: true,
-      tenantId: tenant.id,
-      invitedBy: adminUser.id,
-      mustChangePassword: false, // Demo user
-    });
-
-    // Seed sample master data
-    const sampleMasterData = [
-      // Manufacturers
-      { type: "manufacturer", value: "Apple", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "manufacturer", value: "Dell", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "manufacturer", value: "HP", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "manufacturer", value: "Lenovo", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "manufacturer", value: "Microsoft", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      
-      // Models
-      { type: "model", value: "MacBook Pro", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "model", value: "MacBook Air", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "model", value: "OptiPlex 7090", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "model", value: "EliteBook 850", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "model", value: "ThinkPad X1 Carbon", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      
-      // Categories
-      { type: "category", value: "laptop", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "category", value: "desktop", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "category", value: "server", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "category", value: "monitor", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "category", value: "printer", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      
-      // Locations
-      { type: "location", value: "Office Floor 1", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "location", value: "Office Floor 2", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "location", value: "Storage Room A", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "location", value: "Storage Room B", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-      { type: "location", value: "Warehouse", isActive: true, description: null, metadata: null, createdBy: adminUser.id, tenantId: tenant.id },
-    ];
-
-    for (const data of sampleMasterData) {
-      await storage.addMasterData(data);
-    }
-
-    // Seed sample assets
-    const sampleAssets = [
-      {
-        name: "MacBook Pro 16\"",
-        type: "Hardware" as const,
-        category: "laptop",
-        manufacturer: "Apple",
-        model: "MacBook Pro",
-        serialNumber: "A1234567890",
-        status: "deployed",
-        location: "Office Floor 2, Desk 45",
-        assignedUserId: null,
-        assignedUserName: null,
-        purchaseDate: new Date("2024-01-15"),
-        purchaseCost: 2499.00,
-        warrantyExpiry: new Date("2027-01-15"),
-        specifications: { ram: "16GB", storage: "512GB SSD", processor: "M1 Pro" },
-        tenantId: tenant.id,
-        createdBy: adminUser.id,
-      },
-      {
-        name: "Dell OptiPlex 7090",
-        type: "Hardware" as const,
-        category: "desktop",
-        manufacturer: "Dell",
-        model: "OptiPlex 7090",
-        serialNumber: "D9876543210",
-        status: "available",
-        location: "Storage Room A",
-        assignedUserId: null,
-        assignedUserName: null,
-        purchaseDate: new Date("2024-02-01"),
-        purchaseCost: 899.00,
-        warrantyExpiry: new Date("2027-02-01"),
-        specifications: { ram: "8GB", storage: "256GB SSD", processor: "Intel i5" },
-        tenantId: tenant.id,
-        createdBy: adminUser.id,
-      }
-    ];
-
-    for (const asset of sampleAssets) {
-      await storage.createAsset(asset);
-    }
-
-    console.log("Database seeded successfully!");
-    console.log("Admin credentials: admin@techcorp.com / admin123");
+    console.log("No sample data seeding configured. Database initialization complete.");
+    console.log("Use the application UI to create your first tenant and admin user.");
 
   } catch (error) {
-    console.error("Error seeding database:", error);
+    console.error("Error during database initialization:", error);
     throw error;
   }
 }

@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Read enrollment token from config if present
 ENROLLMENT_TOKEN=""
-ITAM_SERVER_URL="http://localhost:5050"
+ITAM_SERVER_URL="${ITAM_SERVER_URL:-${PUBLIC_URL:-http://localhost:5050}}"
 
 if [ -f /usr/local/ITAM/enrollment.conf ]; then
     source /usr/local/ITAM/enrollment.conf

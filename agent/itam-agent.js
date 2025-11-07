@@ -7,7 +7,7 @@ const { URL } = require("url");
 const http = require("http");
 const https = require("https");
 
-const ENROLL_URL = process.env.AGENT_ENROLL_URL || "http://localhost:5050/api/agent/enroll";
+const ENROLL_URL = process.env.AGENT_ENROLL_URL || process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/api/agent/enroll` : "http://localhost:5050/api/agent/enroll";
 const DEBUG = process.env.DEBUG_AGENT === "1" || process.env.DEBUG_AGENT === "true";
 
 /** helpers */

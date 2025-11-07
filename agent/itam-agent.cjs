@@ -8,11 +8,10 @@ const https = require("https");
 const { URL } = require("url");
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const ENROLL_URL =
-  process.env.AGENT_ENROLL_URL ||
-  "http://localhost:5050/api/agent/enroll"; // replace with your prod URL later
-
-const POST_TIMEOUT_MS = 8000;
+const ENROLL_URL = 
+  process.env.AGENT_ENROLL_URL || 
+  (process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/api/agent/enroll` : null) ||
+  "http://localhost:5050/api/agent/enroll"; // fallback for developmentconst POST_TIMEOUT_MS = 8000;
 const CMD_TIMEOUT_MS = 4000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

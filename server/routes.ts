@@ -905,7 +905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let auditScript = fs.readFileSync(scriptPath, "utf-8");
       
       // Create the enrollment configuration setup script
-      const serverUrl = `${req.protocol}://${req.get('host')}`;
+      const serverUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
       const tenantName = tenant.name || 'default';
       
       const enrollmentSetup = `#!/bin/bash
@@ -1033,9 +1033,10 @@ exit $ENROLL_STATUS
         execSync(`cp -R "${pkgRootSrc}" "${pkgRootDest}"`);
         
         // Create enrollment config file with token
+        const serverUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
         const enrollmentConfig = `# ITAM Enrollment Configuration
 ENROLLMENT_TOKEN="${enrollmentToken}"
-ITAM_SERVER_URL="${req.protocol}://${req.get('host')}"
+ITAM_SERVER_URL="${serverUrl}"
 `;
         
         fs.writeFileSync(path.join(pkgRootDest, "usr/local/ITAM/enrollment.conf"), enrollmentConfig);
@@ -1101,7 +1102,7 @@ ITAM_SERVER_URL="${req.protocol}://${req.get('host')}"
         return res.status(401).send("ERROR: Invalid or expired enrollment token");
       }
 
-      const serverUrl = `${req.protocol}://${req.get('host')}`;
+      const serverUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
       
       console.log(`Building Windows installer for tenant: ${tenant.name}`);
       

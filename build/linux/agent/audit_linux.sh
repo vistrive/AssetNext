@@ -4123,7 +4123,7 @@ if [ -f "$ENROLLMENT_CONF" ]; then
 fi
 
 # Fall back to environment variables if config file not found
-ITAM_SERVER_URL="${ITAM_SERVER_URL:-http://localhost:5050}"
+ITAM_SERVER_URL="${ITAM_SERVER_URL:-${PUBLIC_URL:-http://localhost:5050}}"
 ENROLLMENT_TOKEN="${ENROLLMENT_TOKEN:-}"
 
 # Validate required configuration
