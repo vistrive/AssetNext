@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { GlassCard, GlassCardHeader, GlassCardContent, GlassCardTitle, GlassCardDescription, StatCard } from "@/components/ui-custom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { Asset } from "@shared/schema";
 import { Laptop, Monitor, Printer, HardDrive, Cpu, Package } from "lucide-react";
@@ -8,9 +8,36 @@ interface AssetAnalyticsProps {
   assets: Asset[];
 }
 
+// Enhanced color scheme for better visibility in dark mode
 const COLORS = {
-  primary: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#f97316', '#14b8a6'],
-  secondary: ['#60a5fa', '#a78bfa', '#f472b6', '#fbbf24', '#34d399', '#818cf8', '#fb923c', '#2dd4bf'],
+  primary: ['#3B82F6', '#60A5FA', '#818CF8', '#A78BFA', '#C084FC', '#E879F9', '#F472B6', '#FB7185'],
+  bar: {
+    hardware: ['#60A5FA', '#3B82F6'], // Brighter cyan-to-blue for hardware categories
+    hwVendor: ['#3B82F6', '#6366F1'], // Blue gradient for hardware vendors
+    software: ['#818CF8', '#A78BFA'], // Purple gradient for software vendors
+  }
+};
+
+// Global tooltip configuration for dark mode
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: 'rgba(20, 25, 40, 0.95)',
+    border: '1px solid rgba(59, 130, 246, 0.3)',
+    borderRadius: '0.5rem',
+    color: '#E5E7EB',
+    fontWeight: 500,
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+  },
+  labelStyle: {
+    color: '#F3F4F6',
+    fontWeight: 600,
+  },
+  itemStyle: {
+    color: '#E5E7EB',
+  },
+  cursor: {
+    fill: 'rgba(59, 130, 246, 0.1)',
+  }
 };
 
 export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
@@ -89,69 +116,43 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
   }
 
   return (
-    <div className="space-y-6 mb-6">
+    <div className="space-y-6 mb-6 animate-fade-in-up">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assets</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.totalAssets}</div>
-            <p className="text-xs text-muted-foreground">All asset types</p>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Total Assets"
+          value={analytics.totalAssets}
+          icon={<Package className="h-4 w-4" />}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hardware</CardTitle>
-            <Laptop className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.hardwareCount}</div>
-            <p className="text-xs text-muted-foreground">
-              {((analytics.hardwareCount / analytics.totalAssets) * 100).toFixed(1)}% of total
-            </p>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Hardware"
+          value={analytics.hardwareCount}
+          icon={<Laptop className="h-4 w-4" />}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Software</CardTitle>
-            <Monitor className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.softwareCount}</div>
-            <p className="text-xs text-muted-foreground">
-              {((analytics.softwareCount / analytics.totalAssets) * 100).toFixed(1)}% of total
-            </p>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Software"
+          value={analytics.softwareCount}
+          icon={<Monitor className="h-4 w-4" />}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Peripherals</CardTitle>
-            <Printer className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.peripheralCount}</div>
-            <p className="text-xs text-muted-foreground">
-              {((analytics.peripheralCount / analytics.totalAssets) * 100).toFixed(1)}% of total
-            </p>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Peripherals"
+          value={analytics.peripheralCount}
+          icon={<Printer className="h-4 w-4" />}
+        />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Asset Type Distribution */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Asset Type Distribution</CardTitle>
-            <CardDescription className="text-xs">Breakdown by asset type</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <GlassCard glow hover gradient>
+          <GlassCardHeader className="pb-3">
+            <GlassCardTitle className="text-base">Asset Type Distribution</GlassCardTitle>
+            <GlassCardDescription className="text-xs">Breakdown by asset type</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
@@ -163,24 +164,30 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth={2}
                 >
                   {analytics.typeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS.primary[index % COLORS.primary.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={COLORS.primary[index % COLORS.primary.length]}
+                      style={{ filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.3))' }}
+                    />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip {...TOOLTIP_STYLE} />
               </PieChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
 
         {/* Status Distribution */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Asset Status</CardTitle>
-            <CardDescription className="text-xs">Current status of all assets</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <GlassCard glow hover gradient>
+          <GlassCardHeader className="pb-3">
+            <GlassCardTitle className="text-base">Asset Status</GlassCardTitle>
+            <GlassCardDescription className="text-xs">Current status of all assets</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
@@ -192,42 +199,73 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth={2}
                 >
                   {analytics.statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS.secondary[index % COLORS.secondary.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={COLORS.primary[index % COLORS.primary.length]}
+                      style={{ filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.3))' }}
+                    />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip {...TOOLTIP_STYLE} />
               </PieChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
 
         {/* Hardware Categories */}
         {analytics.categoryData.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Hardware Categories</CardTitle>
-              <CardDescription className="text-xs">Device types breakdown</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <GlassCard glow hover gradient>
+            <GlassCardHeader className="pb-3">
+              <GlassCardTitle className="text-base">Hardware Categories</GlassCardTitle>
+              <GlassCardDescription className="text-xs">Device types breakdown</GlassCardDescription>
+            </GlassCardHeader>
+            <GlassCardContent>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={analytics.categoryData}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <defs>
+                    <linearGradient id="cat-bar-gradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#60A5FA" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.9} />
+                    </linearGradient>
+                    <filter id="bar-glow">
+                      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} stroke="rgba(96, 165, 250, 0.15)" />
                   <XAxis 
                     dataKey="name" 
                     angle={-45} 
                     textAnchor="end" 
                     height={80}
                     fontSize={10}
+                    stroke="#9CA3AF"
+                    tick={{ fill: '#9CA3AF' }}
                   />
-                  <YAxis fontSize={10} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill={COLORS.primary[1]} />
+                  <YAxis 
+                    fontSize={10} 
+                    allowDecimals={false} 
+                    stroke="#9CA3AF"
+                    tick={{ fill: '#9CA3AF' }}
+                  />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="url(#cat-bar-gradient)" 
+                    radius={[8, 8, 0, 0]}
+                    style={{ filter: 'drop-shadow(0 0 6px rgba(96, 165, 250, 0.4))' }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            </GlassCardContent>
+          </GlassCard>
         )}
       </div>
 
@@ -235,56 +273,92 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Hardware Vendors */}
         {analytics.vendorData.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Top Hardware Vendors</CardTitle>
-              <CardDescription className="text-xs">Distribution by manufacturer</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <GlassCard glow hover gradient>
+            <GlassCardHeader className="pb-3">
+              <GlassCardTitle className="text-base">Top Hardware Vendors</GlassCardTitle>
+              <GlassCardDescription className="text-xs">Distribution by manufacturer</GlassCardDescription>
+            </GlassCardHeader>
+            <GlassCardContent>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={analytics.vendorData}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <defs>
+                    <linearGradient id="hw-bar-gradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#6366F1" stopOpacity={0.9} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} stroke="rgba(59, 130, 246, 0.15)" />
                   <XAxis 
                     dataKey="name" 
                     angle={-45} 
                     textAnchor="end" 
                     height={80}
                     fontSize={10}
+                    stroke="#9CA3AF"
+                    tick={{ fill: '#9CA3AF' }}
                   />
-                  <YAxis fontSize={10} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill={COLORS.primary[0]} />
+                  <YAxis 
+                    fontSize={10} 
+                    allowDecimals={false} 
+                    stroke="#9CA3AF"
+                    tick={{ fill: '#9CA3AF' }}
+                  />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="url(#hw-bar-gradient)" 
+                    radius={[8, 8, 0, 0]}
+                    style={{ filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.4))' }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            </GlassCardContent>
+          </GlassCard>
         )}
 
         {/* Software Vendors */}
         {analytics.softwareVendorData.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Top Software Vendors</CardTitle>
-              <CardDescription className="text-xs">Software licenses by vendor</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <GlassCard glow hover gradient>
+            <GlassCardHeader className="pb-3">
+              <GlassCardTitle className="text-base">Top Software Vendors</GlassCardTitle>
+              <GlassCardDescription className="text-xs">Software licenses by vendor</GlassCardDescription>
+            </GlassCardHeader>
+            <GlassCardContent>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={analytics.softwareVendorData}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <defs>
+                    <linearGradient id="sw-bar-gradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818CF8" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#A78BFA" stopOpacity={0.9} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} stroke="rgba(129, 140, 248, 0.15)" />
                   <XAxis 
                     dataKey="name" 
                     angle={-45} 
                     textAnchor="end" 
                     height={80}
                     fontSize={10}
+                    stroke="#9CA3AF"
+                    tick={{ fill: '#9CA3AF' }}
                   />
-                  <YAxis fontSize={10} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill={COLORS.primary[2]} />
+                  <YAxis 
+                    fontSize={10} 
+                    allowDecimals={false} 
+                    stroke="#9CA3AF"
+                    tick={{ fill: '#9CA3AF' }}
+                  />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="url(#sw-bar-gradient)" 
+                    radius={[8, 8, 0, 0]}
+                    style={{ filter: 'drop-shadow(0 0 6px rgba(129, 140, 248, 0.4))' }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            </GlassCardContent>
+          </GlassCard>
         )}
       </div>
     </div>

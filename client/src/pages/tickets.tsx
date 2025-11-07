@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { TicketList } from "@/components/tickets/ticket-list";
 import { TicketForm } from "@/components/tickets/ticket-form";
 import { useAuth } from "@/hooks/use-auth";
@@ -74,7 +75,7 @@ export default function Tickets() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background page-enter">
       <Sidebar />
       
       <main className="flex-1 md:ml-64 overflow-auto">
@@ -105,6 +106,9 @@ export default function Tickets() {
           </DialogContent>
         </Dialog>
       )}
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </div>
   );
 }

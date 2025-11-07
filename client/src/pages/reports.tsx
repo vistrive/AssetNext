@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layout } from "@/components/layout/layout";
 import { ReportGenerator } from "@/components/dashboard/report-generator";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { authenticatedRequest } from "@/lib/auth";
 import { useAuth } from "@/hooks/use-auth";
 import { 
@@ -218,7 +219,7 @@ export default function Reports() {
 
   return (
     <Layout title="Reports & Activity Logs" description="Generate custom reports and monitor system activity">
-      <div className="flex-1 space-y-6 p-4 pt-6">
+      <div className="flex-1 space-y-6 p-4 pt-6 page-enter">
         {/* Page Header */}
         <div className="flex items-center justify-between space-y-2">
           <div>
@@ -577,6 +578,9 @@ export default function Reports() {
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </Layout>
   );
 }

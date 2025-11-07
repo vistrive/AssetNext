@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -482,7 +483,7 @@ export default function Vendors() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background page-enter">
       <Sidebar />
       
       <main className="flex-1 md:ml-64 overflow-auto">
@@ -641,6 +642,9 @@ export default function Vendors() {
             )}
           </div>
       </main>
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </div>
   );
 }

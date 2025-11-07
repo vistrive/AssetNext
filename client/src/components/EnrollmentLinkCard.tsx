@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Check, ExternalLink, QrCode } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { GlassCard } from "@/components/ui-custom";
 
 type Props = {
   /** optional override (e.g. when behind a proxy) */
@@ -96,7 +97,7 @@ export function EnrollmentLinkCard({ baseUrl }: Props) {
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border bg-card p-4 shadow-sm">
+      <GlassCard className="p-4" glow hover gradient>
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="font-semibold">Add Devices</div>
@@ -105,13 +106,13 @@ export function EnrollmentLinkCard({ baseUrl }: Props) {
             </div>
           </div>
         </div>
-      </div>
+      </GlassCard>
     );
   }
 
   if (!tokenData?.token) {
     return (
-      <div className="rounded-2xl border bg-card p-4 shadow-sm">
+      <GlassCard className="p-4" glow hover gradient>
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
             <div className="font-semibold">Add Devices</div>
@@ -127,12 +128,12 @@ export function EnrollmentLinkCard({ baseUrl }: Props) {
             {creating ? "Creating..." : "Create Token"}
           </Button>
         </div>
-      </div>
+      </GlassCard>
     );
   }
 
   return (
-    <div className="rounded-2xl border bg-card p-4 shadow-sm">
+    <GlassCard className="p-4" glow hover gradient>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="font-semibold">Add Devices</div>
@@ -178,6 +179,6 @@ export function EnrollmentLinkCard({ baseUrl }: Props) {
           <code className="rounded bg-muted px-1 py-0.5">/enroll/{tokenData.token}?os=win</code>.
         </div>
       </div>
-    </div>
+    </GlassCard>
   );
 }

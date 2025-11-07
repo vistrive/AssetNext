@@ -1,5 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { GlassCard, GlassCardHeader, GlassCardContent, GlassCardTitle } from "@/components/ui-custom";
+import { GradientButton } from "@/components/ui-custom";
 import { Monitor } from "lucide-react";
 
 interface HardwareTileProps {
@@ -11,28 +11,30 @@ export function HardwareTile({ metrics, onNavigateToAssets }: HardwareTileProps)
   const count = metrics?.hardware?.overview?.total || 0;
 
   return (
-    <Card className="hover:shadow-sm transition-shadow h-36">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+    <GlassCard className="h-36" glow hover gradient>
+      <GlassCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-5 pt-4">
         <div className="space-y-0 min-w-0 flex-1">
-          <CardTitle className="text-sm font-semibold truncate">Hardware</CardTitle>
-          <p className="text-xs text-muted-foreground">Devices</p>
+          <GlassCardTitle className="text-sm truncate">Hardware</GlassCardTitle>
+          <p className="text-xs text-text-secondary">Devices</p>
         </div>
-        <Monitor className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-      </CardHeader>
-      <CardContent className="pt-1 pb-2">
-        <div className="text-xl font-bold mb-2" data-testid="text-Hardware-total">
+        <div className="flex-shrink-0 p-2 rounded-lg bg-gradient-primary shadow-glow">
+          <Monitor className="h-5 w-5 text-white" />
+        </div>
+      </GlassCardHeader>
+      <GlassCardContent className="pt-0 pb-4 px-5">
+        <div className="text-3xl font-display font-bold mb-3 text-text-primary" data-testid="text-Hardware-total">
           {count}
         </div>
-        <Button 
-          variant="outline" 
+        <GradientButton 
+          variant="ghost" 
           size="sm" 
           onClick={() => onNavigateToAssets('Hardware')}
           data-testid="button-view-all-Hardware"
-          className="w-full text-xs h-7"
+          className="w-full text-xs h-7 rounded-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)]"
         >
           View All
-        </Button>
-      </CardContent>
-    </Card>
+        </GradientButton>
+      </GlassCardContent>
+    </GlassCard>
   );
 }

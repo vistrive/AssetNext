@@ -51,12 +51,13 @@ import {
   tickets,
   ticketComments,
   ticketActivities,
-  enrollmentTokens
+  enrollmentTokens,
+  enrollmentSessions
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { hashPassword } from "./services/auth";
 import { db } from "./db";
-import { eq, and, or, desc, sql, ilike, isNotNull, ne } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike, isNotNull, ne, gt } from "drizzle-orm";
 import { normalizeEmail, normalizeName, generateNextUserID } from "@shared/utils";
 
 export interface IStorage {
@@ -1986,6 +1987,54 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(enrollmentTokens.id, id), eq(enrollmentTokens.tenantId, tenantId)))
       .returning();
     return updated || undefined;
+  }
+
+  // Enrollment Session methods (for nonce-based PKG downloads)
+  async createEnrollmentSession(nonce: string, data: {
+    tenantId: string;
+    tenantToken: string;
+    userAgent: string;
+    ipHash: string;
+    status: string;
+    createdAt: string;
+    expiresAt: string;
+  }): Promise<void> {
+    await db.insert(enrollmentSessions).values({
+      nonce,
+      tenantId: data.tenantId,
+      tenantToken: data.tenantToken,
+      userAgent: data.userAgent,
+      ipHash: data.ipHash,
+      status: data.status,
+      expiresAt: new Date(data.expiresAt)
+    });
+  }
+
+  async getEnrollmentSession(nonce: string): Promise<any> {
+    const [session] = await db.select().from(enrollmentSessions).where(
+      and(
+        eq(enrollmentSessions.nonce, nonce),
+        gt(enrollmentSessions.expiresAt, new Date())
+      )
+    );
+    return session;
+  }
+
+  async consumeEnrollmentSession(nonce: string, deviceInfo: {
+    serial: string;
+    hostname: string;
+    osv: string;
+    claimedAt: string;
+  }): Promise<void> {
+    await db.update(enrollmentSessions)
+      .set({
+        status: 'consumed',
+        serial: deviceInfo.serial,
+        hostname: deviceInfo.hostname,
+        osv: deviceInfo.osv,
+        claimedAt: new Date(deviceInfo.claimedAt)
+      })
+      .where(eq(enrollmentSessions.nonce, nonce));
   }
 
   async deleteEnrollmentToken(id: string, tenantId: string): Promise<boolean> {

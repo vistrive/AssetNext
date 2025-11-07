@@ -8,11 +8,13 @@ import { useSearch } from "@/hooks/use-search";
 import { useLocation, Link } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { AssetForm } from "@/components/assets/asset-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui-custom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -378,18 +380,18 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
       </div>
 
       {/* Enhanced Assets Table */}
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
+      <div className="bg-gradient-to-br from-surface/70 to-surface-light/70 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden shadow-card">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-muted/50">
+            <thead className="bg-[rgba(20,25,45,0.8)] backdrop-blur-sm border-b border-white/[0.08]" style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(0,0,0,0)), rgba(20,25,45,0.8)' }}>
               <tr>
                 {columnVisibility.name && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[200px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[200px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent text-text-primary hover:text-brand-primary transition-colors"
                         onClick={() => handleSort('name')}
                         data-testid="sort-name"
                       >
@@ -402,19 +404,19 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                       placeholder="Search names..."
                       value={columnSearch.name || ''}
                       onChange={(e) => handleColumnSearch('name', e.target.value)}
-                      className="mt-1 h-7 text-xs"
+                      className="mt-1 h-7 text-xs bg-surface-light/50 border-white/10 text-text-primary placeholder:text-text-muted"
                       data-testid="search-name"
                     />
                   </th>
                 )}
                 
                 {columnVisibility.serialNumber && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[140px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[140px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent"
                         onClick={() => handleSort('serialNumber')}
                         data-testid="sort-serialNumber"
                       >
@@ -434,12 +436,12 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                 )}
 
                 {columnVisibility.model && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[120px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent"
                         onClick={() => handleSort('model')}
                         data-testid="sort-model"
                       >
@@ -459,12 +461,12 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                 )}
 
                 {columnVisibility.manufacturer && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[130px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[130px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent"
                         onClick={() => handleSort('manufacturer')}
                         data-testid="sort-manufacturer"
                       >
@@ -484,12 +486,12 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                 )}
 
                 {columnVisibility.category && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[100px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[100px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent"
                         onClick={() => handleSort('category')}
                         data-testid="sort-category"
                       >
@@ -509,12 +511,12 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                 )}
 
                 {columnVisibility.type && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[100px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[100px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent"
                         onClick={() => handleSort('type')}
                         data-testid="sort-type"
                       >
@@ -539,12 +541,12 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                 )}
 
                 {columnVisibility.status && (
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm min-w-[120px]">
+                  <th className="text-left py-3 px-4 font-medium text-[#E5E7EB] text-sm min-w-[120px]">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto p-0 font-medium hover:bg-transparent"
+                        className="h-auto p-0 font-medium font-[500] hover:bg-transparent"
                         onClick={() => handleSort('status')}
                         data-testid="sort-status"
                       >
@@ -949,14 +951,14 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                 return (
                   <tr 
                     key={asset.id}
-                    className="border-b border-border hover:bg-muted/25 transition-colors"
+                    className="border-b border-white/5 last:border-b-0 hover:bg-primary/5 transition-all duration-150 ease-out group"
                     data-testid={`asset-row-${asset.id}`}
                   >
                     {columnVisibility.name && (
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Icon className="text-muted-foreground h-4 w-4" />
+                          <div className="w-8 h-8 bg-surface-lighter rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-primary group-hover:shadow-glow transition-all duration-300">
+                            <Icon className="text-text-secondary group-hover:text-white h-4 w-4 transition-colors duration-300" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <button
@@ -1014,9 +1016,18 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
 
                     {columnVisibility.status && (
                       <td className="py-3 px-4">
-                        <Badge className={`${getStatusBadgeClass(asset.status)} border`} data-testid={`badge-status-${asset.id}`}>
+                        <StatusBadge 
+                          variant={
+                            asset.status === 'deployed' ? 'success' : 
+                            asset.status === 'in-stock' ? 'info' :
+                            asset.status === 'in-repair' ? 'warning' :
+                            asset.status === 'disposed' ? 'danger' : 'default'
+                          }
+                          glow
+                          data-testid={`badge-status-${asset.id}`}
+                        >
                           {asset.status.replace('-', ' ')}
-                        </Badge>
+                        </StatusBadge>
                       </td>
                     )}
 
@@ -1247,7 +1258,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                             data-testid={`button-view-action-${asset.id}`}
                             title="View details"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4 action-icon" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1255,7 +1266,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                             onClick={() => onEditAsset(asset)}
                             data-testid={`button-edit-${asset.id}`}
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-4 w-4 action-icon" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1263,7 +1274,7 @@ function EnhancedAssetsTable({ assets, isLoading, onEditAsset, onDeleteAsset, on
                             onClick={() => onDeleteAsset(asset.id)}
                             data-testid={`button-delete-${asset.id}`}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4 action-icon" />
                           </Button>
                         </div>
                       </td>
@@ -1841,7 +1852,7 @@ export default function Assets() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background page-enter">
       <Sidebar />
       
       <main className="flex-1 md:ml-64 overflow-auto">
@@ -2235,6 +2246,9 @@ export default function Assets() {
           </Tabs>
         </DialogContent>
       </Dialog>
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </div>
   );
 }

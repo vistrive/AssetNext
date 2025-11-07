@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1133,6 +1134,9 @@ export default function Users() {
           </Tabs>
         </DialogContent>
       </Dialog>
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import { FloatingAIAssistant } from "@/components/ai/floating-ai-assistant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -278,7 +279,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background page-enter">
       <Sidebar />
       <div className="flex-1 md:ml-64 overflow-auto">
         <TopBar 
@@ -762,6 +763,9 @@ export default function SettingsPage() {
           </div>
         </main>
       </div>
+      
+      {/* Global Floating AI Assistant */}
+      <FloatingAIAssistant />
     </div>
   );
 }

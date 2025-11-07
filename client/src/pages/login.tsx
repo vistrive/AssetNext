@@ -111,15 +111,26 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated gradient halo background */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div 
+          className="w-[600px] h-[600px] rounded-full blur-[120px] opacity-30 animate-pulse"
+          style={{
+            background: 'radial-gradient(circle, rgba(59,130,246,0.4) 0%, rgba(147,51,234,0.3) 50%, rgba(99,102,241,0.3) 100%)',
+            animation: 'gradientHalo 8s ease-in-out infinite'
+          }}
+        />
+      </div>
+      
+      <Card className="w-full max-w-md relative z-10 card-enter inner-border card-depth backdrop-blur-xl">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center mb-4">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-              <Server className="text-primary-foreground h-6 w-6" />
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.4)]">
+              <Server className="text-white h-6 w-6" />
             </div>
           </div>
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-2xl gradient-text">
             {isRegistering ? "Join Your Company" : "Sign In to AssetVault"}
           </CardTitle>
           {isRegistering && (

@@ -1,4 +1,7 @@
 import React, { useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Download, Terminal, Copy, CheckCircle, Info } from "lucide-react";
 
 // Installer URLs
 const WINDOWS_INSTALLER_EXE = "/static/installers/itam-agent-win.exe";
@@ -62,120 +65,168 @@ const Enroll: React.FC = () => {
 	}, [isWin, isLinuxOS]);
 
 	return (
-		<div className="enroll-page" style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
-			<h1>Device Enrollment</h1>
-			<p>
-				{isWin
-					? "Your Windows installer is downloading..."
-					: isLinuxOS
-					? "Your Linux installer has been downloaded."
-					: "Please visit this page from the device you want to enroll."}
-			</p>
-			
-			{isWin && (
-				<div>
-					<h3>Windows Installation Steps:</h3>
-					<ol>
-						<li>Locate the downloaded file in your Downloads folder</li>
-						<li>Double-click <code>itam-agent-win.exe</code> to run</li>
-						<li>Click "Yes" when prompted for administrator access</li>
-						<li>Wait for installation to complete</li>
-					</ol>
-					<p>
-						<strong>Alternative download:</strong>{" "}
-						<a href={WINDOWS_INSTALLER_EXE}>Windows Installer (.exe)</a> or{" "}
-						<a href={WINDOWS_AGENT_POWERSHELL} download>PowerShell Script (.ps1)</a>
-					</p>
-				</div>
-			)}
-			
-			{isLinuxOS && (
-				<div>
-					<div style={{ backgroundColor: "#e3f2fd", padding: "2rem", borderRadius: "12px", marginTop: "1.5rem", border: "3px solid #1976d2" }}>
-						<h2 style={{ marginTop: 0, color: "#0d47a1", fontSize: "1.5em" }}>📋 Register Your Linux Device</h2>
-						<p style={{ fontSize: "1.15em", marginBottom: "1.5rem", lineHeight: "1.6" }}>
-							The ITAM installer has been downloaded. Run this command in your terminal to install and register your device:
+		<div className="min-h-screen bg-background flex items-center justify-center p-4 page-enter">
+			<Card className="w-full max-w-3xl bg-surface/80 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
+				<div className="p-8 md:p-12">
+					{/* Header */}
+					<div className="text-center mb-8">
+						<h1 className="text-4xl font-semibold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+							Device Enrollment
+						</h1>
+						<p className="text-gray-400 text-lg leading-relaxed">
+							{isWin
+								? "Your Windows installer is downloading..."
+								: isLinuxOS
+								? "Your Linux installer has been downloaded."
+								: "Please visit this page from the device you want to enroll."}
 						</p>
-						<div style={{ position: "relative" }}>
-							<code id="linuxInstallCmd" style={{ 
-								display: "block", 
-								padding: "1.25rem", 
-								backgroundColor: "#263238", 
-								color: "#aed581",
-								borderRadius: "8px",
-								border: "2px solid #1976d2",
-								fontFamily: "'Courier New', monospace",
-								fontSize: "15px",
-								userSelect: "all",
-								marginTop: "0.5rem",
-								fontWeight: "500",
-								boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
-							}}>
-								cd ~/Downloads && sudo bash itam_installer_*.sh
-							</code>
-							<button 
-								onClick={() => {
-									const cmd = document.getElementById('linuxInstallCmd')?.textContent || '';
-									navigator.clipboard.writeText(cmd).then(() => {
-										const btn = document.activeElement as HTMLButtonElement;
-										const originalText = btn.textContent;
-										btn.textContent = '✅ Copied!';
-										setTimeout(() => { btn.textContent = originalText || '📋 Copy Command'; }, 2000);
-									});
-								}}
-								style={{
-									marginTop: "1rem",
-									padding: "1rem 2rem",
-									backgroundColor: "#1976d2",
-									color: "white",
-									border: "none",
-									borderRadius: "8px",
-									cursor: "pointer",
-									fontSize: "16px",
-									fontWeight: "600",
-									boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-									transition: "all 0.3s"
-								}}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.backgroundColor = "#1565c0";
-									e.currentTarget.style.transform = "translateY(-2px)";
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.backgroundColor = "#1976d2";
-									e.currentTarget.style.transform = "translateY(0)";
-								}}
-							>
-								📋 Copy Command
-							</button>
-						</div>
 					</div>
 					
-					<div style={{ marginTop: "1.5rem", padding: "1.25rem", backgroundColor: "#f5f5f5", borderRadius: "8px", border: "1px solid #e0e0e0" }}>
-						<h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>ℹ️ What happens:</h4>
-						<ol style={{ marginLeft: "1.5rem", marginBottom: 0, lineHeight: "1.8" }}>
-							<li>Creates <code>/opt/itam-agent</code> directory with enrollment configuration</li>
-							<li>Installs audit script and collects device information</li>
-							<li>Automatically registers device with your organization</li>
-							<li>Device appears immediately in your Assets dashboard</li>
-							<li>Logs saved to <code>/opt/itam-agent/logs/</code></li>
-						</ol>
-						<p style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e0e0e0", color: "#666", fontSize: "14px" }}>
-							<strong>Note:</strong> Must be run with <code>sudo</code> (requires root privileges)
-						</p>
-					</div>
+					{/* Windows Instructions */}
+					{isWin && (
+						<div className="space-y-6">
+							<div className="bg-white/5 border border-white/10 rounded-lg p-6">
+								<h3 className="text-xl font-medium text-foreground mb-4 flex items-center gap-2">
+									<Download className="h-5 w-5 text-blue-400" />
+									Windows Installation Steps
+								</h3>
+								<ol className="space-y-3 text-gray-300 ml-6 list-decimal">
+									<li>Locate the downloaded file in your Downloads folder</li>
+									<li>Double-click <code className="px-2 py-1 bg-black/30 rounded text-blue-300 text-sm">itam-agent-win.exe</code> to run</li>
+									<li>Click "Yes" when prompted for administrator access</li>
+									<li>Wait for installation to complete</li>
+								</ol>
+							</div>
+							
+							<div className="bg-white/5 border border-white/10 rounded-lg p-6">
+								<p className="text-gray-300 mb-4">
+									<strong className="text-foreground">Alternative downloads:</strong>
+								</p>
+								<div className="flex flex-wrap gap-3">
+									<Button
+										asChild
+										variant="outline"
+										className="border-white/20 hover:border-blue-400/50 hover:bg-white/10"
+									>
+										<a href={WINDOWS_INSTALLER_EXE}>
+											<Download className="h-4 w-4 mr-2" />
+											Windows Installer (.exe)
+										</a>
+									</Button>
+									<Button
+										asChild
+										variant="outline"
+										className="border-white/20 hover:border-blue-400/50 hover:bg-white/10"
+									>
+										<a href={WINDOWS_AGENT_POWERSHELL} download>
+											<Terminal className="h-4 w-4 mr-2" />
+											PowerShell Script (.ps1)
+										</a>
+									</Button>
+								</div>
+							</div>
+						</div>
+					)}
+					
+					{/* Linux Instructions */}
+					{isLinuxOS && (
+						<div className="space-y-6">
+							{/* Main Command Card */}
+							<div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border-2 border-blue-500/30 rounded-xl p-8 shadow-[0_0_20px_rgba(59,130,246,0.15)]">
+								<h2 className="text-2xl font-semibold text-foreground mb-4 flex items-center gap-2">
+									<Terminal className="h-6 w-6 text-blue-400" />
+									Register Your Linux Device
+								</h2>
+								<p className="text-gray-300 text-base mb-6 leading-relaxed">
+									The ITAM installer has been downloaded. Run this command in your terminal to install and register your device:
+								</p>
+								
+								<div className="relative">
+									<code 
+										id="linuxInstallCmd"
+										className="block p-4 bg-black/50 text-green-400 rounded-lg border-2 border-blue-500/30 font-mono text-sm select-all shadow-inner"
+									>
+										cd ~/Downloads && sudo bash itam_installer_*.sh
+									</code>
+									<Button
+										onClick={() => {
+											const cmd = document.getElementById('linuxInstallCmd')?.textContent || '';
+											navigator.clipboard.writeText(cmd).then(() => {
+												const btn = document.activeElement as HTMLButtonElement;
+												const originalHTML = btn.innerHTML;
+												btn.innerHTML = '<svg class="h-4 w-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+												setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
+											});
+										}}
+										className="mt-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-md hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all duration-200 hover:-translate-y-0.5"
+									>
+										<Copy className="h-4 w-4 mr-2" />
+										Copy Command
+									</Button>
+								</div>
+							</div>
+							
+							{/* Info Card */}
+							<div className="bg-white/5 border border-white/10 rounded-lg p-6">
+								<h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+									<Info className="h-5 w-5 text-blue-400" />
+									What happens:
+								</h4>
+								<ol className="space-y-2 text-gray-300 ml-6 list-decimal text-sm leading-relaxed">
+									<li>Creates <code className="px-2 py-1 bg-black/30 rounded text-blue-300">/opt/itam-agent</code> directory with enrollment configuration</li>
+									<li>Installs audit script and collects device information</li>
+									<li>Automatically registers device with your organization</li>
+									<li>Device appears immediately in your Assets dashboard</li>
+									<li>Logs saved to <code className="px-2 py-1 bg-black/30 rounded text-blue-300">/opt/itam-agent/logs/</code></li>
+								</ol>
+								<div className="mt-4 pt-4 border-t border-white/10">
+									<p className="text-gray-400 text-sm">
+										<strong className="text-foreground">Note:</strong> Must be run with <code className="px-2 py-1 bg-black/30 rounded text-blue-300">sudo</code> (requires root privileges)
+									</p>
+								</div>
+							</div>
+						</div>
+					)}
+					
+					{/* Unsupported Platform */}
+					{!isWin && !isLinuxOS && (
+						<div className="bg-white/5 border border-white/10 rounded-lg p-6">
+							<h3 className="text-xl font-medium text-foreground mb-4">
+								Supported Platforms
+							</h3>
+							<ul className="space-y-3 text-gray-300">
+								<li>
+									<a 
+										href="/enroll?os=win" 
+										className="text-blue-400 hover:text-blue-300 underline underline-offset-4 transition-colors"
+									>
+										Windows
+									</a>
+									{" "}- Automatic installation via .exe installer
+								</li>
+								<li>
+									<a 
+										href="/enroll?os=linux" 
+										className="text-blue-400 hover:text-blue-300 underline underline-offset-4 transition-colors"
+									>
+										Linux
+									</a>
+									{" "}- Terminal command installation
+								</li>
+								<li>
+									<a 
+										href="/enroll?os=mac" 
+										className="text-blue-400 hover:text-blue-300 underline underline-offset-4 transition-colors"
+									>
+										macOS
+									</a>
+									{" "}- .pkg installer (coming soon)
+								</li>
+							</ul>
+						</div>
+					)}
 				</div>
-			)}
-			
-			{!isWin && !isLinuxOS && (
-				<div>
-					<h3>Supported Platforms:</h3>
-					<ul>
-						<li><a href="/enroll?os=win">Windows</a> - Automatic installation via .exe installer</li>
-						<li><a href="/enroll?os=linux">Linux</a> - Terminal command installation</li>
-						<li><a href="/enroll?os=mac">macOS</a> - .pkg installer (coming soon)</li>
-					</ul>
-				</div>
-			)}
+			</Card>
 		</div>
 	);
 };

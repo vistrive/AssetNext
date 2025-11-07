@@ -30,13 +30,13 @@ export function TopBar({
   onResetAll
 }: TopBarProps) {
   return (
-    <header className="bg-card border-b border-border px-4 sm:px-6 py-3 sm:py-4">
+    <header className="bg-gradient-to-r from-surface/80 to-surface-light/80 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-3 sm:py-4">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
         {/* Left Side: Title and Description */}
         <div className="flex items-center space-x-6 min-w-0 flex-1">
           <div className="min-w-0">
-            <h2 className="text-lg sm:text-xl font-semibold text-foreground truncate">{title}</h2>
-            <p className="text-muted-foreground text-xs sm:text-sm truncate">{description}</p>
+            <h2 className="text-lg sm:text-xl font-display font-semibold text-text-primary truncate">{title}</h2>
+            <p className="text-text-secondary text-xs sm:text-sm truncate">{description}</p>
           </div>
         </div>
         

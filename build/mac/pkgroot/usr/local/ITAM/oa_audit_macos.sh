@@ -810,15 +810,37 @@ if [ -n "$ENROLLMENT_TOKEN" ]; then
     # Get IP address (macOS script uses system_ip)
     ITAM_IPS_ARRAY="\"$system_ip\""
     
-    # Create JSON payload for ITAM enrollment
+    # Gather hardware specifications
+    ITAM_MANUFACTURER="Apple, Inc."
+    ITAM_MODEL="$system_model"
+    ITAM_MEMORY_KB="$system_pc_memory"
+    ITAM_PROCESSOR="$processor_description"
+    ITAM_PROCESSOR_CORES="$processor_cores"
+    ITAM_PROCESSOR_LOGICAL="$processor_logical"
+    ITAM_PROCESSOR_SPEED="$processor_speed"
+    ITAM_ARCH="$system_pc_os_arch"
+    ITAM_OS_BIT="$system_pc_os_bit"
+    
+    # Create JSON payload for ITAM enrollment with hardware details
     ITAM_JSON=$(cat <<EOF
 {
   "hostname": "$ITAM_HOSTNAME",
   "serial": "$ITAM_SERIAL",
   "enrollmentToken": "$ENROLLMENT_TOKEN",
+  "manufacturer": "$ITAM_MANUFACTURER",
+  "model": "$ITAM_MODEL",
   "os": {
     "name": "$ITAM_OS_NAME",
-    "version": "$ITAM_OS_VERSION"
+    "version": "$ITAM_OS_VERSION",
+    "architecture": "$ITAM_ARCH",
+    "bit": "$ITAM_OS_BIT"
+  },
+  "hardware": {
+    "memory_kb": "$ITAM_MEMORY_KB",
+    "processor": "$ITAM_PROCESSOR",
+    "processor_cores": "$ITAM_PROCESSOR_CORES",
+    "processor_logical": "$ITAM_PROCESSOR_LOGICAL",
+    "processor_speed_mhz": "$ITAM_PROCESSOR_SPEED"
   },
   "ips": [$ITAM_IPS_ARRAY]
 }

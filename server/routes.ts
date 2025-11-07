@@ -788,26 +788,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <meta name="robots" content="noindex,nofollow" />
     <style>
       :root{color-scheme:dark}
-      body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;padding:2rem;background:#0b1220;color:#e6edf3}
-      .card{max-width:720px;margin:0 auto;background:#111827;border:1px solid #263043;border-radius:16px;padding:1.5rem;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
-      .org-badge{display:inline-block;padding:0.5rem 1rem;background:#1f6feb;border-radius:8px;margin-bottom:1rem;font-size:0.9rem;font-weight:600}
-      h1{font-size:1.4rem;margin:0 0 .5rem}
-      p{opacity:.9;line-height:1.6}
-      .actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem}
-      a.btn{display:inline-block;padding:.75rem 1rem;border-radius:10px;border:1px solid #304156;text-decoration:none;color:#e6edf3}
-      a.btn.primary{background:#1f6feb;border-color:#1f6feb}
-      small{opacity:.75}
-      code{background:#0d1626;padding:.2rem .35rem;border-radius:6px}
-      .hint{margin-top:.75rem;color:#9fb3c8}
-      .install-note{margin-top:1rem;padding:1rem;background:#0d1626;border-radius:8px;border-left:3px solid #1f6feb}
-      .install-note code{background:#111827}
+      *{box-sizing:border-box}
+      body{
+        font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+        margin:0;
+        padding:0;
+        min-height:100vh;
+        background:linear-gradient(135deg,#090D1A 0%,#0C1024 50%,#161B3A 100%);
+        color:#e6edf3;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:2rem;
+        letter-spacing:0.01em;
+        font-weight:500;
+      }
+      .card{
+        max-width:900px;
+        width:100%;
+        background:rgba(17,24,39,0.8);
+        backdrop-filter:blur(24px);
+        -webkit-backdrop-filter:blur(24px);
+        border:1px solid rgba(255,255,255,0.1);
+        border-radius:24px;
+        padding:3rem;
+        box-shadow:0 8px 32px rgba(0,0,0,0.3),inset 0 0 0 1px rgba(255,255,255,0.05);
+        animation:fadeInUp 0.5s cubic-bezier(0.4,0,0.2,1);
+      }
+      @keyframes fadeInUp{
+        from{opacity:0;transform:translateY(8px)}
+        to{opacity:1;transform:translateY(0)}
+      }
+      .header{text-align:center;margin-bottom:2.5rem}
+      .org-badge{
+        display:inline-flex;
+        align-items:center;
+        gap:0.5rem;
+        padding:0.5rem 1.25rem;
+        background:linear-gradient(135deg,rgba(59,130,246,0.15),rgba(99,102,241,0.15));
+        border:1px solid rgba(59,130,246,0.3);
+        border-radius:12px;
+        margin-bottom:1.5rem;
+        font-size:0.875rem;
+        font-weight:600;
+        color:#60A5FA;
+      }
+      h1{
+        font-size:2.5rem;
+        margin:0 0 1rem;
+        font-weight:600;
+        background:linear-gradient(90deg,#60A5FA,#A78BFA);
+        -webkit-background-clip:text;
+        -webkit-text-fill-color:transparent;
+        background-clip:text;
+        line-height:1.2;
+      }
+      .subtitle{
+        font-size:1.125rem;
+        color:#9CA3AF;
+        line-height:1.6;
+        margin:0;
+      }
+      .subtitle strong{color:#E5E7EB}
+      .actions{
+        display:flex;
+        gap:0.75rem;
+        flex-wrap:wrap;
+        margin:2rem 0;
+        justify-content:center;
+      }
+      a.btn{
+        display:inline-flex;
+        align-items:center;
+        gap:0.5rem;
+        padding:0.875rem 1.5rem;
+        border-radius:12px;
+        text-decoration:none;
+        font-weight:600;
+        font-size:0.9375rem;
+        transition:all 0.2s cubic-bezier(0.4,0,0.2,1);
+        border:1px solid rgba(255,255,255,0.2);
+        background:rgba(255,255,255,0.05);
+        color:#E5E7EB;
+      }
+      a.btn:hover{
+        background:rgba(255,255,255,0.1);
+        border-color:rgba(59,130,246,0.5);
+        transform:translateY(-1px);
+        box-shadow:0 4px 12px rgba(0,0,0,0.2);
+      }
+      a.btn.primary{
+        background:linear-gradient(135deg,#3B82F6,#6366F1);
+        border-color:transparent;
+        color:white;
+        box-shadow:0 4px 6px rgba(0,0,0,0.1);
+      }
+      a.btn.primary:hover{
+        background:linear-gradient(135deg,#2563EB,#4F46E5);
+        box-shadow:0 0 20px rgba(59,130,246,0.4),0 4px 12px rgba(0,0,0,0.3);
+        transform:translateY(-2px);
+      }
+      .hint{
+        margin-top:1.5rem;
+        color:#6B7280;
+        text-align:center;
+        font-size:0.875rem;
+      }
+      code{
+        background:rgba(0,0,0,0.3);
+        padding:0.25rem 0.5rem;
+        border-radius:6px;
+        font-family:'SF Mono',Monaco,'Courier New',monospace;
+        font-size:0.875rem;
+        color:#93C5FD;
+      }
+      .install-note{
+        margin-top:2rem;
+        padding:2rem;
+        background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(99,102,241,0.1));
+        border-radius:16px;
+        border:2px solid rgba(59,130,246,0.3);
+        box-shadow:0 0 20px rgba(59,130,246,0.15);
+      }
+      .install-note h3{
+        margin:0 0 1rem;
+        color:#60A5FA;
+        font-size:1.5rem;
+        font-weight:600;
+      }
+      .install-note p{
+        color:#D1D5DB;
+        line-height:1.7;
+        margin:0 0 1.25rem;
+      }
+      .cmd-container{
+        margin:1.5rem 0;
+        padding:1.25rem;
+        background:rgba(0,0,0,0.5);
+        border-radius:12px;
+        border:2px solid rgba(59,130,246,0.3);
+      }
+      .cmd-container code{
+        display:block;
+        color:#4ADE80;
+        font-size:0.9375rem;
+        user-select:all;
+        background:transparent;
+        padding:0;
+      }
+      .copy-btn{
+        margin-top:1.25rem;
+        padding:0.875rem 1.75rem;
+        background:linear-gradient(135deg,#3B82F6,#6366F1);
+        color:white;
+        border:none;
+        border-radius:12px;
+        cursor:pointer;
+        font-size:0.9375rem;
+        font-weight:600;
+        font-family:inherit;
+        box-shadow:0 4px 6px rgba(0,0,0,0.2);
+        transition:all 0.2s cubic-bezier(0.4,0,0.2,1);
+        display:inline-flex;
+        align-items:center;
+        gap:0.5rem;
+      }
+      .copy-btn:hover{
+        background:linear-gradient(135deg,#2563EB,#4F46E5);
+        box-shadow:0 0 20px rgba(59,130,246,0.4);
+        transform:translateY(-2px);
+      }
+      .info-box{
+        margin-top:1.5rem;
+        padding:1.25rem;
+        background:rgba(255,255,255,0.05);
+        border:1px solid rgba(255,255,255,0.1);
+        border-radius:12px;
+      }
+      .info-box h4{
+        margin:0 0 1rem;
+        color:#E5E7EB;
+        font-size:1.125rem;
+        font-weight:600;
+        display:flex;
+        align-items:center;
+        gap:0.5rem;
+      }
+      .info-box ol{
+        margin:0 0 0 1.25rem;
+        padding:0;
+        color:#D1D5DB;
+        line-height:1.8;
+        font-size:0.9375rem;
+      }
+      .info-box .note{
+        margin:1rem 0 0;
+        padding-top:1rem;
+        border-top:1px solid rgba(255,255,255,0.1);
+        color:#9CA3AF;
+        font-size:0.875rem;
+      }
+      .info-box .note strong{color:#E5E7EB}
+      @media(max-width:640px){
+        .card{padding:2rem 1.5rem}
+        h1{font-size:2rem}
+        .actions{flex-direction:column}
+        a.btn{width:100%;justify-content:center}
+      }
     </style>
   </head>
   <body>
     <div class="card">
-      <div class="org-badge">🏢 ${tenant.name}</div>
-      <h1>Install ITAM Agent</h1>
-      <p>This will install the agent and register your device with <strong>${tenant.name}</strong>'s IT Asset Management system.</p>
+      <div class="header">
+        <div class="org-badge">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          ${tenant.name}
+        </div>
+        <h1>Install ITAM Agent</h1>
+        <p class="subtitle">This will install the agent and register your device with <strong>${tenant.name}</strong>'s IT Asset Management system.</p>
+      </div>
 
       <div class="actions">
         <a class="btn primary" id="primary" href="${primaryUrl}">${primaryLabel}</a>
@@ -819,28 +1018,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       <p class="hint"><small>The download should start automatically. If not, click the button above.</small></p>
       ${isLinux ? `
-      <div class="install-note" style="background:#0d1929;border-left:3px solid #2ea043;padding:1.5rem;">
-        <h3 style="margin-top:0;color:#58a6ff;font-size:1.2rem;">📋 Register Your Linux Device</h3>
-        <p style="margin:0.75rem 0;line-height:1.6;">The ITAM installer has been downloaded. Run this command in your terminal to install and register your device:</p>
+      <div class="install-note">
+        <h3>
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:inline-block;vertical-align:middle;margin-right:0.5rem"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Register Your Linux Device
+        </h3>
+        <p>The ITAM installer has been downloaded. Run this command in your terminal to install and register your device:</p>
         
-        <div style="margin:1rem 0;padding:1rem;background:#0b1220;border-radius:8px;border:2px solid #1f6feb;">
-          <code id="installCmd" style="display:block;color:#7ee787;font-size:15px;font-family:'Courier New',monospace;user-select:all;font-weight:500;">cd ~/Downloads && sudo bash itam_installer_${tenant.name}.sh</code>
+        <div class="cmd-container">
+          <code id="installCmd">cd ~/Downloads && sudo bash itam_installer_${tenant.name}.sh</code>
         </div>
         
-        <button onclick="copyInstallCmd()" style="padding:0.75rem 1.5rem;background:#2ea043;color:white;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;box-shadow:0 4px 6px rgba(0,0,0,0.2);">
-          📋 Copy Command
+        <button class="copy-btn" onclick="copyInstallCmd()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          Copy Command
         </button>
         
-        <div style="margin-top:1.5rem;padding:1rem;background:#0b1220;border-radius:6px;border:1px solid #21262d;">
-          <p style="margin:0 0 0.5rem;font-weight:600;color:#e6edf3;">ℹ️ What happens:</p>
-          <ol style="margin:0.5rem 0 0 1.25rem;padding:0;line-height:1.8;opacity:0.9;">
+        <div class="info-box">
+          <h4>
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            What happens:
+          </h4>
+          <ol>
             <li>Creates <code>/opt/itam-agent</code> directory with enrollment configuration</li>
             <li>Installs audit script and collects device information</li>
             <li>Automatically registers device with your organization</li>
             <li>Device appears immediately in your Assets dashboard</li>
             <li>Logs saved to <code>/opt/itam-agent/logs/</code></li>
           </ol>
-          <p style="margin:1rem 0 0;padding-top:0.75rem;border-top:1px solid #21262d;color:#8b949e;font-size:14px;">
+          <p class="note">
             <strong>Note:</strong> Must be run with <code>sudo</code> (requires root privileges)
           </p>
         </div>
@@ -849,8 +1055,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         function copyInstallCmd() {
           const cmd = document.getElementById('installCmd').textContent;
           navigator.clipboard.writeText(cmd).then(() => {
-            event.target.textContent = '✅ Copied! Paste in your terminal';
-            setTimeout(() => { event.target.textContent = '📋 Copy Command'; }, 3000);
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied! Paste in your terminal';
+            setTimeout(() => { btn.innerHTML = originalHTML; }, 3000);
           });
         }
       </script>
@@ -1001,6 +1209,57 @@ exit $ENROLL_STATUS
   });
 
   // Serve macOS PKG installer with embedded enrollment token
+  // Endpoint for macOS agent to claim enrollment session (nonce-based)
+  app.post("/api/agent/claim", async (req, res) => {
+    try {
+      const { nonce, serial, hostname, osv } = req.body;
+      
+      if (!nonce) {
+        return res.status(400).json({ error: "Nonce required" });
+      }
+      
+      // Look up enrollment session from storage
+      const sessionKey = `enrollment_session:${nonce}`;
+      const sessionData = await storage.getEnrollmentSession(nonce);
+      
+      if (!sessionData) {
+        console.error(`Invalid or expired nonce: ${nonce}`);
+        return res.status(404).json({ error: "Invalid or expired enrollment session" });
+      }
+      
+      // Check if already consumed
+      if (sessionData.status === 'consumed') {
+        console.error(`Nonce already consumed: ${nonce}`);
+        return res.status(409).json({ error: "Enrollment session already used" });
+      }
+      
+      // Mark as consumed
+      await storage.consumeEnrollmentSession(nonce, {
+        serial,
+        hostname,
+        osv,
+        claimedAt: new Date().toISOString()
+      });
+      
+      // Return tenant-specific enrollment URL
+      const serverUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+      const enrollUrl = `${serverUrl}/api/agent/enroll?token=${sessionData.tenantToken}`;
+      
+      console.log(`✓ Enrollment session claimed: ${nonce.substring(0, 8)}... → Tenant: ${sessionData.tenantId} → Device: ${hostname} (${serial})`);
+      
+      res.json({
+        enrollUrl,
+        tenantId: sessionData.tenantId,
+        serverUrl
+      });
+      
+    } catch (error) {
+      console.error("Error claiming enrollment session:", error);
+      res.status(500).json({ error: "Error claiming enrollment session" });
+    }
+  });
+
+  // Serve macOS PKG installer with nonce-based enrollment session
   app.get("/api/enroll/:token/mac-installer", async (req, res) => {
     try {
       const enrollmentToken = req.params.token;
@@ -1021,59 +1280,46 @@ exit $ENROLL_STATUS
         return res.status(401).send("Invalid or expired enrollment token");
       }
       
-      const tmpDir = `/tmp/itam-pkg-${Date.now()}`;
-      fs.mkdirSync(tmpDir, { recursive: true });
+      // Use pre-built PKG template (built on macOS, stored on server)
+      const templatePath = path.join(process.cwd(), "static/installers/itam-agent-macos-template.pkg");
       
-      try {
-        // Copy PKG root structure
-        const pkgRootSrc = path.join(process.cwd(), "build/mac/pkgroot");
-        const pkgRootDest = path.join(tmpDir, "pkgroot");
-        
-        // Copy entire pkgroot structure
-        execSync(`cp -R "${pkgRootSrc}" "${pkgRootDest}"`);
-        
-        // Create enrollment config file with token
-        const serverUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
-        const enrollmentConfig = `# ITAM Enrollment Configuration
-ENROLLMENT_TOKEN="${enrollmentToken}"
-ITAM_SERVER_URL="${serverUrl}"
-`;
-        
-        fs.writeFileSync(path.join(pkgRootDest, "usr/local/ITAM/enrollment.conf"), enrollmentConfig);
-        
-        // Copy scripts
-        const scriptsSrc = path.join(process.cwd(), "build/mac/scripts");
-        const scriptsDest = path.join(tmpDir, "scripts");
-        execSync(`cp -R "${scriptsSrc}" "${scriptsDest}"`);
-        execSync(`chmod +x "${scriptsDest}/postinstall"`);
-        
-        // Build PKG
-        const pkgPath = path.join(tmpDir, "ITAM-Agent.pkg");
-        const buildCmd = `pkgbuild --root "${pkgRootDest}" --scripts "${scriptsDest}" --identifier com.itam.agent --version 1.0 --install-location / "${pkgPath}"`;
-        
-        execSync(buildCmd);
-        
-        // Send PKG file
-        res.setHeader("Content-Type", "application/octet-stream");
-        res.setHeader("Content-Disposition", `attachment; filename="ITAM-Agent-${tenant.name}.pkg"`);
-        
-        const fileStream = fs.createReadStream(pkgPath);
-        fileStream.pipe(res);
-        
-        fileStream.on("end", () => {
-          // Cleanup
-          try {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-          } catch (e) {
-            console.error("Cleanup error:", e);
-          }
-        });
-        
-      } catch (error) {
-        console.error("Error building PKG:", error);
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-        res.status(500).send("Error building installer");
+      if (!fs.existsSync(templatePath)) {
+        console.error("PKG template not found at:", templatePath);
+        return res.status(500).send(`
+          <h1>macOS Installer Not Available</h1>
+          <p>The PKG template has not been built yet.</p>
+          <p><strong>Instructions for server administrator:</strong></p>
+          <ol>
+            <li>On a macOS machine, run: <code>bash build/mac/build-pkg-template.sh</code></li>
+            <li>Copy the generated <code>itam-agent-macos-template.pkg</code> file</li>
+            <li>Upload it to: <code>static/installers/itam-agent-macos-template.pkg</code> on the server</li>
+          </ol>
+        `);
       }
+      
+      // Create one-time enrollment session with cryptographic nonce
+      const crypto = await import('crypto');
+      const nonce = crypto.randomBytes(16).toString('base64url');
+      
+      // Store enrollment session (expires in 15 minutes)
+      await storage.createEnrollmentSession(nonce, {
+        tenantId: tenant.id,
+        tenantToken: enrollmentToken,
+        userAgent: req.headers['user-agent'] || '',
+        ipHash: req.ip || '',
+        status: 'issued',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+      });
+      
+      console.log(`✓ Created enrollment session for tenant: ${tenant.name} (nonce: ${nonce.substring(0, 8)}...)`);
+      
+      // Serve the static PKG with nonce in filename
+      // The postinstall script will extract this nonce from /var/log/install.log
+      // and exchange it for the enrollment URL via /api/agent/claim
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", `attachment; filename="itam-agent-${nonce}.pkg"`);
+      res.sendFile(templatePath);
       
     } catch (error) {
       console.error("Error serving macOS installer:", error);
@@ -1197,13 +1443,25 @@ TENANT_NAME=${tenant.name}
       
       const hostname = String(body.hostname ?? "").trim();
       const serial = (body.serial ?? null) ? String(body.serial).trim() : null;
+      const manufacturer = (body.manufacturer ?? null) ? String(body.manufacturer).trim() : null;
+      const model = (body.model ?? null) ? String(body.model).trim() : null;
       const osName = body?.os?.name ? String(body.os.name).trim() : null;
       const osVersion = body?.os?.version ? String(body.os.version).trim() : null;
+      const osArchitecture = body?.os?.architecture ? String(body.os.architecture).trim() : null;
+      const osBit = body?.os?.bit ? String(body.os.bit).trim() : null;
       const username = (body.username ?? null) ? String(body.username).trim() : null;
       const ipsArr: string[] = Array.isArray(body.ips) ? body.ips.map((x: any) => String(x)) : [];
       const uptimeSeconds =
         Number.isFinite(Number(body.uptimeSeconds)) ? Number(body.uptimeSeconds) : null;
       const enrollmentToken = body.enrollmentToken ? String(body.enrollmentToken).trim() : null;
+      
+      // Hardware specifications
+      const hardware = body.hardware ?? {};
+      const memoryKb = hardware.memory_kb ? Number(hardware.memory_kb) : null;
+      const processor = hardware.processor ? String(hardware.processor).trim() : null;
+      const processorCores = hardware.processor_cores ? Number(hardware.processor_cores) : null;
+      const processorLogical = hardware.processor_logical ? Number(hardware.processor_logical) : null;
+      const processorSpeedMhz = hardware.processor_speed_mhz ? Number(hardware.processor_speed_mhz) : null;
 
       console.log("🔵 [ENROLL] Parsed data:");
       console.log("  hostname:", hostname);
@@ -1293,8 +1551,8 @@ TENANT_NAME=${tenant.name}
         name: hostname,
         type: "Hardware",
         category: "computer",
-        manufacturer: null,
-        model: null,
+        manufacturer: manufacturer,
+        model: model,
         serialNumber: serial,
         status: "in-stock",
 
@@ -1322,6 +1580,22 @@ TENANT_NAME=${tenant.name}
             firstEnrolledAt: now.toISOString(),
             uptimeSeconds,
             lastIPs: ipsArr,
+          },
+          hardware: {
+            memory_kb: memoryKb,
+            memory_gb: memoryKb ? (memoryKb / 1024 / 1024).toFixed(2) : null,
+            processor: processor,
+            processor_cores: processorCores,
+            processor_logical: processorLogical,
+            processor_speed_mhz: processorSpeedMhz,
+            architecture: osArchitecture,
+            os_bit: osBit,
+          },
+          os: {
+            name: osName,
+            version: osVersion,
+            architecture: osArchitecture,
+            bit: osBit,
           },
         } as any,
 
@@ -1359,6 +1633,8 @@ TENANT_NAME=${tenant.name}
               name: baseRow.name,
               type: baseRow.type,
               category: baseRow.category,
+              manufacturer: baseRow.manufacturer,
+              model: baseRow.model,
               assignedUserName: baseRow.assignedUserName,
               specifications: baseRow.specifications,
               notes: baseRow.notes,
@@ -1385,6 +1661,8 @@ TENANT_NAME=${tenant.name}
           .set({
             type: baseRow.type,
             category: baseRow.category,
+            manufacturer: baseRow.manufacturer,
+            model: baseRow.model,
             assignedUserName: baseRow.assignedUserName,
             specifications: baseRow.specifications,
             notes: baseRow.notes,
@@ -1442,13 +1720,39 @@ TENANT_NAME=${tenant.name}
           manufacturer: null,
           model: null,
         });
-        console.log(`📤 Submitting device to OpenAudit (default org)...`);
+        console.log(`📤 Submitting device to OpenAudit...`);
         await oaSubmitDeviceXML(xml);
 
         // 5) Resolve OA device id (prefer serial, fallback hostname)
         oaId = await oaFindDeviceId({ serial, hostname });
         
-        console.log(`✅ Device submitted to OpenAudit. OA ID: ${oaId}, Tenant: ${tenantName} (${tenantId})`);
+        if (oaId) {
+          console.log(`✅ Device submitted to OpenAudit. OA ID: ${oaId}`);
+          
+          // 5b) Move device to tenant's specific Open-AudIT organization
+          if (openauditOrgId) {
+            try {
+              console.log(`🔄 Moving device ${oaId} to tenant org ${openauditOrgId} (${tenantName})...`);
+              await oaUpdateDeviceOrg(
+                oaId,
+                openauditOrgId,
+                hostname,
+                serial || "",
+                process.env.OPEN_AUDIT_URL,
+                process.env.OPEN_AUDIT_USERNAME,
+                process.env.OPEN_AUDIT_PASSWORD
+              );
+              console.log(`✅ Device moved to tenant organization ${tenantName} (OA Org: ${openauditOrgId})`);
+            } catch (orgError: any) {
+              console.error(`⚠️  Failed to move device to tenant org: ${orgError.message}`);
+              // Don't fail enrollment if org assignment fails
+            }
+          } else {
+            console.log(`⚠️  Tenant ${tenantName} has no OpenAudit org mapping, device stays in default org`);
+          }
+        } else {
+          console.log(`⚠️  Could not find device in OpenAudit after submission`);
+        }
 
         // 6) Patch asset.specifications.openaudit.id if we got it
         if (assetId && oaId) {
@@ -1538,7 +1842,7 @@ TENANT_NAME=${tenant.name}
         });
       }
 
-      // Will try /components first (with X-Requested-With), then fallbacks
+      // Fetch software using shared OpenAudit credentials
       const items = await oaFetchDeviceSoftware(String(oaId));
       return res.json({ items });
     } catch (e: any) {
@@ -1745,7 +2049,7 @@ TENANT_NAME=${tenant.name}
             specs?.oaId;
           
           if (oaId) {
-            // Fetch software list from OpenAudit
+            // Fetch software list from OpenAudit using shared credentials
             const deviceSoftware = await oaFetchDeviceSoftware(oaId);
             
             console.log(`[SOFTWARE DEVICES] Device "${device.name}" (${oaId}): ${deviceSoftware.length} software items`);
@@ -5429,7 +5733,7 @@ app.get("/api/assets/:assetId/software", async (req, res) => {
       });
     }
 
-    // Will try /components first (with X-Requested-With), then fallbacks
+    // Fetch software using shared OpenAudit credentials
     const items = await oaFetchDeviceSoftware(String(oaId));
     return res.json({ items });
   } catch (e: any) {

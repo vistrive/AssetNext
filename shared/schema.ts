@@ -655,6 +655,30 @@ export const enrollmentTokens = pgTable("enrollment_tokens", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Enrollment Sessions - one-time nonce-based sessions for PKG downloads
+export const enrollmentSessions = pgTable("enrollment_sessions", {
+  nonce: text("nonce").primaryKey(), // Cryptographic random nonce
+  
+  // Tenant mapping
+  tenantId: varchar("tenant_id").notNull(),
+  tenantToken: text("tenant_token").notNull(), // Original enrollment token
+  
+  // Session metadata
+  status: text("status").notNull().default("issued"), // issued, consumed
+  userAgent: text("user_agent"),
+  ipHash: text("ip_hash"),
+  
+  // Device info (captured on claim)
+  serial: text("serial"),
+  hostname: text("hostname"),
+  osv: text("osv"),
+  claimedAt: timestamp("claimed_at"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
 // Credential Profiles - store SNMP credentials for discovery
 export const credentialProfiles = pgTable("credential_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

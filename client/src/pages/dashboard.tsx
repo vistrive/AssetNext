@@ -90,15 +90,15 @@ function createDashboardTiles(
       width: 336,
       height: 112,
       component: (
-        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-deployed-assets">
+        <div className="bg-gradient-to-br from-surface/70 to-surface-light/70 backdrop-blur-md rounded-xl border border-white/10 p-4 h-full flex items-center justify-between hover:shadow-card-hover transition-all duration-300 group" data-testid="card-deployed-assets">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Deployed</p>
-            <p className="text-xl font-bold text-green-600" data-testid="count-deployed">
+            <p className="text-xs font-medium text-text-secondary mb-1">Deployed</p>
+            <p className="text-3xl font-display font-bold text-status-success" data-testid="count-deployed">
               {metrics?.assetStatusCounts?.deployed || 0}
             </p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-green-600"></div>
+          <div className="w-10 h-10 rounded-lg bg-gradient-success flex items-center justify-center shadow-glow group-hover:shadow-glow-strong transition-all">
+            <div className="w-3 h-3 rounded-full bg-white"></div>
           </div>
         </div>
       )
@@ -111,15 +111,15 @@ function createDashboardTiles(
       width: 336,
       height: 112,
       component: (
-        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-stock-assets">
+        <div className="bg-gradient-to-br from-surface/70 to-surface-light/70 backdrop-blur-md rounded-xl border border-white/10 p-4 h-full flex items-center justify-between hover:shadow-card-hover transition-all duration-300 group" data-testid="card-in-stock-assets">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">In Stock</p>
-            <p className="text-xl font-bold text-blue-600" data-testid="count-in-stock">
+            <p className="text-xs font-medium text-text-secondary mb-1">In Stock</p>
+            <p className="text-3xl font-display font-bold text-brand-primary" data-testid="count-in-stock">
               {metrics?.assetStatusCounts?.inStock || 0}
             </p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+          <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow group-hover:shadow-glow-strong transition-all">
+            <div className="w-3 h-3 rounded-full bg-white"></div>
           </div>
         </div>
       )
@@ -132,15 +132,15 @@ function createDashboardTiles(
       width: 336,
       height: 112,
       component: (
-        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-in-repair-assets">
+        <div className="bg-gradient-to-br from-surface/70 to-surface-light/70 backdrop-blur-md rounded-xl border border-white/10 p-4 h-full flex items-center justify-between hover:shadow-card-hover transition-all duration-300 group" data-testid="card-in-repair-assets">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">In Repair</p>
-            <p className="text-xl font-bold text-orange-600" data-testid="count-in-repair">
+            <p className="text-xs font-medium text-text-secondary mb-1">In Repair</p>
+            <p className="text-3xl font-display font-bold text-status-warning" data-testid="count-in-repair">
               {metrics?.assetStatusCounts?.inRepair || 0}
             </p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-orange-600"></div>
+          <div className="w-10 h-10 rounded-lg bg-gradient-warning flex items-center justify-center shadow-glow group-hover:shadow-glow-strong transition-all">
+            <div className="w-3 h-3 rounded-full bg-white"></div>
           </div>
         </div>
       )
@@ -153,15 +153,15 @@ function createDashboardTiles(
       width: 336,
       height: 112,
       component: (
-        <div className="bg-card rounded-lg border p-3 h-full flex items-center justify-between hover:shadow-sm transition-shadow" data-testid="card-retired-assets">
+        <div className="bg-gradient-to-br from-surface/70 to-surface-light/70 backdrop-blur-md rounded-xl border border-white/10 p-4 h-full flex items-center justify-between hover:shadow-card-hover transition-all duration-300 group" data-testid="card-retired-assets">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Retired</p>
-            <p className="text-xl font-bold text-gray-600" data-testid="count-retired">
+            <p className="text-xs font-medium text-text-secondary mb-1">Retired</p>
+            <p className="text-3xl font-display font-bold text-text-muted" data-testid="count-retired">
               {metrics?.assetStatusCounts?.retired || 0}
             </p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+          <div className="w-10 h-10 rounded-lg bg-surface-lighter border border-white/10 flex items-center justify-center group-hover:shadow-card transition-all">
+            <div className="w-3 h-3 rounded-full bg-text-muted"></div>
           </div>
         </div>
       )
@@ -469,7 +469,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background page-enter">
       <Sidebar />
       
       <main className="flex-1 md:ml-64 overflow-auto">
@@ -502,7 +502,7 @@ export default function Dashboard() {
                 {/* Asset Overview Section */}
             <div className="mb-8" data-testid="section-asset-overview">
               <div className="mb-6" data-testid="heading-asset-overview">
-                <h2 className="text-lg font-semibold text-foreground mb-1">Asset Overview</h2>
+                <h2 className="text-lg font-semibold mb-1 gradient-text">Asset Overview</h2>
                 <p className="text-xs text-muted-foreground">Hardware, Software, Peripherals and Other Assets</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -524,7 +524,7 @@ export default function Dashboard() {
             {/* Asset Lifecycle Section */}
             <div className="mb-8" data-testid="section-asset-lifecycle">
               <div className="mb-6" data-testid="heading-asset-lifecycle">
-                <h2 className="text-lg font-semibold text-foreground mb-1">Asset Lifecycle</h2>
+                <h2 className="text-lg font-semibold mb-1 gradient-text">Asset Lifecycle</h2>
                 <p className="text-xs text-muted-foreground">Asset Status Distribution and Lifecycle Management</p>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -586,7 +586,7 @@ export default function Dashboard() {
             {/* Expiring Warranties & Licenses Section */}
             <div className="mb-8" data-testid="section-expiring-items">
               <div className="mb-6" data-testid="heading-expiring-items">
-                <h2 className="text-lg font-semibold text-foreground mb-1">Expiring Warranties & Licenses</h2>
+                <h2 className="text-lg font-semibold mb-1 gradient-text">Expiring Warranties & Licenses</h2>
                 <p className="text-xs text-muted-foreground">Upcoming Hardware Warranty and Software License Expirations</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -700,7 +700,7 @@ export default function Dashboard() {
             {/* ITAM Insights Section */}
             <div className="mb-8" data-testid="section-itam-insights">
               <div className="mb-6" data-testid="heading-itam-insights">
-                <h2 className="text-lg font-semibold text-foreground mb-1">ITAM Insights</h2>
+                <h2 className="text-lg font-semibold mb-1 gradient-text">ITAM Insights</h2>
                 <p className="text-xs text-muted-foreground">Unused Assets, License Optimization and Compliance Monitoring</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -722,7 +722,7 @@ export default function Dashboard() {
             {/* Activities Section */}
             <div className="mb-8" data-testid="section-activities">
               <div className="mb-6" data-testid="heading-activities">
-                <h2 className="text-lg font-semibold text-foreground mb-1">Activities</h2>
+                <h2 className="text-lg font-semibold mb-1 gradient-text">Activities</h2>
                 <p className="text-xs text-muted-foreground">Recent Activities and AI-Powered Recommendations</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -742,7 +742,7 @@ export default function Dashboard() {
             {/* Global Distribution Section */}
             <div className="mb-8" data-testid="section-global-distribution">
               <div className="mb-6" data-testid="heading-global-distribution">
-                <h2 className="text-lg font-semibold text-foreground mb-1">Global Distribution</h2>
+                <h2 className="text-lg font-semibold mb-1 gradient-text">Global Distribution</h2>
                 <p className="text-xs text-muted-foreground">Worldwide Asset Location and Regional Overview</p>
               </div>
               <DraggableTileWrapper isDragMode={isDragMode} tileId="world-map" position={tilePositions["world-map"]}>

@@ -2,14 +2,12 @@
 import axios, { AxiosRequestConfig } from "axios";
 
 /** ---- ENV (loaded by server bootstrap via dotenv) ---- */
-export const OA_BASE_URL = process.env.OA_BASE_URL!;
-const OA_USERNAME = process.env.OA_USERNAME!;
-const OA_PASSWORD = process.env.OA_PASSWORD!;
+// Default OpenAudit credentials - shared across all tenants
+export const OA_BASE_URL = process.env.OPEN_AUDIT_URL || "https://open-audit.vistrivetech.com";
+const OA_USERNAME = process.env.OPEN_AUDIT_USERNAME || "admin";
+const OA_PASSWORD = process.env.OPEN_AUDIT_PASSWORD || "vistrivetech";
 
-// Don't throw error immediately - allow per-tenant credentials
-if (!OA_BASE_URL && !process.env.OA_USERNAME && !process.env.OA_PASSWORD) {
-  console.warn("Warning: No default OA_* env vars set. Using per-tenant credentials.");
-}
+console.log(`[OpenAudit] Using credentials - URL: ${OA_BASE_URL}, Username: ${OA_USERNAME}`);
 
 /** ---- Axios defaults ---- */
 const AXIOS_OPTS: AxiosRequestConfig = {
@@ -25,13 +23,10 @@ const AXIOS_OPTS: AxiosRequestConfig = {
 
 /** ---- Session login: returns a consolidated Cookie header ---- */
 export async function oaLogin(baseUrl?: string, username?: string, password?: string): Promise<string> {
+  // Always use defaults - all tenants share the same OpenAudit instance
   const url = `${baseUrl || OA_BASE_URL}/index.php/logon`;
   const user = username || OA_USERNAME;
   const pass = password || OA_PASSWORD;
-  
-  if (!url || !user || !pass) {
-    throw new Error("Missing OpenAudit credentials (baseUrl, username, password).");
-  }
   
   const form = new URLSearchParams({ username: user, password: pass });
 
@@ -187,6 +182,7 @@ export async function oaFetchDeviceSoftware(
   oaDeviceId: string | number,
   limit = 1000
 ) {
+  // Always use shared OpenAudit credentials
   const cookie = await oaLogin();
   const id = encodeURIComponent(String(oaDeviceId));
 
