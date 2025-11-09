@@ -7,7 +7,7 @@ set -euo pipefail
 # and runs the agent enrollment
 
 LOG="/var/log/install.log"
-API_BASE="${ITAM_SERVER_URL:-http://localhost:5050}"
+API_BASE="${ITAM_SERVER_URL:-https://asset-management.pionedata.com}"
 CLAIM_URL="$API_BASE/api/agent/claim"
 
 # Ensure destination dir exists and script is executable

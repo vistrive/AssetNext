@@ -1280,6 +1280,9 @@ exit $ENROLL_STATUS
         return res.status(401).send("Invalid or expired enrollment token");
       }
       
+      // Determine server URL from request
+      const serverUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+      
       // Use pre-built PKG template (built on macOS, stored on server)
       const templatePath = path.join(process.cwd(), "static/installers/itam-agent-macos-template.pkg");
       
@@ -1301,18 +1304,19 @@ exit $ENROLL_STATUS
       const crypto = await import('crypto');
       const nonce = crypto.randomBytes(16).toString('base64url');
       
-      // Store enrollment session (expires in 15 minutes)
+      // Store enrollment session with server URL (expires in 15 minutes)
       await storage.createEnrollmentSession(nonce, {
         tenantId: tenant.id,
         tenantToken: enrollmentToken,
         userAgent: req.headers['user-agent'] || '',
         ipHash: req.ip || '',
         status: 'issued',
+        serverUrl: serverUrl, // Include server URL in session
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
       });
       
-      console.log(`✓ Created enrollment session for tenant: ${tenant.name} (nonce: ${nonce.substring(0, 8)}...)`);
+      console.log(`✓ Created enrollment session for tenant: ${tenant.name} (nonce: ${nonce.substring(0, 8)}..., server: ${serverUrl})`);
       
       // Serve the static PKG with nonce in filename
       // The postinstall script will extract this nonce from /var/log/install.log
