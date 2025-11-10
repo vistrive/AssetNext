@@ -1542,8 +1542,8 @@ export class DatabaseStorage implements IStorage {
         .orderBy(sql`COALESCE(warranty_expiry, amc_expiry)`)
         .limit(10);
 
-      // NEW: Get detailed expiring software licenses - using proper date comparison
-      const expiringSoftwareLicenses = await db
+      // NEW: Get detailed expiring software licenses from software_licenses table
+      const expiringSoftwareLicensesFromTable = await db
         .select({
           id: softwareLicenses.id,
           name: softwareLicenses.name,
@@ -1564,6 +1564,42 @@ export class DatabaseStorage implements IStorage {
         ))
         .orderBy(softwareLicenses.renewalDate)
         .limit(10);
+
+      // ALSO get expiring Software assets from assets table (type='Software')
+      const expiringSoftwareAssets = await db
+        .select({
+          id: assets.id,
+          name: assets.name,
+          vendor: assets.manufacturer, // Use manufacturer as vendor for Software assets
+          version: assets.version, // Software assets have version field
+          licenseKey: assets.licenseKey, // Software assets have licenseKey field
+          createdAt: assets.createdAt,
+          renewalDate: assets.renewalDate, // Software assets use renewalDate
+          usedLicenses: assets.usedLicenses
+        })
+        .from(assets)
+        .where(and(
+          eq(assets.tenantId, tenantId),
+          eq(assets.type, 'Software'),
+          sql`renewal_date IS NOT NULL`,
+          sql`renewal_date <= current_date + interval '30 days'`,
+          sql`renewal_date > current_date`
+        ))
+        .orderBy(assets.renewalDate)
+        .limit(10);
+
+      // Combine both sources of expiring software licenses
+      const expiringSoftwareLicenses = [
+        ...expiringSoftwareLicensesFromTable,
+        ...expiringSoftwareAssets.map(asset => ({
+          ...asset,
+          costPerLicense: null // Software assets don't have costPerLicense
+        }))
+      ].sort((a, b) => {
+        const dateA = a.renewalDate ? new Date(a.renewalDate).getTime() : 0;
+        const dateB = b.renewalDate ? new Date(b.renewalDate).getTime() : 0;
+        return dateA - dateB;
+      }).slice(0, 10);
 
       // NEW: Get recent activity logs
       const recentActivities = await db
@@ -1786,8 +1822,9 @@ export class DatabaseStorage implements IStorage {
               licenseKey: license.licenseKey,
               purchaseDate: license.createdAt, // Use createdAt as purchase date equivalent
               renewalDate: license.renewalDate,
-              totalLicenses: license.totalLicenses,
-              costPerLicense: license.costPerLicense,
+              totalLicenses: (license as any).totalLicenses || 0, // Only from software_licenses table
+              usedLicenses: (license as any).usedLicenses || 0, // Available in both sources
+              costPerLicense: (license as any).costPerLicense || null,
               type: 'license',
               expiryDate: license.renewalDate, // Fixed: explicit mapping
               contractType: 'Software License' // Fixed: explicit contract type
