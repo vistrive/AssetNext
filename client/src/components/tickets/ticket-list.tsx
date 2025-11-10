@@ -4,10 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Filter, Plus } from "lucide-react";
 import { TicketCard } from "./ticket-card";
+import { TicketCommentDialog } from "./ticket-comment-dialog";
+import { TicketEditDialog } from "./ticket-edit-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { authenticatedRequest } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +47,21 @@ export function TicketList({
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [resolution, setResolution] = useState<string>("");
   const [resolutionNotes, setResolutionNotes] = useState<string>("");
+
+  // Delete and Close confirmation dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [ticketToDelete, setTicketToDelete] = useState<string>("");
+  const [ticketToClose, setTicketToClose] = useState<string>("");
+
+  // Comment dialog state
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [commentTicketId, setCommentTicketId] = useState<string>("");
+  const [commentTicketNumber, setCommentTicketNumber] = useState<string>("");
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [ticketToEdit, setTicketToEdit] = useState<Ticket | null>(null);
 
   // Backend handles role-based filtering automatically using JWT token
   const apiUrl = '/api/tickets';
@@ -165,23 +183,29 @@ export function TicketList({
   // New action handlers
   const handleEditTicket = (ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
-    if (ticket && onTicketClick) {
-      onTicketClick(ticket);
+    if (ticket) {
+      setTicketToEdit(ticket);
+      setEditDialogOpen(true);
     }
   };
 
-  const handleDeleteTicket = async (ticketId: string) => {
-    if (!confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteTicket = (ticketId: string) => {
+    setTicketToDelete(ticketId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTicket = async () => {
+    if (!ticketToDelete) return;
     
     try {
-      await authenticatedRequest("DELETE", `/api/tickets/${ticketId}`);
+      await authenticatedRequest("DELETE", `/api/tickets/${ticketToDelete}`);
       queryClient.invalidateQueries({ queryKey: [apiUrl] });
       toast({
         title: "Ticket deleted",
         description: "The ticket has been successfully deleted.",
       });
+      setDeleteDialogOpen(false);
+      setTicketToDelete("");
     } catch (error) {
       toast({
         title: "Delete failed",
@@ -191,13 +215,16 @@ export function TicketList({
     }
   };
 
-  const handleCloseTicket = async (ticketId: string) => {
-    if (!confirm('Are you sure you want to close this ticket?')) {
-      return;
-    }
+  const handleCloseTicket = (ticketId: string) => {
+    setTicketToClose(ticketId);
+    setCloseDialogOpen(true);
+  };
+
+  const confirmCloseTicket = async () => {
+    if (!ticketToClose) return;
     
     try {
-      await authenticatedRequest("PUT", `/api/tickets/${ticketId}/status`, {
+      await authenticatedRequest("PUT", `/api/tickets/${ticketToClose}/status`, {
         status: 'closed',
       });
       queryClient.invalidateQueries({ queryKey: [apiUrl] });
@@ -205,6 +232,8 @@ export function TicketList({
         title: "Ticket closed",
         description: "The ticket has been successfully closed.",
       });
+      setCloseDialogOpen(false);
+      setTicketToClose("");
     } catch (error) {
       toast({
         title: "Close failed",
@@ -216,9 +245,10 @@ export function TicketList({
 
   const handleCommentTicket = (ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
-    if (ticket && onTicketClick) {
-      // Open ticket detail view where comments can be added
-      onTicketClick(ticket);
+    if (ticket) {
+      setCommentTicketId(ticket.id);
+      setCommentTicketNumber(ticket.ticketNumber);
+      setCommentDialogOpen(true);
     }
   };
 
@@ -499,6 +529,60 @@ export function TicketList({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Ticket</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this ticket? This action cannot be undone and all ticket data will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTicketToDelete("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteTicket}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Close Confirmation Dialog */}
+      <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close Ticket</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to close this ticket? The ticket will be marked as closed and no further updates can be made without reopening it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTicketToClose("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCloseTicket}>
+              Close Ticket
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Comment Dialog */}
+      <TicketCommentDialog
+        ticketId={commentTicketId}
+        ticketNumber={commentTicketNumber}
+        open={commentDialogOpen}
+        onOpenChange={setCommentDialogOpen}
+      />
+
+      {/* Edit Dialog */}
+      <TicketEditDialog
+        ticket={ticketToEdit}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </div>
   );
 }

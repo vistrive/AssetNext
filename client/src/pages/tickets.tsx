@@ -96,6 +96,7 @@ export default function Tickets() {
           title={pageContent.title}
           description={pageContent.description}
           onAddClick={pageContent.canCreate ? handleCreateTicket : undefined}
+          addButtonText="Create Ticket"
         />
         
         <div className="p-6">

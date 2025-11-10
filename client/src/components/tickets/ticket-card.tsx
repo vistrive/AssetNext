@@ -204,12 +204,28 @@ export function TicketCard({ ticket, onClick, className, onAssign, onUpdateStatu
             >
               {ticket.category}
             </Badge>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <MessageSquare className="h-3 w-3 mr-1" />
-              <span data-testid={`text-ticket-comments-${ticket.id}`}>
-                Comments
-              </span>
-            </div>
+            {canComment && onComment && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onComment(ticket.id);
+                }}
+                className="flex items-center text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              >
+                <MessageSquare className="h-3 w-3 mr-1" />
+                <span data-testid={`text-ticket-comments-${ticket.id}`}>
+                  Comments
+                </span>
+              </button>
+            )}
+            {!canComment && (
+              <div className="flex items-center text-xs text-muted-foreground">
+                <MessageSquare className="h-3 w-3 mr-1" />
+                <span data-testid={`text-ticket-comments-${ticket.id}`}>
+                  Comments
+                </span>
+              </div>
+            )}
           </div>
           
           {/* Role-based action buttons */}
