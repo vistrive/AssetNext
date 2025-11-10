@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
@@ -9,11 +9,23 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Users, Wrench, Settings2 } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function Tickets() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [location] = useLocation();
+
+  // Check for ?action=create query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'create' && user && user.role !== 'technician') {
+      setIsCreateDialogOpen(true);
+      // Clean up URL
+      window.history.replaceState({}, '', '/tickets');
+    }
+  }, [location, user]);
 
   const getPageContent = () => {
     switch (user?.role) {

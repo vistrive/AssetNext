@@ -14,6 +14,7 @@ import {
   Package, 
   Users, 
   Building2,
+  Ticket,
   GripVertical
 } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -32,6 +33,7 @@ function DraggableQuickActions({ position }: { position: { x: number; y: number 
   } = useSortable({ id: 'quick-actions' });
 
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
 
   const handleNavigateToAddAsset = () => {
     setLocation("/assets/new");
@@ -43,6 +45,10 @@ function DraggableQuickActions({ position }: { position: { x: number; y: number 
 
   const handleNavigateToAddVendor = () => {
     setLocation("/vendors/new");
+  };
+
+  const handleNavigateToRaiseTicket = () => {
+    setLocation("/tickets?action=create");
   };
 
   const style = {
@@ -88,6 +94,21 @@ function DraggableQuickActions({ position }: { position: { x: number; y: number 
             Quick Actions
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          
+          {/* Show Raise Ticket for non-technicians */}
+          {user && user.role !== "technician" && (
+            <DropdownMenuItem 
+              onClick={handleNavigateToRaiseTicket}
+              className="flex items-center gap-3 cursor-pointer"
+              data-testid="menu-item-raise-ticket"
+            >
+              <Ticket className="h-4 w-4 text-green-500" />
+              <div className="flex flex-col">
+                <span className="font-medium">Raise Ticket</span>
+                <span className="text-xs text-muted-foreground">Support Request</span>
+              </div>
+            </DropdownMenuItem>
+          )}
           
           <DropdownMenuItem 
             onClick={handleNavigateToAddAsset}

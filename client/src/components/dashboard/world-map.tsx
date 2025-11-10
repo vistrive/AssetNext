@@ -333,10 +333,12 @@ export function WorldMap() {
   // Function to zoom to a specific city
   const zoomToCity = (cityData: CityData) => {
     if (mapInstance && cityData.coordinates) {
-      mapInstance.setView(cityData.coordinates, 11, {
+      mapInstance.setView(cityData.coordinates, 12, {
         animate: true,
         duration: 1.0
       });
+    } else if (!cityData.coordinates) {
+      console.warn(`City ${cityData.name} has no coordinates`);
     }
   };
 

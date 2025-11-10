@@ -5325,7 +5325,7 @@ TENANT_NAME=${tenant.name}
   // ====================== TICKET MANAGEMENT API ======================
   
   // Get tickets (role-based access)
-  app.get("/api/tickets", authenticateToken, async (req: Request, res: Response) => {
+  app.get("/api/tickets", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       let tickets;
@@ -5357,7 +5357,7 @@ TENANT_NAME=${tenant.name}
   });
 
   // Get specific ticket
-  app.get("/api/tickets/:id", authenticateToken, async (req: Request, res: Response) => {
+  app.get("/api/tickets/:id", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const ticketId = req.params.id;
@@ -5477,7 +5477,7 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
 });
 
   // Create new ticket
-  app.post("/api/tickets", authenticateToken, async (req: Request, res: Response) => {
+  app.post("/api/tickets", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       
@@ -5515,7 +5515,7 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
   });
 
   // Update ticket details (only specific fields allowed)
-  app.put("/api/tickets/:id", authenticateToken, async (req: Request, res: Response) => {
+  app.put("/api/tickets/:id", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const ticketId = req.params.id;
@@ -5553,7 +5553,7 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
   });
 
   // Assign ticket (managers and admins only)
-  app.put("/api/tickets/:id/assign", authenticateToken, requireRole("manager"), async (req: Request, res: Response) => {
+  app.put("/api/tickets/:id/assign", authenticateToken, validateUserExists, requireRole("manager"), async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const ticketId = req.params.id;
@@ -5596,7 +5596,7 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
   });
 
   // Update ticket status (technicians, managers, and admins only)
-  app.put("/api/tickets/:id/status", authenticateToken, requireRole("technician"), async (req: Request, res: Response) => {
+  app.put("/api/tickets/:id/status", authenticateToken, validateUserExists, requireRole("technician"), async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const ticketId = req.params.id;

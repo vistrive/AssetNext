@@ -160,13 +160,16 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                  outerRadius={60}
+                  label={({ name, percent }) => {
+                    const percentage = (percent * 100).toFixed(0);
+                    return percentage === '0' ? '' : `${name}\n${percentage}%`;
+                  }}
+                  outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth={2}
-                  style={{ fontSize: '11px', fontWeight: 600 }}
+                  style={{ fontSize: '10px', fontWeight: 600, fill: '#ffffff' }}
                 >
                   {analytics.typeData.map((entry, index) => (
                     <Cell 
@@ -177,12 +180,6 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   ))}
                 </Pie>
                 <Tooltip {...TOOLTIP_STYLE} />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36}
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                />
               </PieChart>
             </ResponsiveContainer>
           </GlassCardContent>
@@ -202,13 +199,16 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                  outerRadius={60}
+                  label={({ name, percent }) => {
+                    const percentage = (percent * 100).toFixed(0);
+                    return percentage === '0' ? '' : `${name}\n${percentage}%`;
+                  }}
+                  outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth={2}
-                  style={{ fontSize: '11px', fontWeight: 600 }}
+                  style={{ fontSize: '10px', fontWeight: 600, fill: '#ffffff' }}
                 >
                   {analytics.statusData.map((entry, index) => (
                     <Cell 
@@ -219,12 +219,6 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   ))}
                 </Pie>
                 <Tooltip {...TOOLTIP_STYLE} />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36}
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                />
               </PieChart>
             </ResponsiveContainer>
           </GlassCardContent>
