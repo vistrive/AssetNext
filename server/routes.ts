@@ -4103,23 +4103,61 @@ TENANT_NAME=${tenant.name}
       }
 
       const citiesPath = path.join(process.cwd(), 'server', 'data', 'cities.json');
+      const statesPath = path.join(process.cwd(), 'server', 'data', 'states.json');
       
       if (!fs.existsSync(citiesPath)) {
         return res.status(404).json({ message: "Cities data not found" });
       }
       
+      if (!fs.existsSync(statesPath)) {
+        return res.status(404).json({ message: "States data not found" });
+      }
+      
       const citiesData = JSON.parse(fs.readFileSync(citiesPath, 'utf8'));
+      const statesData = JSON.parse(fs.readFileSync(statesPath, 'utf8'));
       
-      // Filter cities by state ID
-      const cities = citiesData.cities
-        .filter((city: any) => city.state_id === stateId.toString())
-        .map((city: any) => ({
-          id: city.id,
-          name: city.name,
-          state_id: city.state_id
-        }));
+      // Find the selected state to get its fips_code and country
+      const selectedState = statesData.find((state: any) => state.id === parseInt(stateId as string));
       
-      res.json(cities);
+      if (!selectedState) {
+        return res.json([]); // Return empty array if state not found
+      }
+      
+      // Try multiple matching strategies due to incompatible ID systems between datasets
+      let cities: any[] = [];
+      
+      // Strategy 1: Direct state_id match (works for some datasets)
+      cities = citiesData.cities.filter((city: any) => city.state_id === stateId.toString());
+      
+      // Strategy 2: If few/no results, try matching using fips_code
+      if (cities.length < 10 && selectedState.fips_code) {
+        const fipsCities = citiesData.cities.filter((city: any) => 
+          city.state_id === selectedState.fips_code
+        );
+        if (fipsCities.length > cities.length) {
+          cities = fipsCities;
+        }
+      }
+      
+      // Strategy 3: For Indian states specifically, try offset mapping (4000 offset pattern)
+      if (cities.length < 10 && selectedState.country_id === 101) {
+        const offset = parseInt(stateId as string) - 4000;
+        const offsetCities = citiesData.cities.filter((city: any) => 
+          city.state_id === offset.toString()
+        );
+        if (offsetCities.length > cities.length) {
+          cities = offsetCities;
+        }
+      }
+      
+      // Map and return cities
+      const mappedCities = cities.map((city: any) => ({
+        id: city.id,
+        name: city.name,
+        state_id: city.state_id
+      }));
+      
+      res.json(mappedCities);
     } catch (error) {
       console.error('Failed to load cities:', error);
       res.status(500).json({ message: "Failed to fetch cities data" });
