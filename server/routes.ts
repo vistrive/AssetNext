@@ -4125,29 +4125,41 @@ TENANT_NAME=${tenant.name}
       
       // Try multiple matching strategies due to incompatible ID systems between datasets
       let cities: any[] = [];
+      let bestMatch = { cities: [], strategy: '' };
       
       // Strategy 1: Direct state_id match (works for some datasets)
-      cities = citiesData.cities.filter((city: any) => city.state_id === stateId.toString());
-      
-      // Strategy 2: If few/no results, try matching using fips_code
-      if (cities.length < 10 && selectedState.fips_code) {
-        const fipsCities = citiesData.cities.filter((city: any) => 
-          city.state_id === selectedState.fips_code
-        );
-        if (fipsCities.length > cities.length) {
-          cities = fipsCities;
-        }
+      const directCities = citiesData.cities.filter((city: any) => city.state_id === stateId.toString());
+      if (directCities.length > bestMatch.cities.length) {
+        bestMatch = { cities: directCities, strategy: 'direct' };
       }
       
-      // Strategy 3: For Indian states specifically, try offset mapping (4000 offset pattern)
-      if (cities.length < 10 && selectedState.country_id === 101) {
+      // Strategy 2: For Indian states, try offset mapping (4000 offset pattern)
+      // Indian states have IDs 4000+ but cities use simple sequential IDs
+      if (selectedState.country_id === 101) {
         const offset = parseInt(stateId as string) - 4000;
         const offsetCities = citiesData.cities.filter((city: any) => 
           city.state_id === offset.toString()
         );
-        if (offsetCities.length > cities.length) {
-          cities = offsetCities;
+        if (offsetCities.length > bestMatch.cities.length) {
+          bestMatch = { cities: offsetCities, strategy: 'india-offset' };
         }
+      }
+      
+      // Strategy 3: Try matching using fips_code (fallback for other countries)
+      if (selectedState.fips_code && bestMatch.cities.length < 50) {
+        const fipsCities = citiesData.cities.filter((city: any) => 
+          city.state_id === selectedState.fips_code
+        );
+        if (fipsCities.length > bestMatch.cities.length) {
+          bestMatch = { cities: fipsCities, strategy: 'fips' };
+        }
+      }
+      
+      cities = bestMatch.cities;
+      
+      // Log for debugging
+      if (cities.length > 0) {
+        console.log(`[Cities API] State ${selectedState.name} (ID: ${stateId}): Found ${cities.length} cities using ${bestMatch.strategy} strategy`);
       }
       
       // Map and return cities
