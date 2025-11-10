@@ -20,7 +20,8 @@ export default function Tickets() {
   // Check for ?action=create query parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('action') === 'create' && user && user.role !== 'technician') {
+    const canCreateTicket = user && ['super-admin', 'admin', 'it-manager'].includes(user.role);
+    if (params.get('action') === 'create' && canCreateTicket) {
       setIsCreateDialogOpen(true);
       // Clean up URL
       window.history.replaceState({}, '', '/tickets');
@@ -29,14 +30,6 @@ export default function Tickets() {
 
   const getPageContent = () => {
     switch (user?.role) {
-      case "employee":
-        return {
-          title: "My Support Tickets",
-          description: "View your support requests and create new tickets",
-          icon: <Users className="h-5 w-5" />,
-          canCreate: true,
-          filterByRole: "employee"
-        };
       case "technician":
         return {
           title: "Assigned Tickets",
@@ -45,13 +38,13 @@ export default function Tickets() {
           canCreate: false,
           filterByRole: "technician"
         };
-      case "manager":
+      case "it-manager":
         return {
           title: "Team Tickets",
-          description: "Overview of all tickets and team management",
+          description: "Create, assign, and manage all tickets in your organization",
           icon: <Settings2 className="h-5 w-5" />,
           canCreate: true,
-          filterByRole: "manager"
+          filterByRole: "it-manager"
         };
       case "admin":
         return {
@@ -61,13 +54,21 @@ export default function Tickets() {
           canCreate: true,
           filterByRole: "admin"
         };
+      case "super-admin":
+        return {
+          title: "All Tickets",
+          description: "Complete ticket management and system administration",
+          icon: <Settings2 className="h-5 w-5" />,
+          canCreate: true,
+          filterByRole: "super-admin"
+        };
       default:
         return {
           title: "Support Tickets",
           description: "Ticket management system",
           icon: <Users className="h-5 w-5" />,
           canCreate: false,
-          filterByRole: "employee"
+          filterByRole: "technician"
         };
     }
   };

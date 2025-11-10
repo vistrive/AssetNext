@@ -11,9 +11,11 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { ChevronsUpDown, Check, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronsUpDown, Check, Plus, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { authenticatedRequest } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { insertTicketSchema, type InsertTicket, type Asset } from "@shared/schema";
@@ -25,6 +27,10 @@ const ticketFormSchema = insertTicketSchema.pick({
   category: true,
   priority: true,
   assetId: true,
+}).extend({
+  // Admin-only fields for creating tickets on behalf of users
+  requestorId: z.string().optional(),
+  assignedToId: z.string().optional(),
 });
 
 type TicketFormData = z.infer<typeof ticketFormSchema>;
@@ -33,6 +39,14 @@ interface TicketFormProps {
   onSuccess?: (ticket: any) => void;
   onCancel?: () => void;
   defaultValues?: Partial<TicketFormData>;
+}
+
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
 }
 
 interface AssetSelectProps {
@@ -105,8 +119,104 @@ function AssetSelect({ value, onValueChange, placeholder, dataTestId }: AssetSel
   );
 }
 
+interface UserSelectProps {
+  value?: string;
+  onValueChange: (value: string) => void;
+  placeholder: string;
+  dataTestId: string;
+  roleFilter?: string[];
+  showRoleBadge?: boolean;
+}
+
+function UserSelect({ value, onValueChange, placeholder, dataTestId, roleFilter, showRoleBadge }: UserSelectProps) {
+  const [open, setOpen] = useState(false);
+
+  const { data: users = [], isLoading } = useQuery<User[]>({
+    queryKey: ['/api/users'],
+  });
+
+  const filteredUsers = roleFilter
+    ? users.filter(user => roleFilter.includes(user.role))
+    : users;
+
+  const selectedUser = filteredUsers.find(user => user.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          data-testid={dataTestId}
+        >
+          {selectedUser ? (
+            <div className="flex items-center gap-2">
+              <span>{`${selectedUser.firstName} ${selectedUser.lastName}`}</span>
+              {showRoleBadge && (
+                <Badge variant="secondary" className="text-xs capitalize">
+                  {selectedUser.role}
+                </Badge>
+              )}
+            </div>
+          ) : (
+            placeholder
+          )}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0">
+        <Command>
+          <CommandInput placeholder="Search users..." />
+          <CommandList>
+            <CommandEmpty>No users found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value=""
+                onSelect={() => {
+                  onValueChange("");
+                  setOpen(false);
+                }}
+              >
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                Not assigned
+              </CommandItem>
+              {filteredUsers.map((user) => (
+                <CommandItem
+                  key={user.id}
+                  value={user.id}
+                  onSelect={() => {
+                    onValueChange(user.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", value === user.id ? "opacity-100" : "opacity-0")} />
+                  <div className="flex flex-col flex-1">
+                    <div className="flex items-center gap-2">
+                      <span>{`${user.firstName} ${user.lastName}`}</span>
+                      <Badge variant="secondary" className="text-xs capitalize">
+                        {user.role}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{user.email}</span>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormProps) {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+
+  // Check if current user can create tickets on behalf of others
+  const isAdmin = currentUser && ['super-admin', 'admin', 'it-manager'].includes(currentUser.role);
 
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketFormSchema),
@@ -116,14 +226,18 @@ export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormPro
       category: "general",
       priority: "medium",
       assetId: "",
+      requestorId: "",
+      assignedToId: "",
       ...defaultValues,
     },
   });
 
   const createTicketMutation = useMutation<any, Error, TicketFormData>({
     mutationFn: async (data: TicketFormData) => {
-      // Remove assetId if empty and add assetName for the backend
+      // Prepare ticket data
       const ticketData: any = { ...data };
+      
+      // Remove assetId if empty and add assetName for the backend
       if (!ticketData.assetId) {
         delete ticketData.assetId;
         delete ticketData.assetName;
@@ -136,6 +250,31 @@ export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormPro
         }
       }
 
+      // If admin is creating on behalf of someone, add requestor details
+      if (isAdmin && ticketData.requestorId) {
+        const users = queryClient.getQueryData<User[]>(['/api/users']) || [];
+        const requestor = users.find((u: User) => u.id === ticketData.requestorId);
+        if (requestor) {
+          ticketData.requestorName = `${requestor.firstName} ${requestor.lastName}`;
+          ticketData.requestorEmail = requestor.email;
+        }
+      } else {
+        // Remove requestorId if not set (will use current user on backend)
+        delete ticketData.requestorId;
+      }
+
+      // If assigning to a technician, add their details
+      if (ticketData.assignedToId) {
+        const users = queryClient.getQueryData<User[]>(['/api/users']) || [];
+        const assignee = users.find((u: User) => u.id === ticketData.assignedToId);
+        if (assignee) {
+          ticketData.assignedToName = `${assignee.firstName} ${assignee.lastName}`;
+        }
+      } else {
+        delete ticketData.assignedToId;
+        delete ticketData.assignedToName;
+      }
+
       const response = await authenticatedRequest("POST", "/api/tickets", ticketData);
       return response.json();
     },
@@ -144,7 +283,7 @@ export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormPro
       form.reset();
       toast({
         title: "Ticket created",
-        description: "Your support ticket has been created successfully.",
+        description: `Ticket #${ticket.ticketNumber} has been created successfully.`,
       });
       onSuccess?.(ticket);
     },
@@ -164,6 +303,65 @@ export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormPro
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Admin-only fields for creating tickets on behalf of users */}
+        {isAdmin && (
+          <div className="space-y-6 p-4 border border-blue-500/20 rounded-lg bg-blue-500/5">
+            <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 font-medium">
+              <User className="h-4 w-4" />
+              Administrative Options
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="requestorId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Create For User (Optional)</FormLabel>
+                    <FormControl>
+                      <UserSelect
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        placeholder="Select user (defaults to yourself)"
+                        dataTestId="select-ticket-requestor"
+                        showRoleBadge={true}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Leave empty to create ticket as yourself.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="assignedToId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assign To Technician (Optional)</FormLabel>
+                    <FormControl>
+                      <UserSelect
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        placeholder="Select technician"
+                        dataTestId="select-ticket-assignee"
+                        roleFilter={['technician']}
+                        showRoleBadge={false}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Assign to a technician immediately.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="title"

@@ -5330,22 +5330,25 @@ TENANT_NAME=${tenant.name}
       const user = req.user!;
       let tickets;
 
-      // Role-based access control
-      switch (user.role) {
-        case "employee":
-          // Employees can only see their own tickets
-          tickets = await storage.getTicketsByRequestor(user.userId, user.tenantId);
-          break;
+      // Role-based access control - apply role migration for backward compatibility
+      const migratedRole = user.role; // Already migrated in JWT token generation
+      
+      console.log(`[GET /api/tickets] User: ${user.email}, Role: ${migratedRole}`);
+      
+      switch (migratedRole) {
         case "technician":
           // Technicians can see tickets assigned to them
           tickets = await storage.getTicketsByAssignee(user.userId, user.tenantId);
           break;
-        case "manager":
+        case "it-manager":
         case "admin":
-          // Managers and admins can see all tickets in their tenant
+        case "super-admin":
+          // Managers, admins, and super-admins can see all tickets in their tenant
           tickets = await storage.getAllTickets(user.tenantId);
           break;
         default:
+          // Fallback for any unknown roles - log and deny
+          console.error(`[GET /api/tickets] Unknown role: ${migratedRole} for user ${user.email}`);
           return res.status(403).json({ message: "Invalid role" });
       }
 
@@ -5368,8 +5371,9 @@ TENANT_NAME=${tenant.name}
       }
 
       // Role-based access control
-      const canAccess = user.role === "admin" || 
-                       user.role === "manager" ||
+      const canAccess = user.role === "super-admin" ||
+                       user.role === "admin" || 
+                       user.role === "it-manager" ||
                        ticket.requestorId === user.userId ||
                        ticket.assignedToId === user.userId;
       
@@ -5492,15 +5496,69 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
         return res.status(401).json({ message: "User not found" });
       }
 
+      // Determine the requestor (either specified user for admins or current user)
+      let requestorId = user.userId;
+      let requestorName = `${fullUser.firstName} ${fullUser.lastName}`;
+      let requestorEmail = fullUser.email;
+
+      // If admin/super-admin/it-manager is creating on behalf of someone else
+      if (['super-admin', 'admin', 'it-manager'].includes(user.role) && req.body.requestorId) {
+        const requestorUser = await storage.getUser(req.body.requestorId);
+        if (!requestorUser || requestorUser.tenantId !== user.tenantId) {
+          return res.status(400).json({ message: "Invalid requestor user" });
+        }
+        requestorId = requestorUser.id;
+        requestorName = req.body.requestorName || `${requestorUser.firstName} ${requestorUser.lastName}`;
+        requestorEmail = req.body.requestorEmail || requestorUser.email;
+      }
+
+      // Handle ticket assignment if provided
+      let assignmentData: any = {};
+      if (req.body.assignedToId) {
+        const assignee = await storage.getUser(req.body.assignedToId);
+        if (!assignee || assignee.tenantId !== user.tenantId || assignee.role !== 'technician') {
+          return res.status(400).json({ message: "Invalid technician for assignment" });
+        }
+        assignmentData = {
+          assignedToId: assignee.id,
+          assignedToName: req.body.assignedToName || `${assignee.firstName} ${assignee.lastName}`,
+          assignedById: user.userId,
+          assignedByName: `${fullUser.firstName} ${fullUser.lastName}`,
+          assignedAt: new Date(),
+          status: 'in-progress', // Auto-progress status when assigned
+        };
+      }
+
       // Parse and validate request body
       const ticketData = insertTicketSchema.parse({
         ...req.body,
-        requestorId: user.userId,
-        requestorName: `${fullUser.firstName} ${fullUser.lastName}`,
+        requestorId,
+        requestorName,
+        requestorEmail,
+        ...assignmentData,
         tenantId: user.tenantId
       });
 
       const ticket = await storage.createTicket(ticketData);
+      
+      // Log ticket creation
+      await auditLogger.log({
+        action: AuditActions.CREATE,
+        resourceType: ResourceTypes.TICKET,
+        resourceId: ticket.id,
+        userId: user.userId,
+        userRole: user.role,
+        tenantId: user.tenantId,
+        description: `Created ticket: ${ticket.title} (${ticket.ticketNumber})${requestorId !== user.userId ? ` on behalf of ${requestorName}` : ''}${assignmentData.assignedToId ? ` and assigned to ${assignmentData.assignedToName}` : ''}`,
+        metadata: {
+          ticketNumber: ticket.ticketNumber,
+          category: ticket.category,
+          priority: ticket.priority,
+          requestorId,
+          assignedToId: assignmentData.assignedToId
+        }
+      });
+
       res.status(201).json(ticket);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -5553,7 +5611,7 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
   });
 
   // Assign ticket (managers and admins only)
-  app.put("/api/tickets/:id/assign", authenticateToken, validateUserExists, requireRole("manager"), async (req: Request, res: Response) => {
+  app.put("/api/tickets/:id/assign", authenticateToken, validateUserExists, requireRole("it-manager"), async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const ticketId = req.params.id;

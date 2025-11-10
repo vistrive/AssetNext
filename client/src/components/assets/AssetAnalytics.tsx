@@ -160,16 +160,50 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => {
+                  label={(props) => {
+                    const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props;
                     const percentage = (percent * 100).toFixed(0);
-                    return percentage === '0' ? '' : `${name}\n${percentage}%`;
+                    if (percentage === '0') return null;
+
+                    // Calculate position
+                    const RADIAN = Math.PI / 180;
+                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                    // Dynamic font size based on percentage and name length
+                    const baseSize = 9;
+                    const lengthFactor = name.length > 8 ? 0.8 : 1;
+                    const percentageFactor = percent > 0.15 ? 1 : 0.85;
+                    const fontSize = Math.max(7, baseSize * lengthFactor * percentageFactor);
+
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        style={{ 
+                          fontSize: `${fontSize}px`, 
+                          fontWeight: 600,
+                          textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                        }}
+                      >
+                        <tspan x={x} dy="-0.5em">{percentage}%</tspan>
+                        {percent > 0.08 && (
+                          <tspan x={x} dy="1.2em" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                            {name}
+                          </tspan>
+                        )}
+                      </text>
+                    );
                   }}
-                  outerRadius={80}
+                  outerRadius={75}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth={2}
-                  style={{ fontSize: '10px', fontWeight: 600, fill: '#ffffff' }}
                 >
                   {analytics.typeData.map((entry, index) => (
                     <Cell 
@@ -199,16 +233,50 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => {
+                  label={(props) => {
+                    const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props;
                     const percentage = (percent * 100).toFixed(0);
-                    return percentage === '0' ? '' : `${name}\n${percentage}%`;
+                    if (percentage === '0') return null;
+
+                    // Calculate position
+                    const RADIAN = Math.PI / 180;
+                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                    // Dynamic font size based on percentage and name length
+                    const baseSize = 9;
+                    const lengthFactor = name.length > 8 ? 0.8 : 1;
+                    const percentageFactor = percent > 0.15 ? 1 : 0.85;
+                    const fontSize = Math.max(7, baseSize * lengthFactor * percentageFactor);
+
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        style={{ 
+                          fontSize: `${fontSize}px`, 
+                          fontWeight: 600,
+                          textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                        }}
+                      >
+                        <tspan x={x} dy="-0.5em">{percentage}%</tspan>
+                        {percent > 0.08 && (
+                          <tspan x={x} dy="1.2em" style={{ fontSize: `${fontSize * 0.85}px` }}>
+                            {name}
+                          </tspan>
+                        )}
+                      </text>
+                    );
                   }}
-                  outerRadius={80}
+                  outerRadius={75}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth={2}
-                  style={{ fontSize: '10px', fontWeight: 600, fill: '#ffffff' }}
                 >
                   {analytics.statusData.map((entry, index) => (
                     <Cell 
@@ -253,15 +321,17 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                     angle={-45} 
                     textAnchor="end" 
                     height={80}
-                    fontSize={10}
-                    stroke="#9CA3AF"
-                    tick={{ fill: '#9CA3AF' }}
+                    fontSize={11}
+                    stroke="#E5E7EB"
+                    tick={{ fill: '#E5E7EB', fontWeight: 600 }}
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}
                   />
                   <YAxis 
-                    fontSize={10} 
+                    fontSize={11} 
                     allowDecimals={false} 
-                    stroke="#9CA3AF"
-                    tick={{ fill: '#9CA3AF' }}
+                    stroke="#E5E7EB"
+                    tick={{ fill: '#E5E7EB', fontWeight: 600 }}
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}
                   />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <Bar 
@@ -301,15 +371,17 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                     angle={-45} 
                     textAnchor="end" 
                     height={80}
-                    fontSize={10}
-                    stroke="#9CA3AF"
-                    tick={{ fill: '#9CA3AF' }}
+                    fontSize={11}
+                    stroke="#E5E7EB"
+                    tick={{ fill: '#E5E7EB', fontWeight: 600 }}
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}
                   />
                   <YAxis 
-                    fontSize={10} 
+                    fontSize={11} 
                     allowDecimals={false} 
-                    stroke="#9CA3AF"
-                    tick={{ fill: '#9CA3AF' }}
+                    stroke="#E5E7EB"
+                    tick={{ fill: '#E5E7EB', fontWeight: 600 }}
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}
                   />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <Bar 
@@ -346,15 +418,17 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                     angle={-45} 
                     textAnchor="end" 
                     height={80}
-                    fontSize={10}
-                    stroke="#9CA3AF"
-                    tick={{ fill: '#9CA3AF' }}
+                    fontSize={11}
+                    stroke="#E5E7EB"
+                    tick={{ fill: '#E5E7EB', fontWeight: 600 }}
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}
                   />
                   <YAxis 
-                    fontSize={10} 
+                    fontSize={11} 
                     allowDecimals={false} 
-                    stroke="#9CA3AF"
-                    tick={{ fill: '#9CA3AF' }}
+                    stroke="#E5E7EB"
+                    tick={{ fill: '#E5E7EB', fontWeight: 600 }}
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}
                   />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <Bar 
