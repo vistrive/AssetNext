@@ -39,6 +39,8 @@ interface TicketFormProps {
   onSuccess?: (ticket: any) => void;
   onCancel?: () => void;
   defaultValues?: Partial<TicketFormData>;
+  mode?: "create" | "edit";
+  ticketId?: string;
 }
 
 interface User {
@@ -211,7 +213,7 @@ function UserSelect({ value, onValueChange, placeholder, dataTestId, roleFilter,
   );
 }
 
-export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormProps) {
+export function TicketForm({ onSuccess, onCancel, defaultValues, mode = "create", ticketId }: TicketFormProps) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
 
@@ -275,15 +277,19 @@ export function TicketForm({ onSuccess, onCancel, defaultValues }: TicketFormPro
         delete ticketData.assignedToName;
       }
 
-      const response = await authenticatedRequest("POST", "/api/tickets", ticketData);
+      // Use PUT for edit mode, POST for create mode
+      const method = mode === "edit" ? "PUT" : "POST";
+      const url = mode === "edit" ? `/api/tickets/${ticketId}` : "/api/tickets";
+      const response = await authenticatedRequest(method, url, ticketData);
       return response.json();
     },
     onSuccess: (ticket) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
       form.reset();
+      const actionText = mode === "edit" ? "updated" : "created";
       toast({
-        title: "Ticket created",
-        description: `Ticket #${ticket.ticketNumber} has been created successfully.`,
+        title: `Ticket ${actionText}`,
+        description: `Ticket #${ticket.ticketNumber} has been ${actionText} successfully.`,
       });
       onSuccess?.(ticket);
     },

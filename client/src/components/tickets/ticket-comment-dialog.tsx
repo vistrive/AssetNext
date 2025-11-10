@@ -93,7 +93,8 @@ export function TicketCommentDialog({ ticketId, ticketNumber, open, onOpenChange
     }
   };
 
-  const formatRole = (role: string) => {
+  const formatRole = (role?: string) => {
+    if (!role) return 'Unknown Role';
     return role.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 

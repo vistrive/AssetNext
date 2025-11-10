@@ -307,16 +307,6 @@ export function TicketList({
             {filteredTickets.length} of {tickets.length} tickets
           </p>
         </div>
-        {showCreateButton && onCreateTicket && (
-          <Button 
-            onClick={onCreateTicket} 
-            data-testid="button-create-ticket"
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Ticket
-          </Button>
-        )}
       </div>
 
       {/* Search and Filters */}
