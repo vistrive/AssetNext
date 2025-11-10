@@ -4,7 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { MapPin, Globe, Flag, Building2 } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MapPin, Globe, Flag, Building2, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { authenticatedRequest } from "@/lib/auth";
 
 interface Country {
@@ -257,33 +260,57 @@ export function LocationSelector({
             </div>
           )}
 
-          {/* City Selection - Predefined dropdown cascading from state */}
+          {/* City Selection - Searchable combobox with all cities */}
           {selectedState && (
             <div className="space-y-2">
               <Label className="flex items-center gap-1 text-sm text-muted-foreground">
                 <MapPin className="h-3 w-3" />
-                City/Location
+                City/Location {cities.length > 0 && <span className="text-xs opacity-70">({cities.length} cities)</span>}
               </Label>
-              <Select 
-                value={city || ""} 
-                onValueChange={handleCityChange}
-                disabled={isLoadingCities || cities.length === 0}
-              >
-                <SelectTrigger data-testid="select-city">
-                  <SelectValue placeholder={
-                    isLoadingCities ? "Loading cities..." : 
-                    cities.length === 0 ? "No cities available" :
-                    "Select city"
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {cities.map((c) => (
-                    <SelectItem key={c.id} value={c.name}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    disabled={isLoadingCities || cities.length === 0}
+                    className={cn(
+                      "w-full justify-between font-normal",
+                      !city && "text-muted-foreground"
+                    )}
+                    data-testid="select-city"
+                  >
+                    {city || (isLoadingCities ? "Loading cities..." : 
+                      cities.length === 0 ? "No cities available" :
+                      `Search ${cities.length} cities...`)}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search city..." />
+                    <CommandEmpty>No city found.</CommandEmpty>
+                    <CommandGroup className="max-h-[300px] overflow-auto">
+                      {cities.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={c.name}
+                          onSelect={(currentValue) => {
+                            handleCityChange(currentValue === city ? "" : currentValue);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              city === c.name ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {c.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 
