@@ -62,14 +62,6 @@ export function LocationSelector({
         const response = await authenticatedRequest('GET', '/api/geographic/countries');
         const countriesData = await response.json();
         setCountries(countriesData);
-        
-        // If there's a pre-selected country, find and set it
-        if (country) {
-          const foundCountry = countriesData.find((c: Country) => c.name === country);
-          if (foundCountry) {
-            setSelectedCountry(foundCountry);
-          }
-        }
       } catch (error) {
         console.error('Failed to load countries:', error);
       } finally {
@@ -78,13 +70,24 @@ export function LocationSelector({
     };
 
     loadCountries();
-  }, [country]);
+  }, []);
+  
+  // Update selected country when country prop changes
+  useEffect(() => {
+    if (country && countries.length > 0) {
+      const foundCountry = countries.find((c: Country) => c.name === country);
+      if (foundCountry && foundCountry.id !== selectedCountry?.id) {
+        setSelectedCountry(foundCountry);
+      }
+    }
+  }, [country, countries]);
 
   // Load states when country changes
   useEffect(() => {
     const loadStates = async () => {
       if (!selectedCountry) {
         setStates([]);
+        setSelectedState(null);
         return;
       }
 
@@ -103,6 +106,16 @@ export function LocationSelector({
 
     loadStates();
   }, [selectedCountry]);
+  
+  // Update selected state when state prop changes
+  useEffect(() => {
+    if (state && states.length > 0) {
+      const foundState = states.find((s: State) => s.name === state);
+      if (foundState && foundState.id !== selectedState?.id) {
+        setSelectedState(foundState);
+      }
+    }
+  }, [state, states]);
 
   // Load cities when state changes
   useEffect(() => {

@@ -4162,12 +4162,39 @@ TENANT_NAME=${tenant.name}
         console.log(`[Cities API] State ${selectedState.name} (ID: ${stateId}): Found ${cities.length} cities using ${bestMatch.strategy} strategy`);
       }
       
+      // Filter and prioritize major cities over localities
+      // If we have too many results (>100), likely contains localities - filter to major cities only
+      if (cities.length > 100) {
+        // Prioritize cities with shorter names (major cities tend to have simpler names)
+        // and sort alphabetically for better UX
+        cities = cities
+          .filter((city: any) => {
+            const name = city.name.toLowerCase();
+            // Filter out obvious localities (containing common locality keywords)
+            const localityKeywords = ['village', 'colony', 'nagar', 'puram', 'pet', 'pally', 'patti', 'pur', 'guda'];
+            return !localityKeywords.some(keyword => name.endsWith(keyword));
+          })
+          .sort((a: any, b: any) => {
+            // Prioritize shorter names (major cities)
+            if (a.name.length !== b.name.length) {
+              return a.name.length - b.name.length;
+            }
+            // Then alphabetically
+            return a.name.localeCompare(b.name);
+          })
+          .slice(0, 50); // Limit to top 50 major cities
+          
+        console.log(`[Cities API] Filtered ${selectedState.name} from ${bestMatch.cities.length} to ${cities.length} major cities`);
+      }
+      
       // Map and return cities
-      const mappedCities = cities.map((city: any) => ({
-        id: city.id,
-        name: city.name,
-        state_id: city.state_id
-      }));
+      const mappedCities = cities
+        .map((city: any) => ({
+          id: city.id,
+          name: city.name,
+          state_id: city.state_id
+        }))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
       
       res.json(mappedCities);
     } catch (error) {
