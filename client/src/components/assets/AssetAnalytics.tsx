@@ -160,12 +160,13 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth={2}
+                  style={{ fontSize: '11px', fontWeight: 600 }}
                 >
                   {analytics.typeData.map((entry, index) => (
                     <Cell 
@@ -176,6 +177,12 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   ))}
                 </Pie>
                 <Tooltip {...TOOLTIP_STYLE} />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </GlassCardContent>
@@ -195,12 +202,13 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth={2}
+                  style={{ fontSize: '11px', fontWeight: 600 }}
                 >
                   {analytics.statusData.map((entry, index) => (
                     <Cell 
@@ -211,6 +219,12 @@ export function AssetAnalytics({ assets }: AssetAnalyticsProps) {
                   ))}
                 </Pie>
                 <Tooltip {...TOOLTIP_STYLE} />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </GlassCardContent>
