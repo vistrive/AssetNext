@@ -5655,7 +5655,7 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
   });
 
   // Update ticket status (technicians, managers, and admins only)
-  app.put("/api/tickets/:id/status", authenticateToken, validateUserExists, requireRole("technician"), async (req: Request, res: Response) => {
+  app.put("/api/tickets/:id/status", authenticateToken, validateUserExists, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const ticketId = req.params.id;
@@ -5671,10 +5671,11 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
         return res.status(404).json({ message: "Ticket not found" });
       }
 
-      // Role-based access control
-      const canUpdateStatus = user.role === "admin" || 
-                             user.role === "manager" ||
-                             existingTicket.assignedToId === user.userId;
+      // Role-based access control - allow super-admin, admin, it-manager, and assigned technicians
+      const canUpdateStatus = user.role === "super-admin" ||
+                             user.role === "admin" || 
+                             user.role === "it-manager" ||
+                             (user.role === "technician" && existingTicket.assignedToId === user.userId);
       
       if (!canUpdateStatus) {
         return res.status(403).json({ message: "Access denied" });

@@ -14,9 +14,9 @@ import { formatDistanceToNow } from "date-fns";
 interface TicketComment {
   id: string;
   ticketId: string;
-  userId: string;
-  userName: string;
-  userRole: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
   content: string;
   createdAt: string;
 }
@@ -131,10 +131,10 @@ export function TicketCommentDialog({ ticketId, ticketNumber, open, onOpenChange
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-text-primary">
-                          {comment.userName}
+                          {comment.authorName}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${getRoleBadgeColor(comment.userRole)}`}>
-                          {formatRole(comment.userRole)}
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${getRoleBadgeColor(comment.authorRole)}`}>
+                          {formatRole(comment.authorRole)}
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground">
