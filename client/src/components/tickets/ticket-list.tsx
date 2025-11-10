@@ -162,6 +162,66 @@ export function TicketList({
     });
   };
 
+  // New action handlers
+  const handleEditTicket = (ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (ticket && onTicketClick) {
+      onTicketClick(ticket);
+    }
+  };
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await authenticatedRequest("DELETE", `/api/tickets/${ticketId}`);
+      queryClient.invalidateQueries({ queryKey: [apiUrl] });
+      toast({
+        title: "Ticket deleted",
+        description: "The ticket has been successfully deleted.",
+      });
+    } catch (error) {
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete ticket. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCloseTicket = async (ticketId: string) => {
+    if (!confirm('Are you sure you want to close this ticket?')) {
+      return;
+    }
+    
+    try {
+      await authenticatedRequest("PUT", `/api/tickets/${ticketId}/status`, {
+        status: 'closed',
+      });
+      queryClient.invalidateQueries({ queryKey: [apiUrl] });
+      toast({
+        title: "Ticket closed",
+        description: "The ticket has been successfully closed.",
+      });
+    } catch (error) {
+      toast({
+        title: "Close failed",
+        description: "Failed to close ticket. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCommentTicket = (ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (ticket && onTicketClick) {
+      // Open ticket detail view where comments can be added
+      onTicketClick(ticket);
+    }
+  };
+
   // Filter tickets based on search and filter criteria
   const filteredTickets = tickets.filter(ticket => {
     const matchesSearch = searchTerm === "" || 
@@ -218,7 +278,11 @@ export function TicketList({
           </p>
         </div>
         {showCreateButton && onCreateTicket && (
-          <Button onClick={onCreateTicket} data-testid="button-create-ticket">
+          <Button 
+            onClick={onCreateTicket} 
+            data-testid="button-create-ticket"
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Create Ticket
           </Button>
@@ -330,6 +394,10 @@ export function TicketList({
                 onClick={() => onTicketClick?.(ticket)}
                 onAssign={handleAssignTicket}
                 onUpdateStatus={handleUpdateStatus}
+                onEdit={handleEditTicket}
+                onDelete={handleDeleteTicket}
+                onClose={handleCloseTicket}
+                onComment={handleCommentTicket}
               />
             ))}
           </div>

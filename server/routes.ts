@@ -5725,10 +5725,11 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
         return res.status(404).json({ message: "Ticket not found" });
       }
 
-      const canAccess = user.role === "admin" || 
-                       user.role === "manager" ||
+      const canAccess = user.role === "super-admin" ||
+                       user.role === "admin" || 
+                       user.role === "it-manager" ||
                        ticket.requestorId === user.userId ||
-                       ticket.assignedToId === user.userId;
+                       (user.role === "technician" && ticket.assignedToId === user.userId);
       
       if (!canAccess) {
         return res.status(403).json({ message: "Access denied" });
@@ -5754,10 +5755,11 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
         return res.status(404).json({ message: "Ticket not found" });
       }
 
-      const canComment = user.role === "admin" || 
-                        user.role === "manager" ||
+      const canComment = user.role === "super-admin" ||
+                        user.role === "admin" || 
+                        user.role === "it-manager" ||
                         ticket.requestorId === user.userId ||
-                        ticket.assignedToId === user.userId;
+                        (user.role === "technician" && ticket.assignedToId === user.userId);
       
       if (!canComment) {
         return res.status(403).json({ message: "Access denied" });

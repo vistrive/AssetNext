@@ -2,7 +2,8 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, User, MessageSquare, AlertCircle, UserPlus, CheckCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Calendar, User, MessageSquare, AlertCircle, UserPlus, CheckCircle, MoreVertical, Edit, Trash2, XCircle, MessageCircle } from "lucide-react";
 import { TicketStatusBadge } from "./ticket-status-badge";
 import { TicketPriorityBadge } from "./ticket-priority-badge";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,10 +16,19 @@ interface TicketCardProps {
   className?: string;
   onAssign?: (ticketId: string) => void;
   onUpdateStatus?: (ticketId: string) => void;
+  onEdit?: (ticketId: string) => void;
+  onDelete?: (ticketId: string) => void;
+  onClose?: (ticketId: string) => void;
+  onComment?: (ticketId: string) => void;
 }
 
-export function TicketCard({ ticket, onClick, className, onAssign, onUpdateStatus }: TicketCardProps) {
+export function TicketCard({ ticket, onClick, className, onAssign, onUpdateStatus, onEdit, onDelete, onClose, onComment }: TicketCardProps) {
   const { user } = useAuth();
+  
+  // Check if user can perform actions
+  const canManageTicket = user && ['super-admin', 'admin', 'it-manager'].includes(user.role);
+  const isAssignedTechnician = user?.role === 'technician' && ticket.assignedToId === user.id;
+  const canComment = canManageTicket || isAssignedTechnician;
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -72,6 +82,67 @@ export function TicketCard({ ticket, onClick, className, onAssign, onUpdateStatu
           <div className="flex items-center space-x-2">
             <TicketPriorityBadge priority={ticket.priority as any} />
             <TicketStatusBadge status={ticket.status as any} />
+            
+            {/* Action Menu */}
+            {(canManageTicket || isAssignedTechnician) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  {canComment && onComment && (
+                    <DropdownMenuItem onClick={(e) => {
+                      e.stopPropagation();
+                      onComment(ticket.id);
+                    }}>
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Comment
+                    </DropdownMenuItem>
+                  )}
+                  
+                  {canManageTicket && onEdit && ticket.status !== 'closed' && (
+                    <DropdownMenuItem onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(ticket.id);
+                    }}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Ticket
+                    </DropdownMenuItem>
+                  )}
+                  
+                  {canManageTicket && onClose && ticket.status !== 'closed' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        onClose(ticket.id);
+                      }}>
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Close Ticket
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  
+                  {canManageTicket && onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(ticket.id);
+                        }}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Ticket
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       </CardHeader>
