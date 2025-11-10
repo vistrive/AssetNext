@@ -99,7 +99,11 @@ export default function Tickets() {
         />
         
         <div className="p-6">
-          <TicketList />
+          <TicketList 
+            onCreateTicket={pageContent.canCreate ? handleCreateTicket : undefined}
+            showCreateButton={pageContent.canCreate}
+            title="Support Tickets"
+          />
         </div>
       </main>
       

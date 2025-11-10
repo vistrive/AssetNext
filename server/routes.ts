@@ -5542,22 +5542,23 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
       const ticket = await storage.createTicket(ticketData);
       
       // Log ticket creation
-      await auditLogger.log({
-        action: AuditActions.CREATE,
-        resourceType: ResourceTypes.TICKET,
-        resourceId: ticket.id,
-        userId: user.userId,
-        userRole: user.role,
-        tenantId: user.tenantId,
-        description: `Created ticket: ${ticket.title} (${ticket.ticketNumber})${requestorId !== user.userId ? ` on behalf of ${requestorName}` : ''}${assignmentData.assignedToId ? ` and assigned to ${assignmentData.assignedToName}` : ''}`,
-        metadata: {
-          ticketNumber: ticket.ticketNumber,
-          category: ticket.category,
-          priority: ticket.priority,
-          requestorId,
-          assignedToId: assignmentData.assignedToId
-        }
-      });
+      await auditLogger.logActivity(
+        auditLogger.createUserContext(req),
+        {
+          action: AuditActions.TICKET_CREATE,
+          resourceType: ResourceTypes.TICKET,
+          resourceId: ticket.id,
+          description: `Created ticket: ${ticket.title} (${ticket.ticketNumber})${requestorId !== user.userId ? ` on behalf of ${requestorName}` : ''}${assignmentData.assignedToId ? ` and assigned to ${assignmentData.assignedToName}` : ''}`,
+          metadata: {
+            ticketNumber: ticket.ticketNumber,
+            category: ticket.category,
+            priority: ticket.priority,
+            requestorId,
+            assignedToId: assignmentData.assignedToId
+          }
+        },
+        req
+      );
 
       res.status(201).json(ticket);
     } catch (error) {
