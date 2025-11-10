@@ -5,6 +5,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { seedDatabase } from "./storage";
+import { ensureGeographicData } from "./utils/geographic-data-loader";
 
 const app = express();
 app.use(express.json());
@@ -68,6 +69,14 @@ app.use((req, res, next) => {
   } catch (error) {
     console.warn("Warning: Failed to seed database. Database may not be available.");
     console.warn("The application will continue to run but may have limited functionality.");
+    console.warn("Error details:", error instanceof Error ? error.message : String(error));
+  }
+
+  // Ensure geographic data files exist (download from CDN if missing)
+  try {
+    await ensureGeographicData();
+  } catch (error) {
+    console.warn("Warning: Failed to load geographic data. Location dropdowns may not work.");
     console.warn("Error details:", error instanceof Error ? error.message : String(error));
   }
 

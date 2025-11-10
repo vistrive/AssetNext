@@ -5661,6 +5661,8 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
       const ticketId = req.params.id;
       const { status, resolution, resolutionNotes } = req.body;
       
+      console.log(`[Update Ticket Status] User: ${user.email}, Role: ${user.role}, Ticket ID: ${ticketId}, Status: ${status}`);
+      
       if (!status) {
         return res.status(400).json({ message: "Status is required" });
       }
@@ -5668,8 +5670,11 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
       // Check if ticket exists and user has access
       const existingTicket = await storage.getTicket(ticketId, user.tenantId);
       if (!existingTicket) {
+        console.log(`[Update Ticket Status] Ticket not found: ${ticketId}`);
         return res.status(404).json({ message: "Ticket not found" });
       }
+
+      console.log(`[Update Ticket Status] Ticket found - Requestor: ${existingTicket.requestorId}, Assigned To: ${existingTicket.assignedToId}`);
 
       // Role-based access control - allow super-admin, admin, it-manager, and assigned technicians
       const canUpdateStatus = user.role === "super-admin" ||
@@ -5677,8 +5682,14 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
                              user.role === "it-manager" ||
                              (user.role === "technician" && existingTicket.assignedToId === user.userId);
       
+      console.log(`[Update Ticket Status] Can update: ${canUpdateStatus} (role: ${user.role})`);
+      
       if (!canUpdateStatus) {
-        return res.status(403).json({ message: "Access denied" });
+        console.log(`[Update Ticket Status] Access denied - User role: ${user.role}, User ID: ${user.userId}, Assigned To: ${existingTicket.assignedToId}`);
+        return res.status(403).json({ 
+          message: "Access denied",
+          debug: { userRole: user.role, assignedTo: existingTicket.assignedToId }
+        });
       }
 
       const updatedTicket = await storage.updateTicketStatus(
