@@ -36,6 +36,37 @@ interface LocationCoordinates {
   };
 }
 
+interface LocalityData {
+  name: string;
+  asset_count: number;
+  coordinates?: [number, number];
+}
+
+interface CityData {
+  name: string;
+  asset_count: number;
+  coordinates?: [number, number];
+  localities: LocalityData[];
+}
+
+interface StateData {
+  name: string;
+  asset_count: number;
+  coordinates?: [number, number];
+  cities: CityData[];
+}
+
+interface CountryData {
+  name: string;
+  asset_count: number;
+  coordinates?: [number, number];
+  states: StateData[];
+}
+
+interface HierarchicalLocationData {
+  countries: CountryData[];
+}
+
 // Function to get color based on asset count
 const getMarkerColor = (count: number): string => {
   if (count >= 10) return '#dc2626'; // red-600
@@ -88,6 +119,10 @@ function MapController({ onMapReady }: { onMapReady: (map: L.Map) => void }) {
 export function WorldMap() {
   const [, setLocation] = useLocation();
   const [locationData, setLocationData] = useState<AssetLocationData[]>([]);
+  const [hierarchicalData, setHierarchicalData] = useState<HierarchicalLocationData>({ countries: [] });
+  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set());
+  const [expandedStates, setExpandedStates] = useState<Set<string>>(new Set());
+  const [expandedCities, setExpandedCities] = useState<Set<string>>(new Set());
   const [availableCoordinates, setAvailableCoordinates] = useState<LocationCoordinates>({});
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -180,44 +215,176 @@ export function WorldMap() {
     }
     
     if (assets.length > 0 && availableCoordinates && Object.keys(availableCoordinates).length > 0) {
-      // Aggregate assets by country
-      const countryMap = new Map<string, AssetLocationData>();
+      // Build hierarchical structure: Country → State → City → Locality
+      const countryMap = new Map<string, CountryData>();
       
       assets.forEach((asset: any) => {
-        if (asset.country) {
-          if (countryMap.has(asset.country)) {
-            const existing = countryMap.get(asset.country)!;
-            existing.asset_count += 1;
-          } else {
-            // Get country coordinates
-            let coordinates: [number, number] | undefined;
-            const coordData = availableCoordinates[asset.country];
-            if (coordData) {
-              coordinates = [coordData.lat, coordData.lng];
-            }
-
-            countryMap.set(asset.country, {
-              country: asset.country,
-              asset_count: 1,
-              coordinates: coordinates
-            });
+        if (!asset.country) return;
+        
+        const country = asset.country;
+        const state = asset.state || 'Unknown State';
+        const city = asset.city || 'Unknown City';
+        const locality = asset.location || city; // Use location field as locality, fallback to city
+        
+        // Get or create country
+        if (!countryMap.has(country)) {
+          const coordData = availableCoordinates[country];
+          countryMap.set(country, {
+            name: country,
+            asset_count: 0,
+            coordinates: coordData ? [coordData.lat, coordData.lng] : undefined,
+            states: []
+          });
+        }
+        const countryData = countryMap.get(country)!;
+        countryData.asset_count += 1;
+        
+        // Get or create state
+        let stateData = countryData.states.find(s => s.name === state);
+        if (!stateData) {
+          const stateKey = `${country},${state}`;
+          const coordData = availableCoordinates[stateKey];
+          stateData = {
+            name: state,
+            asset_count: 0,
+            coordinates: coordData ? [coordData.lat, coordData.lng] : undefined,
+            cities: []
+          };
+          countryData.states.push(stateData);
+        }
+        stateData.asset_count += 1;
+        
+        // Get or create city
+        let cityData = stateData.cities.find(c => c.name === city);
+        if (!cityData) {
+          const cityKey = `${country},${state},${city}`;
+          const coordData = availableCoordinates[cityKey];
+          cityData = {
+            name: city,
+            asset_count: 0,
+            coordinates: coordData ? [coordData.lat, coordData.lng] : undefined,
+            localities: []
+          };
+          stateData.cities.push(cityData);
+        }
+        cityData.asset_count += 1;
+        
+        // Get or create locality (only if different from city)
+        if (locality && locality !== city) {
+          let localityData = cityData.localities.find(l => l.name === locality);
+          if (!localityData) {
+            localityData = {
+              name: locality,
+              asset_count: 0,
+              coordinates: cityData.coordinates // Localities share city coordinates
+            };
+            cityData.localities.push(localityData);
           }
+          localityData.asset_count += 1;
         }
       });
 
-      const locationData = Array.from(countryMap.values());
+      // Convert to array and sort
+      const countries = Array.from(countryMap.values())
+        .sort((a, b) => b.asset_count - a.asset_count);
+      
+      countries.forEach(country => {
+        country.states.sort((a, b) => b.asset_count - a.asset_count);
+        country.states.forEach(state => {
+          state.cities.sort((a, b) => b.asset_count - a.asset_count);
+          state.cities.forEach(city => {
+            city.localities.sort((a, b) => b.asset_count - a.asset_count);
+          });
+        });
+      });
+      
+      setHierarchicalData({ countries });
+      
+      // Also maintain flat country list for map markers
+      const locationData = countries.map(c => ({
+        country: c.name,
+        asset_count: c.asset_count,
+        coordinates: c.coordinates
+      }));
       setLocationData(locationData);
     }
   }, [assetsData, availableCoordinates]);
 
   // Function to zoom to a specific country
-  const zoomToCountry = (countryData: AssetLocationData) => {
+  const zoomToCountry = (countryData: CountryData) => {
     if (mapInstance && countryData.coordinates) {
-      mapInstance.setView(countryData.coordinates, 6, {
+      mapInstance.setView(countryData.coordinates, 5, {
         animate: true,
         duration: 1.0
       });
     }
+  };
+
+  // Function to zoom to a specific state
+  const zoomToState = (stateData: StateData) => {
+    if (mapInstance && stateData.coordinates) {
+      mapInstance.setView(stateData.coordinates, 7, {
+        animate: true,
+        duration: 1.0
+      });
+    }
+  };
+
+  // Function to zoom to a specific city
+  const zoomToCity = (cityData: CityData) => {
+    if (mapInstance && cityData.coordinates) {
+      mapInstance.setView(cityData.coordinates, 11, {
+        animate: true,
+        duration: 1.0
+      });
+    }
+  };
+
+  // Function to zoom to a specific locality
+  const zoomToLocality = (localityData: LocalityData) => {
+    if (mapInstance && localityData.coordinates) {
+      mapInstance.setView(localityData.coordinates, 14, {
+        animate: true,
+        duration: 1.0
+      });
+    }
+  };
+
+  // Toggle expansion functions
+  const toggleCountry = (countryName: string) => {
+    setExpandedCountries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(countryName)) {
+        newSet.delete(countryName);
+      } else {
+        newSet.add(countryName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleState = (stateName: string) => {
+    setExpandedStates(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stateName)) {
+        newSet.delete(stateName);
+      } else {
+        newSet.add(stateName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleCity = (cityName: string) => {
+    setExpandedCities(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cityName)) {
+        newSet.delete(cityName);
+      } else {
+        newSet.add(cityName);
+      }
+      return newSet;
+    });
   };
 
   // Function to get assets for a specific country
@@ -304,46 +471,149 @@ export function WorldMap() {
       </CardHeader>
       <CardContent>
         <div className="flex gap-4 h-[400px]">
-          {/* Countries List Side Panel */}
-          <div className="w-64 flex-shrink-0">
+          {/* Hierarchical Location Navigator */}
+          <div className="w-72 flex-shrink-0">
             <div className="h-full border rounded-lg bg-muted/30">
               <div className="p-3 border-b">
                 <h4 className="font-semibold text-sm flex items-center gap-2">
                   <Navigation className="h-4 w-4" />
-                  Countries with Assets
+                  Locations with Assets
                 </h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Click to navigate on map
+                </p>
               </div>
               <ScrollArea className="h-[340px] p-2">
                 <div className="space-y-1">
-                  {locationData
-                    .filter(location => location.coordinates)
-                    .sort((a, b) => b.asset_count - a.asset_count)
-                    .map((location, index) => (
-                    <Button
-                      key={`country-${location.country}-${index}`}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-between h-auto p-2 text-left"
-                      onClick={() => zoomToCountry(location)}
-                      data-testid={`country-button-${location.country.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <div className="flex flex-col items-start min-w-0 flex-1">
-                        <span className="font-medium text-sm truncate w-full">
-                          {location.country}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {location.asset_count} {location.asset_count === 1 ? 'asset' : 'assets'}
-                        </span>
+                  {hierarchicalData.countries.length > 0 ? (
+                    hierarchicalData.countries.map((country) => (
+                      <div key={country.name} className="space-y-0.5">
+                        {/* Country Level */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-muted"
+                            onClick={() => toggleCountry(country.name)}
+                          >
+                            <span className="text-xs">{expandedCountries.has(country.name) ? '▼' : '▶'}</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex-1 justify-between h-auto p-1.5 text-left hover:bg-muted"
+                            onClick={() => country.coordinates && zoomToCountry(country)}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="font-medium text-xs truncate">
+                                🌍 {country.name}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                ({country.asset_count})
+                              </span>
+                            </div>
+                            <div 
+                              className="w-2 h-2 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: getMarkerColor(country.asset_count) }}
+                            />
+                          </Button>
+                        </div>
+
+                        {/* State Level */}
+                        {expandedCountries.has(country.name) && country.states.map((state) => (
+                          <div key={`${country.name}-${state.name}`} className="ml-3 space-y-0.5">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-muted"
+                                onClick={() => toggleState(`${country.name}-${state.name}`)}
+                              >
+                                <span className="text-xs">{expandedStates.has(`${country.name}-${state.name}`) ? '▼' : '▶'}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 justify-between h-auto p-1.5 text-left hover:bg-muted/70"
+                                onClick={() => state.coordinates && zoomToState(state)}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className="text-xs truncate">
+                                    📍 {state.name}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    ({state.asset_count})
+                                  </span>
+                                </div>
+                              </Button>
+                            </div>
+
+                            {/* City Level */}
+                            {expandedStates.has(`${country.name}-${state.name}`) && state.cities.map((city) => (
+                              <div key={`${country.name}-${state.name}-${city.name}`} className="ml-3 space-y-0.5">
+                                <div className="flex items-center gap-1">
+                                  {city.localities.length > 0 && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 hover:bg-muted"
+                                      onClick={() => toggleCity(`${country.name}-${state.name}-${city.name}`)}
+                                    >
+                                      <span className="text-xs">{expandedCities.has(`${country.name}-${state.name}-${city.name}`) ? '▼' : '▶'}</span>
+                                    </Button>
+                                  )}
+                                  {city.localities.length === 0 && <div className="w-6" />}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex-1 justify-between h-auto p-1.5 text-left hover:bg-muted/50"
+                                    onClick={() => city.coordinates && zoomToCity(city)}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                      <span className="text-xs truncate">
+                                        🏙️ {city.name}
+                                      </span>
+                                      <span className="text-[10px] text-muted-foreground shrink-0">
+                                        ({city.asset_count})
+                                      </span>
+                                    </div>
+                                    <div 
+                                      className="w-2 h-2 rounded-full flex-shrink-0" 
+                                      style={{ backgroundColor: getMarkerColor(city.asset_count) }}
+                                    />
+                                  </Button>
+                                </div>
+
+                                {/* Locality Level */}
+                                {expandedCities.has(`${country.name}-${state.name}-${city.name}`) && 
+                                  city.localities.map((locality) => (
+                                  <div key={`${country.name}-${state.name}-${city.name}-${locality.name}`} className="ml-6">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="w-full justify-between h-auto p-1.5 text-left hover:bg-muted/30"
+                                      onClick={() => locality.coordinates && zoomToLocality(locality)}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="text-xs truncate text-muted-foreground">
+                                          📌 {locality.name}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground shrink-0">
+                                          ({locality.asset_count})
+                                        </span>
+                                      </div>
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
                       </div>
-                      <div 
-                        className="w-3 h-3 rounded-full flex-shrink-0 ml-2" 
-                        style={{ backgroundColor: getMarkerColor(location.asset_count) }}
-                      />
-                    </Button>
-                  ))}
-                  {locationData.filter(location => location.coordinates).length === 0 && (
-                    <div className="text-center text-muted-foreground text-sm p-4">
-                      No countries with assets found
+                    ))
+                  ) : (
+                    <div className="text-center text-muted-foreground text-xs p-4">
+                      No locations with assets found
                     </div>
                   )}
                 </div>
@@ -365,41 +635,62 @@ export function WorldMap() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               
-              {locationData.map((location, index) => {
-                if (!location.coordinates) return null;
-                
-                return (
-                  <Marker
-                    key={`${location.country}-${index}`}
-                    position={location.coordinates}
-                    icon={createCustomMarker(location.asset_count)}
-                    data-testid={`marker-${location.country.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Popup>
-                      <div className="p-2 min-w-[200px]">
-                        <h3 className="font-semibold text-lg mb-3">
-                          {location.country}
-                        </h3>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm">Total Assets:</span>
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
-                            {location.asset_count} {location.asset_count === 1 ? 'asset' : 'assets'}
-                          </Badge>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          onClick={() => showCountryAssets(location.country)}
-                          className="w-full"
-                          data-testid={`view-assets-${location.country.toLowerCase().replace(/\s+/g, '-')}`}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Asset Details
-                        </Button>
-                      </div>
-                    </Popup>
-                  </Marker>
-                );
-              })}
+              {/* Render markers at city level with asset counts grouped by city */}
+              {hierarchicalData.countries.flatMap(country =>
+                country.states.flatMap(state =>
+                  state.cities.map((city, cityIndex) => {
+                    if (!city.coordinates) return null;
+                    
+                    return (
+                      <Marker
+                        key={`${country.name}-${state.name}-${city.name}-${cityIndex}`}
+                        position={city.coordinates}
+                        icon={createCustomMarker(city.asset_count)}
+                        data-testid={`marker-${city.name.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <Popup>
+                          <div className="p-2 min-w-[220px]">
+                            <h3 className="font-semibold text-base mb-1">
+                              {city.name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {state.name}, {country.name}
+                            </p>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm">Assets in City:</span>
+                              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                                {city.asset_count} {city.asset_count === 1 ? 'asset' : 'assets'}
+                              </Badge>
+                            </div>
+                            {city.localities.length > 0 && (
+                              <div className="mt-2 pt-2 border-t">
+                                <p className="text-xs font-medium mb-1">Localities:</p>
+                                <div className="space-y-1">
+                                  {city.localities.map((locality, localityIndex) => (
+                                    <div key={localityIndex} className="flex justify-between text-xs">
+                                      <span className="truncate text-muted-foreground">{locality.name}</span>
+                                      <span className="text-muted-foreground ml-2">({locality.asset_count})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <Button 
+                              size="sm" 
+                              onClick={() => showCountryAssets(country.name)}
+                              className="w-full mt-3"
+                              data-testid={`view-assets-${city.name.toLowerCase().replace(/\s+/g, '-')}`}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View All Assets
+                            </Button>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    );
+                  })
+                )
+              ).filter(Boolean)}
             </MapContainer>
           </div>
         </div>
