@@ -1459,14 +1459,18 @@ export default function Assets() {
     }
   };
 
-  // Handle view URL parameter to auto-open device details drawer
+  // Handle view and selectedId URL parameters to auto-open device details drawer
   useEffect(() => {
     const urlParams = new URLSearchParams(search);
     const viewId = urlParams.get('view');
+    const selectedId = urlParams.get('selectedId');
     
-    if (viewId && assets && assets.length > 0) {
+    // Support both 'view' and 'selectedId' parameters
+    const assetId = viewId || selectedId;
+    
+    if (assetId && assets && assets.length > 0) {
       // Find the asset with this ID
-      const assetToView = assets.find((a: Asset) => a.id === viewId);
+      const assetToView = assets.find((a: Asset) => a.id === assetId);
       if (assetToView) {
         setViewingAsset(assetToView);
         setIsViewDrawerOpen(true);

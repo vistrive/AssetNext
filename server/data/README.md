@@ -1,12 +1,13 @@
 # Geographic Data Files
 
-This directory contains geographic data files used for location dropdowns in the asset management system.
+This directory contains geographic data files used for location dropdowns in the asset management system and map visualization.
 
 ## Files
 
 - `countries.json` - List of all countries (423KB)
-- `states.json` - List of all states/provinces (2.1MB)
+- `states.json` - List of all states/provinces with coordinates (2.1MB)
 - `cities.json` - List of all cities (3.9MB)
+- `world_complete.json` - Complete hierarchical data with GPS coordinates (44MB) - **Required for map**
 
 ## Production Deployment
 

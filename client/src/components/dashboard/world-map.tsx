@@ -79,27 +79,30 @@ const getMarkerColor = (count: number): string => {
 // Custom marker component
 const createCustomMarker = (count: number) => {
   const color = getMarkerColor(count);
+  const size = Math.max(32, Math.min(52, 32 + count * 2));
+  const fontSize = count > 99 ? '11px' : count > 9 ? '13px' : '15px';
+  
   return L.divIcon({
-    html: `
-      <div style="
-        background-color: ${color}; 
-        width: ${Math.max(20, Math.min(40, 20 + count * 3))}px; 
-        height: ${Math.max(20, Math.min(40, 20 + count * 3))}px; 
-        border-radius: 50%; 
-        border: 3px solid white; 
-        box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: bold;
-        font-size: ${count > 9 ? '10px' : '12px'};
-      ">
-        ${count}
-      </div>
-    `,
-    iconSize: [Math.max(20, Math.min(40, 20 + count * 3)), Math.max(20, Math.min(40, 20 + count * 3))],
-    className: 'custom-div-icon'
+    html: `<div class="marker-inner" style="
+      background-color: ${color}; 
+      width: ${size}px; 
+      height: ${size}px; 
+      border-radius: 50%; 
+      border: 3px solid white; 
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: ${fontSize};
+      line-height: 1;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    ">${count}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+    className: 'custom-marker-icon'
   });
 };
 
@@ -128,6 +131,7 @@ export function WorldMap() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [countryAssets, setCountryAssets] = useState<any[]>([]);
   const [showAssetModal, setShowAssetModal] = useState(false);
+  const [initialViewSet, setInitialViewSet] = useState(false);
 
   // Function to navigate to user profile by user ID, email, or employee ID
   const navigateToUserProfile = async (email?: string, employeeId?: string, userId?: string) => {
@@ -214,13 +218,68 @@ export function WorldMap() {
       assets = Object.values(assetsData);
     }
     
-    if (assets.length > 0 && availableCoordinates && Object.keys(availableCoordinates).length > 0) {
+    console.log(`WorldMap: Processing ${assets.length} total assets with ${Object.keys(availableCoordinates).length} coordinate entries`);
+    console.log('All assets:', assets.map((a: any) => ({ 
+      name: a.name, 
+      type: a.type, 
+      country: a.country, 
+      assignedUser: a.assignedUserName || a.assignedUserEmail 
+    })));
+    
+    // Build asset location mapping including software assigned to hardware/users
+    const assetsWithLocation: any[] = [];
+    const hardwareAssets = assets.filter((a: any) => a.type === 'Hardware' || a.type === 'hardware');
+    console.log(`Found ${hardwareAssets.length} hardware assets`);
+    
+    assets.forEach((asset: any) => {
+      let locationData = null;
+      
+      if (asset.country) {
+        // Asset has direct location data
+        locationData = {
+          country: asset.country,
+          state: asset.state || 'Unknown State',
+          city: asset.city || 'Unknown City',
+          location: asset.location || asset.city || 'Unknown City'
+        };
+      } else if (asset.type === 'Software' || asset.type === 'software') {
+        // Software without location - get location from the device/hardware it's installed on
+        console.log(`Processing software: "${asset.name}"`);
+        
+        // STRATEGY: All software in same location as any hardware device
+        // Assumption: Software licenses are available at locations where we have devices
+        // Find any hardware with location and group all software there
+        if (hardwareAssets.length > 0) {
+          const anyHardwareWithLocation = hardwareAssets.find((hw: any) => hw.country);
+          if (anyHardwareWithLocation?.country) {
+            locationData = {
+              country: anyHardwareWithLocation.country,
+              state: anyHardwareWithLocation.state || 'Unknown State',
+              city: anyHardwareWithLocation.city || 'Unknown City',
+              location: anyHardwareWithLocation.location || anyHardwareWithLocation.city || 'Unknown City'
+            };
+            console.log(`  ✓ Software "${asset.name}" mapped to location: ${locationData.city}, ${locationData.country}`);
+          } else {
+            console.log(`  ✗ Software "${asset.name}" could not be mapped - no hardware found with location`);
+          }
+        }
+      }
+      
+      if (locationData) {
+        assetsWithLocation.push({
+          ...asset,
+          ...locationData
+        });
+      }
+    });
+    
+    console.log(`WorldMap: ${assetsWithLocation.length} assets have location data (${assets.length - assetsWithLocation.length} assets without location skipped)`);
+    
+    if (assetsWithLocation.length > 0 && availableCoordinates && Object.keys(availableCoordinates).length > 0) {
       // Build hierarchical structure: Country → State → City → Locality
       const countryMap = new Map<string, CountryData>();
       
-      assets.forEach((asset: any) => {
-        if (!asset.country) return;
-        
+      assetsWithLocation.forEach((asset: any) => {
         const country = asset.country;
         const state = asset.state || 'Unknown State';
         const city = asset.city || 'Unknown City';
@@ -300,6 +359,19 @@ export function WorldMap() {
       
       setHierarchicalData({ countries });
       
+      // Count total cities with coordinates for debugging
+      let citiesWithCoords = 0;
+      let citiesWithoutCoords = 0;
+      countries.forEach(country => {
+        country.states.forEach(state => {
+          state.cities.forEach(city => {
+            if (city.coordinates) citiesWithCoords++;
+            else citiesWithoutCoords++;
+          });
+        });
+      });
+      console.log(`WorldMap: ${countries.length} countries, ${citiesWithCoords} cities with coordinates, ${citiesWithoutCoords} cities without coordinates`);
+      
       // Also maintain flat country list for map markers
       const locationData = countries.map(c => ({
         country: c.name,
@@ -310,12 +382,28 @@ export function WorldMap() {
     }
   }, [assetsData, availableCoordinates]);
 
+  // Set initial map view to country with most assets
+  useEffect(() => {
+    if (mapInstance && hierarchicalData.countries.length > 0 && !initialViewSet) {
+      const topCountry = hierarchicalData.countries[0];
+      if (topCountry.coordinates) {
+        console.log(`Setting initial view to ${topCountry.name} with ${topCountry.asset_count} assets`);
+        mapInstance.setView(topCountry.coordinates, 5, {
+          animate: true,
+          duration: 1.5
+        });
+        setInitialViewSet(true);
+      }
+    }
+  }, [mapInstance, hierarchicalData, initialViewSet]);
+
   // Function to zoom to a specific country
   const zoomToCountry = (countryData: CountryData) => {
     if (mapInstance && countryData.coordinates) {
-      mapInstance.setView(countryData.coordinates, 5, {
+      console.log(`Zooming to country: ${countryData.name}`);
+      mapInstance.flyTo(countryData.coordinates, 5, {
         animate: true,
-        duration: 1.0
+        duration: 1.5
       });
     }
   };
@@ -323,9 +411,10 @@ export function WorldMap() {
   // Function to zoom to a specific state
   const zoomToState = (stateData: StateData) => {
     if (mapInstance && stateData.coordinates) {
-      mapInstance.setView(stateData.coordinates, 7, {
+      console.log(`Zooming to state: ${stateData.name}`);
+      mapInstance.flyTo(stateData.coordinates, 7, {
         animate: true,
-        duration: 1.0
+        duration: 1.5
       });
     }
   };
@@ -333,9 +422,10 @@ export function WorldMap() {
   // Function to zoom to a specific city
   const zoomToCity = (cityData: CityData) => {
     if (mapInstance && cityData.coordinates) {
-      mapInstance.setView(cityData.coordinates, 12, {
+      console.log(`Zooming to city: ${cityData.name}`);
+      mapInstance.flyTo(cityData.coordinates, 12, {
         animate: true,
-        duration: 1.0
+        duration: 1.5
       });
     } else if (!cityData.coordinates) {
       console.warn(`City ${cityData.name} has no coordinates`);
@@ -345,9 +435,10 @@ export function WorldMap() {
   // Function to zoom to a specific locality
   const zoomToLocality = (localityData: LocalityData) => {
     if (mapInstance && localityData.coordinates) {
-      mapInstance.setView(localityData.coordinates, 14, {
+      console.log(`Zooming to locality: ${localityData.name}`);
+      mapInstance.flyTo(localityData.coordinates, 14, {
         animate: true,
-        duration: 1.0
+        duration: 1.5
       });
     }
   };
@@ -488,130 +579,41 @@ export function WorldMap() {
               <ScrollArea className="h-[340px] p-2">
                 <div className="space-y-1">
                   {hierarchicalData.countries.length > 0 ? (
-                    hierarchicalData.countries.map((country) => (
-                      <div key={country.name} className="space-y-0.5">
-                        {/* Country Level */}
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-muted"
-                            onClick={() => toggleCountry(country.name)}
-                          >
-                            <span className="text-xs">{expandedCountries.has(country.name) ? '▼' : '▶'}</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex-1 justify-between h-auto p-1.5 text-left hover:bg-muted"
-                            onClick={() => country.coordinates && zoomToCountry(country)}
-                          >
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <span className="font-medium text-xs truncate">
-                                🌍 {country.name}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground shrink-0">
-                                ({country.asset_count})
-                              </span>
-                            </div>
-                            <div 
-                              className="w-2 h-2 rounded-full flex-shrink-0" 
-                              style={{ backgroundColor: getMarkerColor(country.asset_count) }}
-                            />
-                          </Button>
+                    // Flatten the hierarchy into a list with full paths
+                    hierarchicalData.countries.flatMap((country) =>
+                      country.states.flatMap((state) =>
+                        state.cities.map((city) => ({
+                          country,
+                          state,
+                          city,
+                          fullPath: `${country.name} › ${state.name} › ${city.name}`,
+                          key: `${country.name}-${state.name}-${city.name}`
+                        }))
+                      )
+                    ).map(({ country, state, city, fullPath, key }) => (
+                      <Button
+                        key={key}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-between h-auto p-2 text-left hover:bg-muted"
+                        onClick={() => city.coordinates && zoomToCity(city)}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <MapPin className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          <span className="text-xs truncate" title={fullPath}>
+                            {fullPath}
+                          </span>
                         </div>
-
-                        {/* State Level */}
-                        {expandedCountries.has(country.name) && country.states.map((state) => (
-                          <div key={`${country.name}-${state.name}`} className="ml-3 space-y-0.5">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-muted"
-                                onClick={() => toggleState(`${country.name}-${state.name}`)}
-                              >
-                                <span className="text-xs">{expandedStates.has(`${country.name}-${state.name}`) ? '▼' : '▶'}</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="flex-1 justify-between h-auto p-1.5 text-left hover:bg-muted/70"
-                                onClick={() => state.coordinates && zoomToState(state)}
-                              >
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="text-xs truncate">
-                                    📍 {state.name}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">
-                                    ({state.asset_count})
-                                  </span>
-                                </div>
-                              </Button>
-                            </div>
-
-                            {/* City Level */}
-                            {expandedStates.has(`${country.name}-${state.name}`) && state.cities.map((city) => (
-                              <div key={`${country.name}-${state.name}-${city.name}`} className="ml-3 space-y-0.5">
-                                <div className="flex items-center gap-1">
-                                  {city.localities.length > 0 && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 w-6 p-0 hover:bg-muted"
-                                      onClick={() => toggleCity(`${country.name}-${state.name}-${city.name}`)}
-                                    >
-                                      <span className="text-xs">{expandedCities.has(`${country.name}-${state.name}-${city.name}`) ? '▼' : '▶'}</span>
-                                    </Button>
-                                  )}
-                                  {city.localities.length === 0 && <div className="w-6" />}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex-1 justify-between h-auto p-1.5 text-left hover:bg-muted/50"
-                                    onClick={() => city.coordinates && zoomToCity(city)}
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                                      <span className="text-xs truncate">
-                                        🏙️ {city.name}
-                                      </span>
-                                      <span className="text-[10px] text-muted-foreground shrink-0">
-                                        ({city.asset_count})
-                                      </span>
-                                    </div>
-                                    <div 
-                                      className="w-2 h-2 rounded-full flex-shrink-0" 
-                                      style={{ backgroundColor: getMarkerColor(city.asset_count) }}
-                                    />
-                                  </Button>
-                                </div>
-
-                                {/* Locality Level */}
-                                {expandedCities.has(`${country.name}-${state.name}-${city.name}`) && 
-                                  city.localities.map((locality) => (
-                                  <div key={`${country.name}-${state.name}-${city.name}-${locality.name}`} className="ml-6">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="w-full justify-between h-auto p-1.5 text-left hover:bg-muted/30"
-                                      onClick={() => locality.coordinates && zoomToLocality(locality)}
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                                        <span className="text-xs truncate text-muted-foreground">
-                                          📌 {locality.name}
-                                        </span>
-                                        <span className="text-[10px] text-muted-foreground shrink-0">
-                                          ({locality.asset_count})
-                                        </span>
-                                      </div>
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-[10px] text-muted-foreground">
+                            ({city.asset_count})
+                          </span>
+                          <div 
+                            className="w-2 h-2 rounded-full" 
+                            style={{ backgroundColor: getMarkerColor(city.asset_count) }}
+                          />
+                        </div>
+                      </Button>
                     ))
                   ) : (
                     <div className="text-center text-muted-foreground text-xs p-4">
@@ -637,19 +639,33 @@ export function WorldMap() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               
-              {/* Render markers at city level with asset counts grouped by city */}
-              {hierarchicalData.countries.flatMap(country =>
-                country.states.flatMap(state =>
-                  state.cities.map((city, cityIndex) => {
-                    if (!city.coordinates) return null;
+              {/* Render markers - prioritize city coordinates, fallback to state coordinates */}
+              {(() => {
+                const markers: JSX.Element[] = [];
+                
+                hierarchicalData.countries.forEach(country => {
+                  country.states.forEach(state => {
+                    // Check if any cities in this state have coordinates
+                    const citiesWithCoords = state.cities.filter(c => c.coordinates);
                     
-                    return (
-                      <Marker
-                        key={`${country.name}-${state.name}-${city.name}-${cityIndex}`}
-                        position={city.coordinates}
-                        icon={createCustomMarker(city.asset_count)}
-                        data-testid={`marker-${city.name.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
+                    if (citiesWithCoords.length > 0) {
+                      // Render city-level markers
+                      citiesWithCoords.forEach((city, cityIndex) => {
+                        console.log(`Creating city marker: ${city.name} (${city.asset_count} assets) at [${city.coordinates![0]}, ${city.coordinates![1]}]`);
+                        
+                        markers.push(
+                          <Marker
+                            key={`city-${country.name}-${state.name}-${city.name}-${cityIndex}`}
+                            position={city.coordinates!}
+                            icon={createCustomMarker(city.asset_count)}
+                            data-testid={`marker-${city.name.toLowerCase().replace(/\s+/g, '-')}`}
+                            eventHandlers={{
+                              click: () => {
+                                console.log(`City marker clicked: ${city.name}`);
+                                zoomToCity(city);
+                              }
+                            }}
+                          >
                         <Popup>
                           <div className="p-2 min-w-[220px]">
                             <h3 className="font-semibold text-base mb-1">
@@ -689,10 +705,70 @@ export function WorldMap() {
                           </div>
                         </Popup>
                       </Marker>
-                    );
-                  })
-                )
-              ).filter(Boolean)}
+                        );
+                      });
+                    } else if (state.coordinates && state.asset_count > 0) {
+                      // Fallback: render state-level marker if cities don't have coordinates
+                      console.log(`Creating state marker: ${state.name} (${state.asset_count} assets) at [${state.coordinates[0]}, ${state.coordinates[1]}]`);
+                      
+                      markers.push(
+                        <Marker
+                          key={`state-${country.name}-${state.name}`}
+                          position={state.coordinates}
+                          icon={createCustomMarker(state.asset_count)}
+                          data-testid={`marker-${state.name.toLowerCase().replace(/\s+/g, '-')}`}
+                          eventHandlers={{
+                            click: () => {
+                              console.log(`State marker clicked: ${state.name}`);
+                              zoomToState(state);
+                            }
+                          }}
+                        >
+                          <Popup>
+                            <div className="p-2 min-w-[220px]">
+                              <h3 className="font-semibold text-base mb-1">
+                                {state.name}
+                              </h3>
+                              <p className="text-xs text-muted-foreground mb-2">
+                                {country.name}
+                              </p>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm">Assets in State:</span>
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                                  {state.asset_count} {state.asset_count === 1 ? 'asset' : 'assets'}
+                                </Badge>
+                              </div>
+                              <div className="mt-2 pt-2 border-t">
+                                <p className="text-xs font-medium mb-1">Cities:</p>
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                  {state.cities.map((city, cityIndex) => (
+                                    <div key={cityIndex} className="flex justify-between text-xs">
+                                      <span className="truncate text-muted-foreground">{city.name}</span>
+                                      <span className="text-muted-foreground ml-2">({city.asset_count})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                onClick={() => showCountryAssets(country.name)}
+                                className="w-full mt-3"
+                                data-testid={`view-assets-state-${state.name.toLowerCase().replace(/\s+/g, '-')}`}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View All Assets
+                              </Button>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      );
+                    }
+                  });
+                });
+                
+                console.log(`WorldMap: Rendering ${markers.length} markers`);
+                return markers;
+              })()}
             </MapContainer>
           </div>
         </div>

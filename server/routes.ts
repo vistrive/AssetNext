@@ -4039,6 +4039,64 @@ TENANT_NAME=${tenant.name}
     }
   });
 
+  // Geographic data endpoints - with coordinates for map display
+  app.get("/api/geographic/coordinates", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const worldDataPath = path.join(process.cwd(), 'server', 'data', 'world_complete.json');
+      
+      if (!fs.existsSync(worldDataPath)) {
+        return res.status(404).json({ message: "Geographic coordinates data not found" });
+      }
+      
+      const worldData = JSON.parse(fs.readFileSync(worldDataPath, 'utf8'));
+      
+      // Build a flat coordinate map: { "Country Name": { lat, lng }, "Country,State": { lat, lng }, "Country,State,City": { lat, lng } }
+      const coordinates: Record<string, { lat: number, lng: number }> = {};
+      
+      for (const country of worldData) {
+        // Add country coordinates
+        if (country.latitude && country.longitude) {
+          coordinates[country.name] = {
+            lat: parseFloat(country.latitude),
+            lng: parseFloat(country.longitude)
+          };
+        }
+        
+        // Add state coordinates
+        if (country.states && Array.isArray(country.states)) {
+          for (const state of country.states) {
+            if (state.latitude && state.longitude) {
+              const stateKey = `${country.name},${state.name}`;
+              coordinates[stateKey] = {
+                lat: parseFloat(state.latitude),
+                lng: parseFloat(state.longitude)
+              };
+            }
+            
+            // Add city coordinates
+            if (state.cities && Array.isArray(state.cities)) {
+              for (const city of state.cities) {
+                if (city.latitude && city.longitude) {
+                  const cityKey = `${country.name},${state.name},${city.name}`;
+                  coordinates[cityKey] = {
+                    lat: parseFloat(city.latitude),
+                    lng: parseFloat(city.longitude)
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`✓ Generated coordinates for ${Object.keys(coordinates).length} locations`);
+      res.json(coordinates);
+    } catch (error) {
+      console.error('Failed to load geographic coordinates:', error);
+      res.status(500).json({ message: "Failed to fetch geographic coordinates" });
+    }
+  });
+
   // Geographic data endpoints for location selector
   app.get("/api/geographic/countries", authenticateToken, async (req: Request, res: Response) => {
     try {
@@ -5885,16 +5943,22 @@ app.get("/api/assets/:assetId/software", async (req, res) => {
       null;
 
     if (!oaId) {
-      return res.status(400).json({
-        error: "Asset has no Open-AudIT id",
-        details:
-          "Expected specifications.openaudit.id to be set (our OA sync should populate this).",
-      });
+      // If OpenAudit ID is missing, return empty items array (not an error)
+      return res.json({ items: [] });
     }
 
-    // Fetch software using shared OpenAudit credentials
-    const items = await oaFetchDeviceSoftware(String(oaId));
-    return res.json({ items });
+      // Fetch software using shared OpenAudit credentials
+      try {
+        const items = await oaFetchDeviceSoftware(String(oaId));
+        return res.json({ items });
+      } catch (err: any) {
+        // If OA did not return software for any known endpoint, return empty list
+        if (err?.message?.includes("OA did not return software for any known endpoint")) {
+          return res.json({ items: [] });
+        }
+        // Otherwise, propagate error
+        throw err;
+      }
   } catch (e: any) {
     // Add server-side visibility
     console.error("[/api/assets/:assetId/software] failed:", e?.message ?? e);

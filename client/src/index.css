@@ -333,3 +333,27 @@ body {
 ::-webkit-scrollbar-corner {
   background: rgba(12, 16, 36, 0.3);
 }
+
+/* Leaflet custom marker styles */
+.custom-marker-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-marker-icon .marker-inner {
+  pointer-events: all;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.custom-marker-icon:hover .marker-inner {
+  transform: scale(1.15);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.5) !important;
+}
+
+/* Ensure Leaflet markers don't interfere with custom styling */
+.leaflet-marker-icon.custom-marker-icon {
+  border: none !important;
+  background: none !important;
+}
+

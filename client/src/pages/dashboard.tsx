@@ -660,7 +660,7 @@ export default function Dashboard() {
                             key={item.id}
                             className="p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors"
                             data-testid={`expiring-license-${item.id}`}
-                            onClick={() => navigate(`/software?selectedId=${item.id}`)}
+                            onClick={() => navigate(`/assets?selectedId=${item.id}`)}
                           >
                             <div className="flex justify-between items-start mb-1">
                               <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
@@ -694,28 +694,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* ITAM Insights Section */}
-            <div className="mb-8" data-testid="section-itam-insights">
-              <div className="mb-6" data-testid="heading-itam-insights">
-                <h2 className="text-lg font-semibold mb-1 gradient-text">ITAM Insights</h2>
-                <p className="text-xs text-muted-foreground">Unused Assets, License Optimization and Compliance Monitoring</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-hardware" position={tilePositions["unused-hardware"]}>
-                  <UnusedHardwareTile metrics={metrics} />
-                </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="unused-licenses" position={tilePositions["unused-licenses"]}>
-                  <UnusedLicensesTile metrics={metrics} />
-                </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="expiring-items" position={tilePositions["expiring-items"]}>
-                  <ExpiringItemsTile metrics={metrics} />
-                </DraggableTileWrapper>
-                <DraggableTileWrapper isDragMode={isDragMode} tileId="compliance-risk" position={tilePositions["compliance-risk"]}>
-                  <ComplianceRiskTile metrics={metrics} />
-                </DraggableTileWrapper>
               </div>
             </div>
 
