@@ -1508,11 +1508,7 @@ export class DatabaseStorage implements IStorage {
         ))
         .limit(10);
 
-      // NEW: Get detailed expiring assets (warranties within 30 days) - using JS date for portability
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      const today = new Date();
-
+      // NEW: Get detailed expiring assets (warranties within 30 days) - using proper date comparison
       const expiringWarranties = await db
         .select({
           id: assets.id,
@@ -1533,20 +1529,20 @@ export class DatabaseStorage implements IStorage {
           or(
             and(
               sql`warranty_expiry IS NOT NULL`,
-              sql`warranty_expiry <= ${thirtyDaysFromNow}`,
-              sql`warranty_expiry >= ${today}`
+              sql`warranty_expiry <= current_date + interval '30 days'`,
+              sql`warranty_expiry > current_date`
             ),
             and(
               sql`amc_expiry IS NOT NULL`,
-              sql`amc_expiry <= ${thirtyDaysFromNow}`,
-              sql`amc_expiry >= ${today}`
+              sql`amc_expiry <= current_date + interval '30 days'`,
+              sql`amc_expiry > current_date`
             )
           )
         ))
         .orderBy(sql`COALESCE(warranty_expiry, amc_expiry)`)
         .limit(10);
 
-      // NEW: Get detailed expiring software licenses - using JS date for portability
+      // NEW: Get detailed expiring software licenses - using proper date comparison
       const expiringSoftwareLicenses = await db
         .select({
           id: softwareLicenses.id,
@@ -1563,8 +1559,8 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(softwareLicenses.tenantId, tenantId),
           sql`renewal_date IS NOT NULL`,
-          sql`renewal_date <= ${thirtyDaysFromNow}`,
-          sql`renewal_date >= ${today}`
+          sql`renewal_date <= current_date + interval '30 days'`,
+          sql`renewal_date > current_date`
         ))
         .orderBy(softwareLicenses.renewalDate)
         .limit(10);
