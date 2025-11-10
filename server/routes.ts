@@ -5481,6 +5481,11 @@ app.post("/api/assets/tni/bulk", async (req, res) => {
     try {
       const user = req.user!;
       
+      // Technicians cannot create tickets
+      if (user.role === "technician") {
+        return res.status(403).json({ message: "Technicians cannot create tickets" });
+      }
+      
       // Get full user details for name
       const fullUser = await storage.getUser(user.userId);
       if (!fullUser || fullUser.tenantId !== user.tenantId) {
